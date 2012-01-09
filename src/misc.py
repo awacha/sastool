@@ -1,5 +1,7 @@
 'miscellaneous utilities'
 import numpy as np
+import os
+import sys
 
 def normalize_listargument(arg):
     """Check if arg is an iterable (list, tuple, set, dict, np.ndarray, except
@@ -13,6 +15,17 @@ def normalize_listargument(arg):
         return arg
     return [arg]
 
+def findfileindirs(filename,dirs=[],use_pythonpath=True):
+    """Find file in multiple directories."""
+    dirs=normalize_listargument(dirs)
+    if not dirs: #dirs is empty
+        dirs=['.']
+    if use_pythonpath:
+        dirs.extend(sys.path)
+    for d in dirs:
+        if os.path.exists(os.path.join(d,filename)):
+            return os.path.join(d,filename)
+    raise IOError('File %s not found in any of the directories.')
 
 def energycalibration(energymeas,energycalib,energy1):
     """Do energy calibration.
