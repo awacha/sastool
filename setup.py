@@ -15,7 +15,7 @@ npy_incdirs=[os.path.join(x,'numpy/core/include') for x in incdirs]
 incdirs.extend(npy_incdirs)
 
 try:
-    f=open('src/__init__.py','rt')
+    f=open('sastool/__init__.py','rt')
     lines=f.readlines()
     f.close()
     verline=[l for l in lines if l.strip().startswith('VERSION')][0]
@@ -38,30 +38,16 @@ except IOError:
 except RuntimeError:
     pass
 
-ext_modules = [Extension("B1python.c_asamacros", ["src/c_asamacros.pyx"],include_dirs=incdirs),
-               Extension("B1python.c_asaxseval",["src/c_asaxseval.pyx"],include_dirs=incdirs),
-               Extension("B1python.c_B1io",["src/c_B1io.pyx"],include_dirs=incdirs),
-               Extension("B1python.c_B1macros",["src/c_B1macros.pyx"],include_dirs=incdirs),
-               Extension("B1python.c_guitools",["src/c_guitools.pyx"],include_dirs=incdirs),
-               Extension("B1python.c_fitting",["src/c_fitting.pyx"],include_dirs=incdirs),
-               Extension("B1python.c_utils",["src/c_utils.pyx"],include_dirs=incdirs),
-               Extension("B1python.c_utils2d",["src/c_utils2d.pyx"],include_dirs=incdirs),
-               Extension("B1python.c_xanes",["src/c_xanes.pyx"],include_dirs=incdirs),
-               Extension("B1python.c_saxssim",["src/c_saxssim.pyx"],include_dirs=incdirs),
-               Extension("B1python.c_unstable",["src/c_unstable.pyx"],include_dirs=incdirs),
+ext_modules = [Extension("sastool.io._io", ["sastool/io/_io.pyx"],include_dirs=incdirs),
+               Extension("sastool._utils2d", ["sastool/_utils2d.pyx"],include_dirs=incdirs),
                ]
 
 setup(name='sastool',version=VERSION, author='Andras Wacha',
       author_email='awacha@gmail.com',url='http://github.com/awacha/sastool',
       description='Python macros for (A)SAXS data processing, fitting, plotting etc.',
-      packages=setuptools.find_packages(),
-      py_modules=['B1python.asamacros','B1python.asaxseval','B1python.B1io',
-                'B1python.B1macros','B1python.guitools','B1python.fitting','B1python.utils',
-                'B1python.utils2d','B1python.xanes','B1python.unstable','B1python.saxssim'],
-      package_dir={'': 'src'},
+      packages=['sastool'],
 #      package_data={'B1python': ['calibrationfiles/*']},
       cmdclass = {'build_ext': build_ext},
       ext_modules = ext_modules,
-      scripts = ['src/B1guitool.py']
+      #scripts = ['src/B1guitool.py']
       )
-      

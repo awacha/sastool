@@ -580,7 +580,7 @@ def azimintqC(np.ndarray[np.double_t, ndim=2] data not None,
     cdef Py_ssize_t ix,iy, M, N, index, Ntheta1, escaped
     cdef double bcx, bcy, d, x, y, phi
     cdef double q
-    cdef bool errornone
+    cdef int errorwasnone
     cdef double resx,resy
     cdef np.ndarray[np.uint8_t, ndim=2] maskout
     
@@ -610,7 +610,7 @@ def azimintqC(np.ndarray[np.double_t, ndim=2] data not None,
     if returnmask:
         maskout=np.ones([data.shape[0],data.shape[1]],dtype=np.uint8)
 
-    errornone=(error is None)
+    errorwasnone=(error is None)
     escaped=0
     for ix from 0<=ix<M:
         for iy from 0<=iy<N:
@@ -628,7 +628,7 @@ def azimintqC(np.ndarray[np.double_t, ndim=2] data not None,
                 escaped=escaped+1
                 continue
             I[index]+=data[ix,iy]
-            if not errornone:
+            if not errorwasnone:
                 E[index]+=error[ix,iy]**2
             A[index]+=1
             if returnmask:
@@ -637,9 +637,9 @@ def azimintqC(np.ndarray[np.double_t, ndim=2] data not None,
     for index from 0<=index<Ntheta1:
         if A[index]>0:
             I[index]/=A[index]
-            if not errornone:
+            if not errorwasnone:
                 E[index]=sqrt(E[index]/A[index])
-    if errornone:
+    if errorwasnone:
         if returnmask:
             return theta,I,A,maskout
         else:
