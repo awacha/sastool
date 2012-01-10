@@ -1,14 +1,27 @@
+'''twodim.py
+
+This module contains the most read/write code for two-dimensional scattering
+data. Reader functions should generally have the signature
+
+def read<what>(filename)
+
+while writers should be of the form
+
+def write<what>(filename,data)
+'''
+
 import os
 import numpy as np
 import datetime
 import scipy.misc
+import scipy.io
 
 from _io import cbfdecompress
 
 from sastool.misc import normalize_listargument
 
-def readjusifaorg(file):
-    return np.loadtxt(file,skiprows=133)
+def readjusifaorg(filename):
+    return np.loadtxt(filename,skiprows=133)
 
 def readyellowsubmarine(nameformat,fsns=None,dirs='.'):
     """Read data measured at the SANS instrument (aka. Yellow Submarine)
@@ -249,4 +262,68 @@ def bdf_read(filename):
     return bdf
 
 def readtif(filename):
+    """Read image files (TIFF, JPEG, PNG... supported by PIL).
+    
+    scipy.misc.imread() is used, which in turn depends on PIL.
+    """
     return scipy.misc.imread(filename)
+
+def readint2dnorm(filename):
+    """Read corrected intensity and error matrices (Matlab mat or numpy npz
+    format for Beamline B1 (HASYLAB/DORISIII)
+    
+    Outputs the intensity matrix and the error matrix
+    
+    File formats supported (ending of the filename):
+        '.mat': Matlab MAT file, with (at least) two fields: Intensity and Error
+        '.npz': Numpy zip file, with (at least) two fields: Intensity and Error
+        other : the file is opened with np.loadtxt. The error matrix is tried to
+            be loaded from the file <name>_error<ext> where the intensity was
+            loaded from file <name><ext>. I.e. if 'somedir/matrix.dat' is given,
+            the existence of 'somedir/matrix_error.dat' is checked. If not
+            found, None is returned for the error matrix.
+    
+    The non-existence of the Intensity matrix results in an exception. If the
+        Error matrix does not exist, None is returned for it.
+    """
+    # the core of read2dintfile
+    if filename.upper().endswith('.MAT'): #Matlab
+        m=scipy.io.loadmat(filename)
+    elif filename.upper().endswith('.NPZ'): #Numpy
+        m=np.load(filename)
+    else: #loadtxt
+        m={'Intensity':np.loadtxt(filename)}
+        name,ext=os.path.splitext(filename)
+        errorfilename=name+'_error'+ext
+        if os.path.exists(errorfilename):
+            m['Error']=np.loadtxt(errorfilename)
+    try:
+        Intensity=m['Intensity']
+    except:
+        raise
+    try:
+        Error=m['Error']
+        return Intensity,Error
+    except:
+        return Intensity,None
+
+def writeint2dnorm(filename,Intensity,Error=None):
+    """Save the intensity and error matrices to a file
+    
+    Inputs:
+        filename: the name of the file
+        Intensity: the intensity matrix
+        Error: the error matrix (can be None, if no error matrix is to be saved)
+    """
+    whattosave={'Intensity':Intensity}
+    if Error is not None:
+        whattosave['Error']=Error
+    if filename.upper().endswith('.NPZ'):
+        np.savez(filename, **whattosave)
+    elif filename.upper().endswith('.MAT'):
+        scipy.io.savemat(filename,whattosave)
+    else: #text file
+        np.savetxt(filename,Intensity)
+        if Error is not None:
+            name,ext=os.path.splitext(filename)
+            np.savetxt(name+'_error'+ext,Error)
