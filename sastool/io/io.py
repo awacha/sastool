@@ -7,7 +7,6 @@ from sastool.misc import energycalibration
 
 HC=12398.419 #Planck's constant times speed of light, in eV*Angstrom units
 
-
 def readwaxscor(fsns,dirs=[]):
     """Read corrected waxs file
     

@@ -1,4 +1,5 @@
 'CPU-intensive or speed-critical parts for io.py written in Cython '
+# pylint: disable-msg-cat=WCREFI
 import numpy as np
 cimport numpy as np
 

@@ -1,3 +1,4 @@
+# pylint: disable-msg-cat=WCREFI
 #cython: boundscheck=False
 #cython: embedsignature=True
 import numpy as np
