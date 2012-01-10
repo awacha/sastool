@@ -2,6 +2,7 @@ import gzip
 
 import twodim
 from ..misc import findfileindirs, normalize_listargument
+from ..dataset import SASCurve
 
 #information on how to store the param structure. Each sub-list corresponds to
 # a line in the param structure and should be of the form
@@ -319,8 +320,17 @@ def read1d(fsns,fileformat='intnorm%d.dat',paramformat='intnorm%d.log',dirs=[]):
             paramname=findfileindirs(paramformat%f,dirs)
         except IOError:
             continue
-        data=np.loadtxt(filename)
+        data=SASCurve.new_from_file(filename)
         param=readparamfile(paramname)
         datas.append(data)
         params.append(param)
     return datas,params
+
+def readbinned(fsns,*args,**kwargs):
+    return read1d(fsns,*args,fileformat='intbinned%d.dat',**kwargs)
+
+def readsummed(fsns,*args,**kwargs):
+    return read1d(fsns,*args,fileformat='summed%d.dat',paramformat='summed%d.log',**kwargs)
+
+def readunited(fsns,*args,**kwargs):
+    return read1d(fsns,*args,fileformat='united%d.dat',paramformat='united%d.log',**kwargs)

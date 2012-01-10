@@ -44,7 +44,7 @@ ext_modules = [Extension("sastool.io._io", ["sastool/io/_io.pyx"],include_dirs=i
 setup(name='sastool',version=VERSION, author='Andras Wacha',
       author_email='awacha@gmail.com',url='http://github.com/awacha/sastool',
       description='Python macros for (A)SAXS data processing, fitting, plotting etc.',
-      packages=['sastool','sastool.io'],
+      packages=['sastool','sastool.io','sastool.dataset'],
 #      package_data={'B1python': ['calibrationfiles/*']},
       cmdclass = {'build_ext': build_ext},
       ext_modules = ext_modules,
