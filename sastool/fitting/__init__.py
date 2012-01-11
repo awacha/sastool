@@ -11,3 +11,9 @@ Transform and descendants: transformations for sastool.dataset.PlotAndTransform
     and its descendants. Check out help(Transform)
 '''
 from fitfunction import *
+from transform import Transform
+import sasbasic
+import transform
+import saspolymer
+import basic
+import bilayers

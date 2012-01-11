@@ -1,3 +1,7 @@
+# pylint: disable-msg-cat=WCREFI
+#cython: boundscheck=False
+#cython: embedsignature=True
+
 from libc.stdlib cimport *
 from libc.math cimport *
 import numpy as np
@@ -99,37 +103,7 @@ cdef inline Coordtype unidirC(): #uniform distribution of points on the surface 
     return ret
 
 
-def IntCaelyx(np.ndarray[np.double_t, ndim=1] q not None, 
-              double rhohead, double rhotail, double rhoPEG, 
-              double rhodox, double R, double dR, double whead, 
-              double wtail, double wPEG, double Ldox, double Rdox, 
-              Py_ssize_t Niter):
-    cdef Py_ssize_t i
-    cdef np.ndarray[np.double_t, ndim=1] Intensity
-    cdef double r
-    cdef double l
-    cdef Coordtype ud
-    cdef double q1
-    cdef double rdox
-    Intensity=np.zeros_like(q)
-    for i from 0<=i<Niter:
-        r=dR*randn()+R
-        l=Ldox+r-R
-        rdox=Rdox+r-R
-        ud=unidirC()
-        for j from 0<=j<len(q):
-            q1=q[j]
-            Intensity[j]+=rhoPEG*(fsphere(q1,r)-fsphere(q1,r-wPEG)+
-                                  fsphere(q1,r-wPEG-2*whead-wtail)-
-                                  fsphere(q1,r-2*wPEG-2*whead-wtail))+ \
-                          rhohead*(fsphere(q1,r-wPEG)-fsphere(q1,r-wPEG-whead)+
-                                   fsphere(q1,r-wPEG-whead-wtail)-
-                                   fsphere(q1,r-wPEG-2*whead-wtail))+\
-                          rhotail*(fsphere(q1,r-wPEG-whead)-
-                                   fsphere(q1,r-wPEG-whead-wtail))+ \
-                          rhodox*fcylinder3d(q1*ud.x,q1*ud.y,q1*ud.z,l,rdox)
-    return Intensity**2/<double>Niter
-        
+       
     
 cdef inline double Fcylinder_scalar(double q, double R, double L, Py_ssize_t Nstep):
     cdef double r
