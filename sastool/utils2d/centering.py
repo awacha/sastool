@@ -1,5 +1,7 @@
 import numpy as np
 from integrate import radintpix, azimintpix
+import scipy.optimize
+
 def findbeam_gravity(data,mask):
     """Find beam center with the "gravity" method
 
@@ -15,14 +17,10 @@ def findbeam_gravity(data,mask):
     # for each row and column find the center of gravity
     data1=data.copy() # take a copy, because elements will be tampered with
     data1[mask==0]=0 # set masked elements to zero
-
-    #pylab.imshow(data1) # show the matrix
-    #pylab.gcf().show() #
     # vector of x (row) coordinates
     x=np.arange(data1.shape[0])
     # vector of y (column) coordinates
     y=np.arange(data1.shape[1])
-
     # two column vectors, both containing ones. The length of onex and
     # oney corresponds to length of x and y, respectively.
     onex=np.ones((len(x),1))
@@ -37,7 +35,6 @@ def findbeam_gravity(data,mask):
     # indices where both nix and spamx is nonzero.
     goodx=((nix!=0) & (spamx!=0))
     # trim y, nix and spamx by goodx, eliminate invalid points.
-    #y1=y[goodx]
     nix=nix[goodx]
     spamx=spamx[goodx]
 
@@ -45,7 +42,6 @@ def findbeam_gravity(data,mask):
     niy=np.dot(data1.T,y).flatten()
     spamy=np.dot(data1.T,oney).flatten()
     goody=((niy!=0) & (spamy!=0))
-#    x1=x[goody]
     niy=niy[goody]
     spamy=spamy[goody]
     # column coordinate of the center in each row will be contained in
@@ -53,13 +49,10 @@ def findbeam_gravity(data,mask):
     # in xcent.
     ycent=nix/spamx
     xcent=niy/spamy
-    #pylab.figure()
-    #pylab.plot(x1,xcent,'.',label='xcent')
-    #pylab.plot(y1,ycent,'.',label='ycent')
-    #pylab.gcf().show()
     # return the mean values as the centers.
     return [xcent.mean()+1,ycent.mean()+1]
 
+#FIXME: radintpix works differently than imageintC!!!
 def findbeam_slices(data,orig_initial,mask=None,maxiter=0):
     """Find beam center with the "slices" method
     
@@ -90,10 +83,10 @@ def findbeam_slices(data,orig_initial,mask=None,maxiter=0):
         last=min(len(c1),len(c2),len(c3),len(c4))
         # first will be the first common point: the largest of the first
         # nonzero points of the integrated data
-        first=np.array([pylab.find(nc1!=0).min(),
-                           pylab.find(nc2!=0).min(),
-                           pylab.find(nc3!=0).min(),
-                           pylab.find(nc4!=0).min()]).max()
+        first=np.array([np.find(nc1!=0).min(),
+                           np.find(nc2!=0).min(),
+                           np.find(nc3!=0).min(),
+                           np.find(nc4!=0).min()]).max()
         ret= np.array(((c1[first:last]-c3[first:last])**2+(c2[first:last]-c4[first:last])**2)/(last-first))
         print "orig (after integration):",orig[0],orig[1]
         print "last-first:",last-first
