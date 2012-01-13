@@ -52,8 +52,7 @@ def findbeam_gravity(data,mask):
     # return the mean values as the centers.
     return [xcent.mean()+1,ycent.mean()+1]
 
-#FIXME: radintpix works differently than imageintC!!!
-def findbeam_slices(data,orig_initial,mask=None,maxiter=0):
+def findbeam_slices(data,orig_initial,mask=None,maxiter=0,epsfcn=0.001, dmin=0, dmax=np.inf):
     """Find beam center with the "slices" method
     
     Inputs:
@@ -62,37 +61,37 @@ def findbeam_slices(data,orig_initial,mask=None,maxiter=0):
             coordinates of the beam center, starting from 1.
         mask: mask matrix. If None, nothing will be masked. Otherwise it
             should be of the same size as data. Nonzero means non-masked.
-        maxiter: maximum number of iterations for scipy.optimize.fmin
+        maxiter: maximum number of iterations for scipy.optimize.leastsq
+        epsfcn: input for scipy.optimize.leastsq
+        dmin: disregard pixels nearer to the origin than this
+        dmax: disregard pixels farther from the origin than this
+        
     Output:
         a vector of length 2 with the x (row) and y (column) coordinates
          of the origin.
     """
     print "Finding beam (slices), please be patient..."
-    orig=np.array(orig_initial)
+    sector_wid=np.pi/9.
     if mask is None:
         mask=np.ones(data.shape)
     def targetfunc(orig,data,mask):
         #integrate four sectors
-        print "integrating... (for finding beam)"
-        print "orig (before integration):",orig[0],orig[1]
-        c1,nc1=radintpix(data,orig,mask,35,20)
-        c2,nc2=radintpix(data,orig,mask,35+90,20)
-        c3,nc3=radintpix(data,orig,mask,35+180,20)
-        c4,nc4=radintpix(data,orig,mask,35+270,20)
-        # the common length is the lowest of the lengths
-        last=min(len(c1),len(c2),len(c3),len(c4))
-        # first will be the first common point: the largest of the first
-        # nonzero points of the integrated data
-        first=np.array([np.find(nc1!=0).min(),
-                           np.find(nc2!=0).min(),
-                           np.find(nc3!=0).min(),
-                           np.find(nc4!=0).min()]).max()
-        ret= np.array(((c1[first:last]-c3[first:last])**2+(c2[first:last]-c4[first:last])**2)/(last-first))
-        print "orig (after integration):",orig[0],orig[1]
-        print "last-first:",last-first
-        print "sum(ret):",ret.sum()
+        p=[None]*4;
+        I=[None]*4; A=[None]*4
+        for i in range(4):
+            p[i],I[i],A[i]=radintpix(data, None, orig[0], orig[1], mask=mask,
+                                     phi0=(i*2+1)*np.pi/4-0.5*sector_wid,
+                                     dphi=(i*2+1)*np.pi/4+0.5*sector_wid)
+        minpix=max(max([x.min() for x in p]),dmin)
+        maxpix=min(min([x.max() for x in p]),dmax)
+        if (maxpix<minpix):
+            raise ValueError('The four slices do not overlap! Please give a\
+ better approximation for the origin or use another centering method.')
+        for i in range(4):
+            I[i]=I[i][(p[i]>=minpix)&(p[i]<=maxpix)];
+        ret= ((I[0]-I[2])**2+(I[1]-I[3])**2)/(maxpix-minpix)
         return ret
-    orig=scipy.optimize.leastsq(targetfunc,np.array(orig_initial),args=(data,1-mask),maxfev=maxiter,epsfcn=0.0001)
+    orig=scipy.optimize.leastsq(targetfunc,np.array(orig_initial),args=(data,1-mask),maxfev=maxiter,epsfcn=0.01)
     return orig[0]
 
 def findbeam_azimuthal(data,orig_initial,mask=None,maxiter=100,Ntheta=50,dmin=0,dmax=np.inf):
@@ -120,7 +119,7 @@ def findbeam_azimuthal(data,orig_initial,mask=None,maxiter=100,Ntheta=50,dmin=0,
     def targetfunc(orig,data,mask):
         def sinfun(p,x,y):
             return (y-np.sin(x+p[1])*p[0]-p[2])/np.sqrt(len(x))
-        t,I,a=azimintpix(data,None,orig,mask.astype('uint8'),Ntheta,dmin,dmax)
+        t,I,a=azimintpix(data,None,orig[0],orig[1],mask.astype('uint8'),Ntheta,dmin,dmax)
         if len(a)>(a>0).sum():
             raise ValueError,'findbeam_azimuthal: non-complete azimuthal average, please consider changing dmin, dmax and/or orig_initial!'
         p=((I.max()-I.min())/2.0,t[I==I.max()][0],I.mean())
@@ -152,11 +151,14 @@ def findbeam_azimuthal_fold(data,orig_initial,mask=None,maxiter=100,Ntheta=50,dm
     """
     print "Finding beam (azimuthal_fold), please be patient..."
     if Ntheta%2:
-        raise ValueError('Ntheta should be even in function findbeam_azimuthal_fold()!')
+        raise ValueError('Ntheta should be even!')
     if mask is None:
-        mask=np.ones(data.shape)
+        mask=np.ones_like(data)
+    
+    #the function to minimize is the sum of squared difference of two halves of
+    # the azimuthal integral.
     def targetfunc(orig,data,mask):
-        t,I,a=azimintpix(data,None,orig,mask.astype('uint8'),Ntheta,dmin,dmax)
+        I=azimintpix(data,None,orig[0],orig[1],mask.astype(np.uint8),Ntheta,dmin,dmax)[1]
         return np.sum((I[:Ntheta/2]-I[Ntheta/2:])**2)/Ntheta
     orig1=scipy.optimize.fmin(targetfunc,np.array(orig_initial),args=(data,1-mask),maxiter=maxiter)
     return orig1
@@ -176,12 +178,6 @@ def findbeam_semitransparent(data,pri):
     """
     threshold=0.05
     print "Finding beam (semitransparent), please be patient..."
-#    xmin=min([pri[0],pri[1]])
-#    ymin=min([pri[2],pri[3]])
-#    xmax=max([pri[0],pri[1]])
-#    ymax=max([pri[2],pri[3]])
-    C,R=np.meshgrid(np.arange(data.shape[1]),
-                       np.arange(data.shape[0]))
     B=data[pri[2]:pri[3],pri[0]:pri[1]];
     Ri=range(pri[2],pri[3])
     Ci=range(pri[0],pri[1])

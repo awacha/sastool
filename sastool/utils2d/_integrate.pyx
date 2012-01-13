@@ -52,9 +52,22 @@ def polartransform(np.ndarray[np.double_t, ndim=2] data not None,
                 pdata[i,j]=data[x,y];
     return pdata
 
-cdef autoqscale(double energy, double distance, double xres, double yres,
-                double bcxa, double bcya,
-                np.ndarray[np.uint8_t, ndim=2] mask not None):
+def autoqscale(double energy, double distance, double xres, double yres,
+               double bcxa, double bcya,
+               np.ndarray[np.uint8_t, ndim=2] mask not None):
+    """Determine q-scale automatically
+    
+    Inputs:
+        energy: photon energy in eV
+        distance: sample-detector distance in mm
+        xres, yres: pixel size in mm
+        bcxa, bcya: beam position (starting from 0)
+        mask: mask matrix (1 means masked, 0 unmasked).
+        
+    Output: the q scale in a numpy vector. If either energy or distance or xres
+        or yres is nonpositive, pixel vector is returned, which is guaranteed to
+        be spaced by 1 pixels.
+    """
     #determine the q-scale to be used automatically.
     cdef double qmin
     cdef double qmax
@@ -83,18 +96,33 @@ cdef autoqscale(double energy, double distance, double xres, double yres,
     else:
         return np.arange(qmin,qmax);
 
-cdef int radint_testarrays(np.ndarray[np.double_t,ndim=2] data not None,
+def radint_testarrays(np.ndarray[np.double_t,ndim=2] data,
                            np.ndarray[np.double_t, ndim=2] dataerr,
-                           np.ndarray[np.uint8_t, ndim=2] mask,
-                           Py_ssize_t *M, Py_ssize_t *N):
-    *M=data.shape[0];
-    *N=data.shape[1];
-    if (dataerr is not None) and
-        (dataerr.shape[0]!=(*M) or dataerr.shape[1]!=(*N)):
-        return 0;
-    if (mask is not None) and (mask.shape[0]!=(*M) or mask.shape[1]!=(*N)):
-        return 0
-    return 1
+                           np.ndarray[np.uint8_t, ndim=2] mask):
+    cdef Py_ssize_t M,N
+    if (data is None):
+        return (0,0);
+    M=data.shape[0];
+    N=data.shape[1];
+    if (dataerr is not None) and \
+        (dataerr.shape[0]!=(M) or dataerr.shape[1]!=(N)):
+        return (0,0);
+    if (mask is not None) and (mask.shape[0]!=(M) or mask.shape[1]!=(N)):
+        return (0,0);
+    return (M,N)
+
+def radint_getres(res):
+    #resolution
+    cdef double xr, yr
+    xr=-10;
+    try:
+        xr=res[0]; #exception may be raised here if res is not indexable.
+        yr=res[1]; #or here if res has only one element.
+    except:
+        if xr<0: #first kind of exception occurred
+            xr=res;
+        yr=xr;
+    return (xr,yr)
 
 def radint(np.ndarray[np.double_t,ndim=2] data not None,
            np.ndarray[np.double_t,ndim=2] dataerr,
@@ -151,7 +179,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
     Outputs: q, Intensity, Error, Area, [effective mask], [pixel]
     """
     cdef double xres,yres
-    cdef Py_ssize_t M,N
+    cdef Py_ssize_t N,M
     cdef np.ndarray[np.double_t, ndim=1] qout
     cdef np.ndarray[np.double_t, ndim=1] Intensity
     cdef np.ndarray[np.double_t, ndim=1] Error
@@ -170,22 +198,15 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
     cdef double sinphi0,cosphi0
     cdef double bcxa, bcya
     cdef np.ndarray[np.double_t, ndim=1] pixelout
-    cdef bint flagmask, flagerror, flagq;
+    cdef bint flagmask, flagerror, flagq
     #Process input data
-    #resolution
-    xres=-10;
-    try:
-        xres=res[0]; #exception may be raised here if res is not indexable.
-        yres=res[1]; #or here if res has only one element.
-    except:
-        if xres<0: #first kind of exception occurred
-            xres=res;
-        yres=xres;
+    (xres,yres)=radint_getres(res)
     #beam position
     bcxa=bcx-1
     bcya=bcy-1
     #array shapes
-    if not radint_testarrays(data,dataerr,mask,&M,&N):
+    M,N= radint_testarrays(data,dataerr,mask)
+    if (M<=0) or (N<=0):
         raise ValueError('data, dataerr and mask should be of the same shape')
     flagerror=(dataerr is not None);
     flagmask=(mask is not None);
@@ -208,10 +229,10 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
         maskout=np.ones((data.shape[0],data.shape[1]),dtype=np.uint8)
     # if the q-scale was not supplied, create one.
     if q is None:
-        if not flagmask
+        if not flagmask:
             mask=np.zeros((data.shape[0],data.shape[1]),dtype=np.uint8)
-        q=autoqscale(energy, distance, xres, yres, bcxa, bcya, mask, shutup);
-        if not flagmask
+        q=autoqscale(energy, distance, xres, yres, bcxa, bcya, mask);
+        if not flagmask:
             del mask; mask=None
     Numq=len(q)
     # initialize the output vectors
@@ -238,7 +259,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
             if not isfinite(data[ix,iy]):
                 #disregard nonfinite (NaN or inf) pixels.
                 continue
-            if flagerror and isfinite(dataerr[ix,iy])):
+            if flagerror and isfinite(dataerr[ix,iy]):
                 #disregard nonfinite (NaN or inf) pixels.
                 continue
             # coordinates of the pixel in length units (mm)
@@ -254,7 +275,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
                 rho=sqrt(x*x+y*y)/distance
                 q1=4*M_PI*sin(0.5*atan(rho))*energy/HC
             else:
-                q1=sqrt(x*x+y*y);
+                q1=sqrt(x*x/xres/xres+y*y/yres/yres);
             if q1<q[0]: #q underflow
                 continue
             if q1>q[Numq-1]: #q overflow
@@ -306,61 +327,50 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
         output.append(pixelout)
     return tuple(output)
         
+
 def azimint(np.ndarray[np.double_t, ndim=2] data not None,
-            np.ndarray[np.double_t, ndim=2] error, # error can be None
-            double energy, double dist, res,
-            double bcx, double bcy,
-            np.ndarray[np.uint8_t, ndim=2] mask not None,
-            Ntheta=100,
-            double qmin=0,
-            double qmax=INFINITY,bint returnmask=False):
+            np.ndarray[np.double_t, ndim=2] dataerr, # error can be None
+            double energy, double distance, res, double bcx, double bcy,
+            np.ndarray[np.uint8_t, ndim=2] mask, Ntheta=100,
+            double qmin=0, double qmax=INFINITY, bint returnmask=False):
     """Perform azimuthal integration of image, with respect to q values
 
     Inputs:
         data: matrix to average
-        error: error matrix. If not applicable, set it to None
+        dataerr: error matrix. If not applicable, set it to None
         energy: photon energy
-        dist: sample-detector distance
-        res: resolution of the detector (mm/pixel)
-        orig: vector of beam center coordinates, starting from 1.
+        distance: sample-detector distance
+        res: resolution (pixel size) of the detector (mm/pixel)
+        bcx, bcy: beam center coordinates, starting from 1.
         mask: mask matrix; 1 means masked, 0 means non-masked
         Ntheta: number of desired points on the abscissa
         qmin: the lower bound of the circle stripe (expressed in q units)
         qmax: the upper bound of the circle stripe (expressed in q units)
         returnmask: if True, a mask is returned, only the pixels taken into
             account being unmasked (0). 
-    Outputs: theta,I,[E],A
-        theta: theta-range, in radians
-        I: intensity points
-        E: error values (returned only if the "error" argument was not None)
-        A: effective area points
+    Outputs: theta,I,[E],A,[mask]
+    
+    Note: if any of 'energy', 'distance' or 'res' is nonpositive, q means pixel
+        everywhere.
     """
     cdef np.ndarray[np.double_t, ndim=1] theta, I, E, A
     cdef Py_ssize_t ix,iy, M, N, index, Ntheta1, escaped
-    cdef double bcx, bcy, d, x, y, phi
+    cdef double bcxa, bcya, d, x, y, phi
     cdef double q
     cdef int errorwasnone
     cdef double resx,resy
     cdef np.ndarray[np.uint8_t, ndim=2] maskout
+    cdef bint flagerror, flagmask
     
-    if type(res)!=type([]) and type(res)!=type(()) and type(res)!=np.ndarray:
-        res=[res,res];
-    if len(res)==1:
-        res=[res[0], res[0]]
-    if len(res)>2:
-        raise ValueError('res should be a scalar or a nonempty vector of length<=2')
+    (resx,resy)=radint_getres(res);
     
-    resx=res[0]
-    resy=res[1]
-    
-
+    (M,N)=radint_testarrays(data,dataerr,mask)
+    if (M<=0) or (N<=0):
+        raise ValueError('data, dataerr and mask should be of the same shape')
     Ntheta1=<Py_ssize_t>floor(Ntheta)
-    M=data.shape[0]
-    N=data.shape[1]
-    if (mask.shape[0]!=M) or (mask.shape[1]!=N):
-        raise ValueError, "The size and shape of data and mask should be the same."
-    bcx=orig[0]-1
-    bcy=orig[1]-1
+
+    bcxa=bcx-1
+    bcya=bcy-1
     
     theta=np.linspace(0,2*np.pi,Ntheta1) # the abscissa of the results
     I=np.zeros(Ntheta1,dtype=np.double) # vector of intensities
@@ -368,27 +378,30 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
     E=np.zeros(Ntheta1,dtype=np.double)
     if returnmask:
         maskout=np.ones([data.shape[0],data.shape[1]],dtype=np.uint8)
-
-    errorwasnone=(error is None)
-    escaped=0
+    
+    flagerror=(dataerr is not None)
+    flagmask=(mask is not None)
+    flagq=(distance>0 and energy>0 and resx>0 and resy>0);
     for ix from 0<=ix<M:
         for iy from 0<=iy<N:
-            if mask[ix,iy]:
+            if flagmask and mask[ix,iy]:
                 continue
-            x=(ix-bcx)*resx
-            y=(iy-bcy)*resy
+            x=(ix-bcxa)*resx
+            y=(iy-bcya)*resy
             d=sqrt(x**2+y**2)
-            q=4*M_PI*sin(0.5*atan2(d,dist))*energy/HC
+            if flagq:
+                q=4*M_PI*sin(0.5*atan2(d,distance))*energy/HC
+            else:
+                q=sqrt(x*x/resx/resx+y*y/resy/resy);
             if (q<qmin) or (q>qmax):
                 continue
             phi=atan2(y,x)
             index=<Py_ssize_t>floor(phi/(2*M_PI)*Ntheta1)
             if index>=Ntheta1:
-                escaped=escaped+1
                 continue
             I[index]+=data[ix,iy]
-            if not errorwasnone:
-                E[index]+=error[ix,iy]**2
+            if flagerror:
+                E[index]+=dataerr[ix,iy]**2
             A[index]+=1
             if returnmask:
                 maskout[ix,iy]=0
@@ -396,99 +409,15 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
     for index from 0<=index<Ntheta1:
         if A[index]>0:
             I[index]/=A[index]
-            if not errorwasnone:
+            if flagerror:
                 E[index]=sqrt(E[index]/A[index])
-    if errorwasnone:
-        if returnmask:
-            return theta,I,A,maskout
-        else:
-            return theta,I,A
-    else:
-        if returnmask:
-            return theta,I,E,A,maskout
-        else:
-            return theta,I,E,A
-
-def azimintpix(np.ndarray[np.double_t, ndim=2] data not None,
-                np.ndarray[np.double_t, ndim=2] error,
-                orig,
-                np.ndarray[np.uint8_t, ndim=2] mask not None,
-                Ntheta=100,
-                double dmin=0,
-                double dmax=INFINITY):
-    """Perform azimuthal integration of image.
-
-    Inputs:
-        data: matrix to average
-        error: error matrix. If not applicable, set it to None
-        orig: vector of beam center coordinates, starting from 1.
-        mask: mask matrix; 1 means masked, 0 means non-masked
-        Ntheta: number of desired points on the abscissa
-        dmin: the lower bound of the circle stripe (expressed in pixel units)
-        dmax: the upper bound of the circle stripe (expressed in pixel units)
-
-    Outputs: theta,I,[E],A
-        theta: theta-range, in radians
-        I: intensity points
-        E: error values (returned only if the "error" argument was not None)
-        A: effective area points
-    """
-    cdef Py_ssize_t Ntheta1
-    cdef np.ndarray[np.double_t, ndim=1] theta
-    cdef np.ndarray[np.double_t, ndim=1] I
-    cdef np.ndarray[np.double_t, ndim=1] E
-    cdef np.ndarray[np.double_t, ndim=1] A
-    cdef Py_ssize_t ix,iy, M, N
-    cdef Py_ssize_t index
-    cdef double bcx, bcy
-    cdef double d,x,y,phi
-    cdef int errornone
-    cdef Py_ssize_t escaped
-
-    Ntheta1=<Py_ssize_t>floor(Ntheta)
-    M=data.shape[0]
-    N=data.shape[1]
-    if (mask.shape[0]!=M) or (mask.shape[1]!=N):
-        raise ValueError, "The size and shape of data and mask should be the same."
-    bcx=orig[0]-1
-    bcy=orig[1]-1
-    
-    theta=np.linspace(0,2*np.pi,Ntheta1) # the abscissa of the results
-    I=np.zeros(Ntheta1,dtype=np.double) # vector of intensities
-    A=np.zeros(Ntheta1,dtype=np.double) # vector of effective areas
-    E=np.zeros(Ntheta1,dtype=np.double)
-
-    errornone=(error is None)
-    escaped=0
-    for ix from 0<=ix<M:
-        for iy from 0<=iy<N:
-            if mask[ix,iy]:
-                continue
-            x=ix-bcx
-            y=iy-bcy
-            d=sqrt(x**2+y**2)
-            if (d<dmin) or (d>dmax):
-                continue
-            phi=atan2(y,x)
-            index=<Py_ssize_t>floor(phi/(2*M_PI)*Ntheta1)
-            if index>=Ntheta1:
-                escaped=escaped+1
-                continue
-            I[index]+=data[ix,iy]
-            if not errornone:
-                E[index]+=error[ix,iy]**2
-            A[index]+=1
-    #print "Escaped: ",escaped
-    for index from 0<=index<Ntheta1:
-        if A[index]>0:
-            I[index]/=A[index]
-            if not errornone:
-                E[index]=sqrt(E[index]/A[index])
-    if errornone:
-        return theta,I,A
-    else:
-        return theta,I,E,A
-
+    ret=[theta,I]
+    if flagerror:
+        ret.append(E)
+    ret.append(A)
+    if returnmask:
+        ret.append(maskout)
+    return tuple(ret)
 
 def bin2D(np.ndarray[np.double_t, ndim=2] M, Py_ssize_t xlen, Py_ssize_t ylen):
     """def bin2D(np.ndarray[np.double_t, ndim=2] M, Py_ssize_t xlen, Py_ssize_t ylen):
@@ -515,7 +444,6 @@ def bin2D(np.ndarray[np.double_t, ndim=2] M, Py_ssize_t xlen, Py_ssize_t ylen):
     
     N=np.zeros((Nx,Ny),np.double)
     for i from 0<=i<Nx:
-        print "i==",i
         for i1 from 0<=i1<xlen:
             for j from 0<=j<Ny:
                 for j1 from 0<=j1<ylen:
