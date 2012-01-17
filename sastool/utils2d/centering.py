@@ -171,29 +171,39 @@ def findbeam_semitransparent(data,pri):
         pri: list of four: [xmin,xmax,ymin,ymax] for the borders of the beam
             area under the semitransparent beamstop. X corresponds to the column
             index (ie. A[Y,X] is the element of A from the Xth column and the 
-            Yth row)
+            Yth row). You can get these by zooming on the figure and retrieving
+            the result of axis() (like in Matlab)
 
     Outputs: bcx,bcy
         the x and y coordinates of the primary beam
     """
     threshold=0.05
     print "Finding beam (semitransparent), please be patient..."
-    B=data[pri[2]:pri[3],pri[0]:pri[1]];
-    Ri=range(pri[2],pri[3])
-    Ci=range(pri[0],pri[1])
-    Ravg=np.sum(B,1)/len(Ri)
-    Cavg=np.sum(B,0)/len(Ci)
-    maxR=max(Ravg)
-    maxRpos=[i for i,avg in zip(Ri,Ravg) if avg==maxR][0]
-    Rmin=[i for i,avg in zip(Ri,Ravg) if (avg<Ravg[0]+(maxR-Ravg[0])*threshold) and (i<maxRpos)][-1]    
-    Rmax=[i for i,avg in zip(Ri,Ravg) if (avg<Ravg[-1]+(maxR-Ravg[-1])*threshold) and (i>maxRpos)][0]
-    maxC=max(Cavg)
-    maxCpos=[i for i,avg in zip(Ci,Cavg) if avg==maxC][0]
-    Cmin=[i for i,avg in zip(Ci,Cavg) if (avg<Cavg[0]+(maxC-Cavg[0])*threshold) and (i<maxCpos)][-1]    
-    Cmax=[i for i,avg in zip(Ci,Cavg) if (avg<Cavg[-1]+(maxC-Cavg[-1])*threshold) and (i>maxCpos)][0]
-    d=data[Rmin:Rmax,Cmin:Cmax]
-    x=np.arange(Rmin,Rmax)
-    y=np.arange(Cmin,Cmax)
+    rowmin=np.floor(min(pri[2:]))
+    rowmax=np.ceil(max(pri[2:]))
+    colmin=np.floor(min(pri[:2]))
+    colmax=np.ceil(max(pri[:2]))
+    #beam area on the scattering image
+    B=data[rowmin:rowmax,colmin:colmax];
+    print B.shape
+    #row and column indices
+    Ri=np.arange(rowmin,rowmax)
+    Ci=np.arange(colmin,colmax)
+    print len(Ri)
+    print len(Ci)
+    Ravg=np.mean(B,1)    #average over column index, will be a concave curve
+    Cavg=np.mean(B,0)    #average over row index, will be a concave curve
+    #find the maxima im both directions and their positions
+    maxR=max(Ravg);    maxRpos=Ri[Ravg==maxR][0]
+    maxC=max(Cavg);    maxCpos=Ci[Cavg==maxC][0]
+    #cut off pixels which are smaller than threshold*peak_height
+    Rmin=Ri[(Ravg>=(Ravg[0]+(maxR-Ravg[0])*threshold))&(Ri<maxRpos)][0]
+    Rmax=Ri[(Ravg>=(Ravg[-1]+(maxR-Ravg[-1])*threshold))&(Ri>maxRpos)][-1]
+    Cmin=Ci[(Cavg>=(Cavg[0]+(maxC-Cavg[0])*threshold))&(Ci<maxCpos)][0]
+    Cmax=Ci[(Cavg>=(Cavg[-1]+(maxC-Cavg[-1])*threshold))&(Ci>maxCpos)][-1]
+    d=data[Rmin:Rmax+1,Cmin:Cmax+1]
+    x=np.arange(Rmin,Rmax+1)
+    y=np.arange(Cmin,Cmax+1)
     bcx=np.sum(np.sum(d,1)*x)/np.sum(d)+1
     bcy=np.sum(np.sum(d,0)*y)/np.sum(d)+1
     return bcx,bcy
