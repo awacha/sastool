@@ -70,7 +70,6 @@ def findbeam_slices(data,orig_initial,mask=None,maxiter=0,epsfcn=0.001, dmin=0, 
         a vector of length 2 with the x (row) and y (column) coordinates
          of the origin.
     """
-    print "Finding beam (slices), please be patient..."
     sector_wid=np.pi/9.
     if mask is None:
         mask=np.ones(data.shape)
@@ -113,7 +112,6 @@ def findbeam_azimuthal(data,orig_initial,mask=None,maxiter=100,Ntheta=50,dmin=0,
         a vector of length 2 with the x and y coordinates of the origin,
             starting from 1
     """
-    print "Finding beam (azimuthal), please be patient..."
     if mask is None:
         mask=np.ones(data.shape)
     def targetfunc(orig,data,mask):
@@ -126,7 +124,7 @@ def findbeam_azimuthal(data,orig_initial,mask=None,maxiter=100,Ntheta=50,dmin=0,
         p=scipy.optimize.leastsq(sinfun,p,(t,I))[0]
         #print "findbeam_azimuthal: orig=",orig,"amplitude=",abs(p[0])
         return abs(p[0])
-    orig1=scipy.optimize.fmin(targetfunc,np.array(orig_initial),args=(data,1-mask),maxiter=maxiter)
+    orig1=scipy.optimize.leastsq(targetfunc,np.array(orig_initial),args=(data,1-mask),maxfev=maxiter)[0]
     return orig1
 
 def findbeam_azimuthal_fold(data,orig_initial,mask=None,maxiter=100,Ntheta=50,dmin=0,dmax=np.inf):
@@ -149,7 +147,6 @@ def findbeam_azimuthal_fold(data,orig_initial,mask=None,maxiter=100,Ntheta=50,dm
         a vector of length 2 with the x and y coordinates of the origin,
             starting from 1
     """
-    print "Finding beam (azimuthal_fold), please be patient..."
     if Ntheta%2:
         raise ValueError('Ntheta should be even!')
     if mask is None:
@@ -159,8 +156,8 @@ def findbeam_azimuthal_fold(data,orig_initial,mask=None,maxiter=100,Ntheta=50,dm
     # the azimuthal integral.
     def targetfunc(orig,data,mask):
         I=azimintpix(data,None,orig[0],orig[1],mask.astype(np.uint8),Ntheta,dmin,dmax)[1]
-        return np.sum((I[:Ntheta/2]-I[Ntheta/2:])**2)/Ntheta
-    orig1=scipy.optimize.fmin(targetfunc,np.array(orig_initial),args=(data,1-mask),maxiter=maxiter)
+        return (I[:Ntheta/2]-I[Ntheta/2:])/Ntheta
+    orig1=scipy.optimize.leastsq(targetfunc,np.array(orig_initial),args=(data,1-mask),maxfev=maxiter)[0]
     return orig1
 
 def findbeam_semitransparent(data,pri):
@@ -178,7 +175,6 @@ def findbeam_semitransparent(data,pri):
         the x and y coordinates of the primary beam
     """
     threshold=0.05
-    print "Finding beam (semitransparent), please be patient..."
     rowmin=np.floor(min(pri[2:]))
     rowmax=np.ceil(max(pri[2:]))
     colmin=np.floor(min(pri[:2]))
