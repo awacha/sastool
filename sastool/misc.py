@@ -22,6 +22,8 @@ def findfileindirs(filename,dirs=[],use_pythonpath=True):
         dirs=['.']
     if use_pythonpath:
         dirs.extend(sys.path)
+    #expand ~ and ~user constructs
+    dirs=[os.path.expanduser(d) for d in dirs]
     for d in dirs:
         if os.path.exists(os.path.join(d,filename)):
             return os.path.join(d,filename)

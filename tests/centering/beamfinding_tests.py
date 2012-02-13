@@ -5,10 +5,10 @@ import scipy.io
 import sys
 import time
 
-xmin=0
-xmax=255
-ymin=0
-ymax=255
+xmin=40
+xmax=210
+ymin=40
+ymax=210
 
 fsn=int(sys.argv[1])
 

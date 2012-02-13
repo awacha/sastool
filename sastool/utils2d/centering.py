@@ -13,7 +13,6 @@ def findbeam_gravity(data,mask):
         a vector of length 2 with the x (row) and y (column) coordinates
          of the origin, starting from 1
     """
-    print "Finding beam (gravity), please be patient..."
     # for each row and column find the center of gravity
     data1=data.copy() # take a copy, because elements will be tampered with
     data1[mask==0]=0 # set masked elements to zero
@@ -90,7 +89,7 @@ def findbeam_slices(data,orig_initial,mask=None,maxiter=0,epsfcn=0.001, dmin=0, 
             I[i]=I[i][(p[i]>=minpix)&(p[i]<=maxpix)];
         ret= ((I[0]-I[2])**2+(I[1]-I[3])**2)/(maxpix-minpix)
         return ret
-    orig=scipy.optimize.leastsq(targetfunc,np.array(orig_initial),args=(data,1-mask),maxfev=maxiter,epsfcn=0.01)
+    orig=scipy.optimize.leastsq(targetfunc,np.array(orig_initial),args=(data,1-mask.astype(np.uint8)),maxfev=maxiter,epsfcn=0.01)
     return orig[0]
 
 def findbeam_azimuthal(data,orig_initial,mask=None,maxiter=100,Ntheta=50,dmin=0,dmax=np.inf):
@@ -124,7 +123,7 @@ def findbeam_azimuthal(data,orig_initial,mask=None,maxiter=100,Ntheta=50,dmin=0,
         p=scipy.optimize.leastsq(sinfun,p,(t,I))[0]
         #print "findbeam_azimuthal: orig=",orig,"amplitude=",abs(p[0])
         return abs(p[0])
-    orig1=scipy.optimize.leastsq(targetfunc,np.array(orig_initial),args=(data,1-mask),maxfev=maxiter)[0]
+    orig1=scipy.optimize.fmin(targetfunc,np.array(orig_initial),args=(data,1-mask),maxiter=maxiter,disp=0)
     return orig1
 
 def findbeam_azimuthal_fold(data,orig_initial,mask=None,maxiter=100,Ntheta=50,dmin=0,dmax=np.inf):
@@ -156,8 +155,8 @@ def findbeam_azimuthal_fold(data,orig_initial,mask=None,maxiter=100,Ntheta=50,dm
     # the azimuthal integral.
     def targetfunc(orig,data,mask):
         I=azimintpix(data,None,orig[0],orig[1],mask.astype(np.uint8),Ntheta,dmin,dmax)[1]
-        return (I[:Ntheta/2]-I[Ntheta/2:])/Ntheta
-    orig1=scipy.optimize.leastsq(targetfunc,np.array(orig_initial),args=(data,1-mask),maxfev=maxiter)[0]
+        return np.sum((I[:Ntheta/2]-I[Ntheta/2:])**2)/Ntheta
+    orig1=scipy.optimize.fmin(targetfunc,np.array(orig_initial),args=(data,1-mask),maxiter=maxiter,disp=0)
     return orig1
 
 def findbeam_semitransparent(data,pri):

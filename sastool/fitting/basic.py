@@ -33,7 +33,7 @@ class FFPolynomial(FitFunction):
         for i in range(deg+1):
             self.argument_info.append(('A%d'%i,'Coeff. of the x^%d term'%i))
     def __call__(self,x,*coeffs):
-        return np.polynomial.polynomial.polyval(x,coeffs)
+        return np.polyval(x,coeffs)
 
 class FFPowerlaw(FitFunction):
     _factory_arguments=[(None,),(0,),(1,),(2,)]
@@ -52,7 +52,7 @@ class FFPowerlaw(FitFunction):
     def __call__(self,x,A,alpha,*bgcoeffs):
         y1=A*np.power(x,alpha)
         if self.bgorder is not None:
-            return y1+np.polynomial.polynomial.polyval(x,bgcoeffs)
+            return y1+np.polyval(x,bgcoeffs)
         return y1
 
 class FFLorentzian(FitFunction):

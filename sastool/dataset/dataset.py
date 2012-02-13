@@ -290,6 +290,8 @@ AliasedVectorAttributes or its subclasses')
             raise ValueError('File %s does not contain any data points.' %
                                 filename)
     def interpolate(self, newx):
+        """Interpolate this dataset to a new abscissa (newx). Returns the new
+        instance (the original is left intact)."""
         self1=self.copy()
         self1.sort()
         obj = self.copy()
@@ -303,11 +305,13 @@ AliasedVectorAttributes or its subclasses')
         return obj
 
     def momentum(self, exponent = 0, errorrequested = False):
-        """Calculate moduli (integral from 0 to infinity of y times x^exponent)
+        """Calculate momenta (integral from 0 to infinity of y times x^exponent)
+        The integration is done by the trapezoid formula (np.trapz).
         
         Inputs:
             exponent: the exponent of q in the integration.
-            errorrequested: True if error should be returned.
+            errorrequested: True if error should be returned (true Gaussian
+                error-propagation of the trapezoid formula)
         """
         y = self._y*self._x**exponent
         m = np.trapz(y, self._x)
@@ -319,6 +323,12 @@ AliasedVectorAttributes or its subclasses')
             return m
             
     def extend(self,dataset):
+        """Merge two datasets. The original is left intact, the merged one is 
+        returned.
+        
+        Note that points with the same abscissa aren't treated specially, i.e.
+        that point will exist in the abscissa of the merged curve _twice_!
+        """
         obj=self.copy()
         obj._shape=None
         for k in ['_x','_y','_dx','_dy']:
@@ -331,7 +341,15 @@ AliasedVectorAttributes or its subclasses')
             obj.validate()
         return obj.sort()
         
-    def unite(self,dataset,xmin=None,xmax=None,xsep=None,Npoints=30):
+    def unite(self, dataset, xmin=None, xmax=None, xsep=None, Npoints=30,
+              scaleother=True, verbose=True):
+        """Merge 'dataset' with 'self' by scaling. Both datasets are
+        interpolated to np.linspace(xmin,xmax,Npoints). The scaling is the ratio
+        of the integrals of these two. If scaleother is True, 'dataset' will be
+        scaled to 'self'. If False, the other way round. xsep is the separating
+        value, i.e. the part of 'self' below 'xsep' and the part of 'dataset'
+        above 'xsep' will be merged.
+        """
         if xmin is None:
             xmin=max(self._x.min(),dataset._x.min())
         if xmax is None:
@@ -341,13 +359,17 @@ AliasedVectorAttributes or its subclasses')
         commonx=np.linspace(xmin,xmax,Npoints)
         selfint=self.interpolate(commonx)
         datasetint=dataset.interpolate(commonx)
-        I1=ErrorValue(*(selfint.modulus(errorrequested=True)))
-        I2=ErrorValue(*(datasetint.modulus(errorrequested=True)))
+        I1=ErrorValue(*(selfint.momentum(errorrequested=True)))
+        I2=ErrorValue(*(datasetint.momentum(errorrequested=True)))
         obj=self.copy()
-        print "I1:",I1
-        print "I2:",I2
-        print "Uniting factor:", (I1/I2)
-        dataset=dataset*(I1/I2)
+        if verbose:
+            print "I1:",I1
+            print "I2:",I2
+            print "Uniting factor:", (I1/I2)
+        if scaleother:
+            dataset=dataset*(I1/I2)
+        else:
+            obj=obj*(I2/I1)
         if xsep is not None:
             return obj[obj._x<=xsep].extend(dataset[dataset._x>xsep])
         else:

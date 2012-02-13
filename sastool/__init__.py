@@ -27,9 +27,10 @@ changes, until the first major release (expected maybe in the second half of
 """
 
 VERSION="0.0.1"
-__all__=['io','misc','utils2d','dataset']
+__all__=['io','misc','utils2d','dataset','fitting']
 
 from . import misc
 from . import utils2d
 from . import io
 from . import dataset
+from . import fitting
