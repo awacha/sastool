@@ -259,7 +259,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
             if not isfinite(data[ix,iy]):
                 #disregard nonfinite (NaN or inf) pixels.
                 continue
-            if flagerror and isfinite(dataerr[ix,iy]):
+            if flagerror and not isfinite(dataerr[ix,iy]):
                 #disregard nonfinite (NaN or inf) pixels.
                 continue
             # coordinates of the pixel in length units (mm)
@@ -386,6 +386,8 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
         for iy from 0<=iy<N:
             if flagmask and mask[ix,iy]:
                 continue
+            if flagerror and not isfinite(dataerr[ix,iy]):
+                continue
             x=(ix-bcxa)*resx
             y=(iy-bcya)*resy
             d=sqrt(x**2+y**2)
@@ -450,7 +452,8 @@ def bin2D(np.ndarray[np.double_t, ndim=2] M, Py_ssize_t xlen, Py_ssize_t ylen):
                     N[i,j]+=M[i*xlen+i1,j*ylen+j1]
     return N/(xlen*ylen)
  
-def calculateDmatrix(np.ndarray[np.uint8_t, ndim=2] mask,res,double bcx,double bcy):
+def calculateDmatrix(np.ndarray[np.uint8_t, ndim=2] mask, res, double bcx, 
+                     double bcy):
     """Calculate distances of pixels from the origin
     
     Inputs:
