@@ -17,7 +17,7 @@ import scipy.misc
 import scipy.io
 import re
 
-from _io import cbfdecompress
+from _io import cbfdecompress # pylint : disable=E0611
 
 from sastool.misc import normalize_listargument
 
@@ -267,7 +267,7 @@ def readtif(filename):
     
     scipy.misc.imread() is used, which in turn depends on PIL.
     """
-    return scipy.misc.imread(filename)
+    return scipy.misc.imread(filename,True)
 
 def readint2dnorm(filename):
     """Read corrected intensity and error matrices (Matlab mat or numpy npz
