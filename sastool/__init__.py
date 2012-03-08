@@ -20,17 +20,23 @@ dataset: a class-hierarchy for representing measured datasets and facilitating
 misc: miscellaneous utility macros
 utils2d: utilities for treating two-dimensional scattering data (integrating,
     finding the beam center, plotting etc.)
-    
+fitting: framework for nonlinear least-squares fitting
+gui: Utilities requiring graphical user interface. GUI is implemented in pygtk,
+    this subpackage depends therefore on the Gtk backend of matplotlib, thus
+    this subpackage is not imported by default.
+sim: Simulation routines
+
 Please notice that this code is under development. The API is still subject to
 changes, until the first major release (expected maybe in the second half of
 2012). Please be patient (or help me... ;-))
 """
 
 VERSION="0.0.1"
-__all__=['io','misc','utils2d','dataset','fitting']
+__all__=['io','misc','utils2d','dataset','fitting','sim']
 
 from . import misc
 from . import utils2d
 from . import io
 from . import dataset
 from . import fitting
+from . import sim

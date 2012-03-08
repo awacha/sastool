@@ -57,7 +57,9 @@ class StatusLine(gtk.HBox):
         #else:
         #    self.show()
         self.label.set_text(text)
-        for b in self.button: b.hide();
+        for b in self.button:
+            b.set_label('');
+            b.hide();
         for b,t in zip(self.button,args):
             if t is not None:
                 b.set_label(t); b.show()
@@ -115,7 +117,7 @@ class GraphToolbarVisibility(object):
             gtk.main_iteration()
 
 class MaskMaker(gtk.Dialog):
-    _mouseclick_mode=None #possible values: 'Points', 'Lines' and None
+    _mouseclick_mode=None #possible values: 'Points', 'Lines', 'PixelHunt' and None
     _mouseclick_last=();
     _selection=None
     def __init__(self, title = 'Make mask...', parent = None, 
@@ -165,19 +167,26 @@ class MaskMaker(gtk.Dialog):
         self.graphtoolbar = NavigationToolbar2GTKAgg( self.canvas, self.vbox )
         hb1.pack_start(self.graphtoolbar,True,True,0)
         #assemble toolbar on the left
-        
-        for name,func in [('Pixel hunt',self.pixelhunt),
-                          ('Rectangle',self.selectrect),
-                          ('Circle',self.selectcircle),
-                          ('Polygon',self.selectpoly),
-                          ('Forget selection',self.clearselection),
-                          ('Mask selection',self.maskselection),
-                          ('Unmask selection',self.unmaskselection),
-                          ('Flip mask\nover selection',self.flipmaskselection),
-                          ('Flip mask',self.flipmask),
+        self.selector_buttons=gtk.VBox()
+        self.toolbar.pack_start(self.selector_buttons)
+        self.masking_buttons=gtk.VBox()
+        self.toolbar.pack_start(self.masking_buttons)
+        for name,func,container in [('Pixel hunt',self.pixelhunt,self.selector_buttons),
+                          ('Select rectangle',self.selectrect,self.selector_buttons),
+                          ('Select circle',self.selectcircle,self.selector_buttons),
+                          ('Select polygon',self.selectpoly,self.selector_buttons),
+                          ('Select by histogram\n(not yet masked pixels)',self.selecthisto_notyetmasked,self.selector_buttons),
+                          ('Select by histogram\n(from all pixels)',self.selecthisto,self.selector_buttons),
+                          ('Forget selection',self.clearselection,self.masking_buttons),
+                          ('Mask selection',self.maskselection,self.masking_buttons),
+                          ('Unmask selection',self.unmaskselection,self.masking_buttons),
+                          ('Flip mask\nover selection',self.flipmaskselection,self.masking_buttons),
+                          ('Flip mask',self.flipmask,self.selector_buttons),
+                          ('Mask nonfinite pixels',self.masknonfinite,self.selector_buttons),
+                          ('Mask nonpositive pixels',self.masknonpositive,self.selector_buttons),
                           ]:
             b=gtk.Button(name)
-            self.toolbar.pack_start(b)
+            container.pack_start(b)
             b.connect('clicked',func)
         
         self.statusline=StatusLine()
@@ -185,17 +194,20 @@ class MaskMaker(gtk.Dialog):
         self.vbox.pack_start(self.statusline,False,True,0)
 
         self.vbox.show_all()
-        self.update_graph()
+        self.update_graph(True)
+        self.set_select_mode(True)
     def get_mask(self):
         return self._mask.copy()
     def update_graph(self,redraw=False):
         if redraw:
-            self.fig.gca().cla()
-        self.fig.gca().imshow(self._matrix,interpolation='nearest')
+            self.fig.clf()
+        im=self.fig.gca().imshow(self._matrix,interpolation='nearest')
         mw=np.ones(self._mask.shape+(4,));
         mw[:,:,3]=(-self._mask)*0.8
         self.fig.gca().imshow(mw,interpolation='nearest')
         self.canvas.draw()
+        if redraw:
+            self.fig.colorbar(im)
         del mw
     def newmask(self,widget):
         self._mask=np.ones_like(self._matrix).astype(np.bool8)
@@ -247,9 +259,9 @@ class MaskMaker(gtk.Dialog):
         fcd.destroy()
         self.update_graph(True)
         return True
-    def clearfig(self,widget):
-        self.fig.gca().cla()
-        self.canvas.draw()
+    def set_select_mode(self,value=True):
+        self.selector_buttons.set_sensitive(value)
+        self.masking_buttons.set_sensitive(not value)
         return True
     def _on_matplotlib_mouseclick(self,event):
         if self._mouseclick_mode is None:
@@ -286,7 +298,38 @@ class MaskMaker(gtk.Dialog):
             self._mouseclick_mode=None
         self.statusline.setup(None)
         self.update_graph()
+        self.set_select_mode()
         return True
+    def masknonfinite(self,widget):
+        self._mask&=np.isfinite(self._matrix)
+        self.update_graph()
+        return True
+    def masknonpositive(self,widget):
+        self._mask&=(self._matrix>0)
+        self.update_graph()
+        return True
+    def selecthisto(self,widget,data=None):
+        self.toolbar.set_sensitive(False)
+        if data is None:
+            data=self._matrix
+        self._mouseclick_mode=None
+        self.fig.clf()
+        Nbins=max(min(data.max()-data.min(),100),1000)
+        self.fig.gca().hist(data.flatten(),bins=Nbins,normed=True)
+        self.fig.canvas.draw()
+        self.statusline.setup('Zoom range to select, then press ---->','Finished')
+        self.statusline.reset_counters()
+        while not self.statusline.nbuttonclicks(0):
+            gtk.main_iteration()
+        ax=self.fig.gca().axis()
+        self._selection=(self._matrix>=ax[0]) & (self._matrix<=ax[1])
+        self.statusline.setup('Range %g<=data<=%g selected: %u pixels.'%(ax[0],ax[1],self._selection.sum()))
+        self.update_graph(True)
+        self.toolbar.set_sensitive(True)
+        self.set_select_mode(False)
+        return True
+    def selecthisto_notyetmasked(self,widget):
+        return self.selecthisto(widget,data=self._matrix[self._mask.astype('bool')])
     def selectrect(self,widget):
         with GraphToolbarVisibility(self.graphtoolbar,self.toolbar):
             self.statusline.setup('Click two opposite corners of the rectangle')
@@ -309,6 +352,7 @@ class MaskMaker(gtk.Dialog):
             self._selection=(row>=y0)&(row<=y1)&(col>=x0)&(col<=x1)
             self.fig.canvas.draw()
         self.statusline.setup(None)
+        self.set_select_mode(False)
         return True
     def selectcircle(self,widget):
         with GraphToolbarVisibility(self.graphtoolbar,self.toolbar):
@@ -335,8 +379,8 @@ class MaskMaker(gtk.Dialog):
             self._selection=((row-ycen)**2+(col-xcen)**2<=r**2)
             self.fig.canvas.draw()
         self.statusline.setup(None)
+        self.set_select_mode(False)
         return True
-        
     def selectpoly(self,widget):
         with GraphToolbarVisibility(self.graphtoolbar,self.toolbar):
             self.statusline.setup('Select corners of the polygon. If finished, press --->','Finished')
@@ -363,10 +407,12 @@ class MaskMaker(gtk.Dialog):
                 self._selection=np.zeros((Nrows,Ncols),np.bool8)
                 self._selection[points_inside.astype('bool').reshape((Nrows,Ncols))]=1
         self.statusline.setup(None)
+        self.set_select_mode(False)
         return True
     def clearselection(self,widget):
         self._selection=None
         self.update_graph(redraw=True)
+        self.set_select_mode()
         return True
     def maskselection(self,widget):
         if self._selection is None:
@@ -374,18 +420,21 @@ class MaskMaker(gtk.Dialog):
         self._mask&=-self._selection
         self.update_graph(redraw=True)
         self._selection=None
+        self.set_select_mode()
         return True
     def unmaskselection(self,widget):
         if self._selection is None: return False
         self._mask|=self._selection
         self.update_graph(redraw=True)
         self._selection=None
+        self.set_select_mode()
         return True
     def flipmaskselection(self,widget):
         if self._selection is None: return False
         self._mask[self._selection]^=1
         self.update_graph(redraw=True)
         self._selection=None
+        self.set_select_mode()
         return True
     def flipmask(self,widget):
         self._mask^=1;

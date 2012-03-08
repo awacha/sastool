@@ -1,6 +1,7 @@
-import os
 import numpy as np
-import datetime
+import dateutil.parser
+from ..misc import normalize_listargument,findfileindirs
+import warnings
 
 def readasa(basename,dirs=[]):
     """Load SAXS/WAXS measurement files from ASA *.INF, *.P00 and *.E00 files.
@@ -36,117 +37,84 @@ def readasa(basename,dirs=[]):
             poserror: estimated error of the position (cps)
             energyerror: estimated error of the energy (cps)
     """
-    if not (isinstance(dirs,list) or isinstance(dirs,tuple)):
-        dirs=[dirs]
-    if len(dirs)==0:
-        dirs=['.']
-    if not (isinstance(basename,list) or isinstance(basename,tuple)):
-        basenames=[basename]
-        basename_scalar=True
-    else:
-        basenames=basename
-        basename_scalar=False
+    basenames=normalize_listargument(basename)
     ret=[]
     for basename in basenames:
-        for d in dirs:
+        p00=None
+        for ext in ['P00','p00']:
             try:
-                p00=np.loadtxt(os.path.join(d,'%s.P00' % basename))
-            except IOError:
-                try:
-                    p00=np.loadtxt(os.path.join(d,'%s.p00' % basename))
-                except:
-                    p00=None
-            if p00 is not None:
-                p00=p00[1:] # cut the leading -1
-            try:
-                e00=np.loadtxt(os.path.join(d,'%s.E00' % basename))
-            except IOError:
-                try:
-                    e00=np.loadtxt(os.path.join(d,'%s.e00' % basename))
-                except:
-                    e00=None
-            if e00 is not None:
-                e00=e00[1:] # cut the leading -1
-            try:
-                inffile=open(os.path.join(d,'%s.inf' % basename),'rt')
-            except IOError:
-                try:
-                    inffile=open(os.path.join(d,'%s.Inf' % basename),'rt')
-                except IOError:
-                    try:
-                        inffile=open(os.path.join(d,'%s.INF' % basename),'rt')
-                    except:
-                        inffile=None
-                        params=None
-            if (p00 is not None) and (e00 is not None) and (inffile is not None):
+                p00=np.loadtxt(findfileindirs(basename+'.'+ext,dirs))
                 break
-            else:
-                p00=None
-                e00=None
-                inffile=None
+            except IOError:
+                pass
+        if p00 is not None:
+            p00=p00[1:]
+        e00=None
+        for ext in ['E00','e00']:
+            try:
+                e00=np.loadtxt(findfileindirs(basename+'.'+ext,dirs))
+                break
+            except IOError:
+                pass
+        if e00 is not None:
+            e00=e00[1:]
+        inffile=None
+        for ext in ['Inf','inf','INF']:
+            try:
+                inffile=open(findfileindirs(basename+'.'+ext,dirs),'rt')
+                break
+            except IOError:
+                pass
         if (p00 is None) or (e00 is None) or (inffile is None):
-            print "Cannot find every file (*.P00, *.INF, *.E00) for sample %s in any directory" %basename
+            warnings.warn("Cannot find every file (*.P00, *.INF, *.E00) for sample %s." %basename)
             continue
         if inffile is not None:
             params={}
-            l1=inffile.readlines()
-            l=[]
-            for line in l1:
-                if len(line.strip())>0:
-                    l.append(line) # filter out empty lines
-            def getdate(stri):
+            mode=''
+            params['comments']=[]
+            floatright=lambda s:float(s.split(':')[1].replace(',','.'))
+            for line in inffile:
+                line=line.replace('\xa0','').strip()
+                if not line:
+                    mode=''
+                    continue # skip empty lines
                 try:
-                    month=int(stri.split()[0].split('-')[0])
-                    day=int(stri.split()[0].split('-')[1])
-                    year=int(stri.split()[0].split('-')[2])
-                    hour=int(stri.split()[1].split(':')[0])
-                    minute=int(stri.split()[1].split(':')[1])
-                    second=int(stri.split()[1].split(':')[2])
-                except:
-                    return None
-                return {'Month':month,'Day':day,'Year':year,
-                        'Hour':hour,'Minute':minute,'Second':second,
-                        'Datetime':datetime.datetime(year,month,day,hour,minute,second)}
-            #Three different cases can exist:
-            #    1) Original, untouched INF file: first row is the date, second starts with Resolution
-            #    2) Comments before the date
-            #    3) Comments after the date
-            resolutionlinepassed=False
-            commentlines=[]
-            for line in l:
-                line=line.replace('\r','')
-                if line.strip().startswith('Resolution'):
-                    resolutionlinepassed=True
-                elif line.strip().startswith('PSD1 Lower Limit'):
-                    params['Energywindow_Low']=float(line.strip().split(':')[1].replace(',','.'))
-                elif line.strip().startswith('PSD1 Upper Limit'):
-                    params['Energywindow_High']=float(line.strip().split(':')[1].replace(',','.'))
-                elif line.strip().startswith('Realtime'):
-                    params['Realtime']=float(line.strip().split(':')[1].split()[0].replace(',','.').replace('\xa0',''))
-                elif line.strip().startswith('Lifetime'):
-                    params['Livetime']=float(line.strip().split(':')[1].split()[0].replace(',','.').replace('\xa0',''))
-                elif line.strip().startswith('Lower Limit'):
-                    params['Energywindow_Low']=float(line.strip().split(':')[1].replace(',','.'))
-                elif line.strip().startswith('Upper Limit'):
-                    params['Energywindow_High']=float(line.strip().split(':')[1].replace(',','.'))
-                elif line.strip().startswith('Stop Condition'):
-                    params['Stopcondition']=line.strip().split(':')[1].strip().replace(',','.')
-                elif getdate(line) is not None:
-                    params.update(getdate(line))
+                    params['Date']=dateutil.parser.parse(line)
+                except ValueError:
+                    pass
                 else:
-                    if not resolutionlinepassed:
-                        commentlines.append(line.strip())
-            params['comment']='\n'.join(commentlines)
-            params['comment']=params['comment'].decode('cp1252')
-            params['Title']=params['comment']
-            params['basename']=basename.split(os.sep)[-1]
-        ret.append({'position':p00/params['Livetime'],'energy':e00/params['Livetime'],
-                'params':params,'pixels':np.arange(len(p00)),
-                'poserror':np.sqrt(p00)/params['Livetime'],
-                'energyerror':np.sqrt(e00)/params['Livetime'],
-                'vectors':['pixels','position','poserror'],
-                'x_is':'pixels','y_is':'position','dy_is':'poserror'})
-    if basename_scalar:
-        return ret[0]
-    else:
-        return ret
+                    continue
+                if line.endswith(':'):
+                    mode=line
+                elif mode.startswith('Resol'):
+                    pass
+                elif mode.startswith('Energy Window'):
+                    if line.startswith('PSD1 Lower Limit') or line.startswith('Lower Limit'):
+                        params['Energywindow_Low']=floatright(line)
+                    elif line.startswith('PSD1 Upper Limit') or line.startswith('Upper Limit'):
+                        params['Energywindow_High']=floatright(line)
+                    else:
+                        pass
+                elif mode.startswith('Comment'):
+                    params['comments'].append(line)
+                elif line.startswith('Realtime'):
+                    params['Realtime']=float(line.split(':')[1].split()[0].replace(',','.'))
+                elif line.startswith('Lifetime'):
+                    params['Livetime']=float(line.split(':')[1].split()[0].replace(',','.'))
+                elif line.startswith('PSD1 Energy Counts') or line.startswith('Energy Counts'):
+                    params['EnergyCounts']=floatright(line)
+                elif line.startswith('PSD1 Position Counts') or line.startswith('Position Counts'):
+                    params['PositionCounts']=floatright(line)
+                elif line.startswith('Stop Condition'):
+                    params['Stopcondition']=line.split(':')[1].strip()
+            params['basename']=basename
+            if params['comments']:
+                params['Title']=params['comments'].split()[0]
+            else:
+                params['Title']=params['basename']
+        ret.append({'position':p00,'energy':e00,
+                    'params':params,'pixels':np.arange(len(p00)),
+                    'poserror':np.sqrt(p00),
+                    'energyerror':np.sqrt(e00),
+                    })
+    return ret

@@ -15,6 +15,7 @@ import numpy as np
 import datetime
 import scipy.misc
 import scipy.io
+import re
 
 from _io import cbfdecompress
 
@@ -56,8 +57,8 @@ def readyellowsubmarine(nameformat,fsns=None,dirs='.'):
                 f.close()
                 par={}
                 par['FSN']=int(s[2:6])
-                par['Owner']=s[6:0x18].split()[0]
-                par['Title']='_'.join(s[6:0x18].split()[1:])
+                par['Owner']=s[6:12].strip()
+                par['Title']=s[12:0x18].strip()
                 par['MeasTime']=long(s[0x18:0x1e])
                 par['Monitor']=long(s[0x1e:0x26])
                 par['Day']=int(s[0x26:0x28])
@@ -73,7 +74,7 @@ def readyellowsubmarine(nameformat,fsns=None,dirs='.'):
                 par['selector_speed']=long(s[0x3d:0x42])
                 par['wavelength']=long(s[0x42:0x44])
                 par['Dist_Ech_det']=long(s[0x44:0x49])
-                par['comments']=s[0x6d:0x100]
+                par['comments']=re.sub(r'\s+',' ',s[0x6d:0x100].strip())
                 par['sum']=long(s[0x65:0x6d])
                 par['BeamPosX']=float(s[0x49:0x4d])
                 par['BeamPosY']=float(s[0x4d:0x51])
@@ -81,7 +82,7 @@ def readyellowsubmarine(nameformat,fsns=None,dirs='.'):
                 par['Datetime']=datetime.datetime(par['Year'],par['Month'],par['Day'],par['Hour'],par['Minute'],par['Second'])
                 
                 params.append(par)
-                datas.append(np.fromstring(s[0x100:],np.uint16).astype(np.double).reshape((64,64)))
+                datas.append(np.fromstring(s[0x100:],'>u2').astype(np.double).reshape((64,64)))
                 break
             except ValueError:
                 print "File %s is invalid! Skipping."%fn

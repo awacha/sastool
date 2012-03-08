@@ -259,18 +259,19 @@ AliasedVectorAttributes or its subclasses')
             # if we opened the file, close it.
             f.close()
     @classmethod
-    def new_from_file(cls, filename, skiprows=0):
+    def new_from_file(cls, filename, *args, **kwargs):
         """Load a 1D dataset from a file.
         
         Inputs:
             filename: the name of the file (or an open file-like object, which
                 can be fed to np.loadtxt())
-            skiprows: skip this many rows at the beginning
+            All other positional and keyword arguments are forwarded to
+                np.loadtxt()
         
         Output:
             a new instance of this class.
         """
-        f = np.loadtxt(filename,skiprows=skiprows) # this raises IOError if file cannot be loaded.
+        f = np.loadtxt(filename,*args,**kwargs) # this raises IOError if file cannot be loaded.
         N = f.shape[0]
         if N > 0:
             x = f[:, 0]
