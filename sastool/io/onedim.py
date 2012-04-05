@@ -6,6 +6,7 @@ Created on Jan 18, 2012
 
 import datetime
 import numpy as np
+from .. import dataset
 
 def readspec(filename):
     f=open(filename,'rt')
@@ -65,3 +66,5 @@ def readspec(filename):
             s1=[tuple(d) for d in s['data']]
             s['data']=np.array(s1,dtype=zip(s['Columns'],[np.double]*len(s['Columns'])))
     return sf
+
+readtxt=dataset.SASCurve.new_from_file

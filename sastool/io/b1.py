@@ -5,6 +5,7 @@ import itertools
 import datetime
 import glob
 import os
+import xlwt
 
 import twodim
 from ..misc import findfileindirs, normalize_listargument
@@ -84,15 +85,15 @@ def readB1header(filename):
     Examples:
         read header data from 'ORG000123.DAT':
         
-        header=readheader('ORG',123,'.DAT')
+        header=readB1header('ORG',123,'.DAT')
         
         or
         
-        header=readheader('ORG00123.DAT')
+        header=readB1header('ORG00123.DAT')
 
         or
         
-        header=readheader('ORG%05d.DAT',123)
+        header=readB1header('ORG%05d.DAT',123)
     """
     #Planck's constant times speed of light: incorrect
     # constant in the old program on hasjusi1, which was
@@ -121,6 +122,8 @@ def readB1header(filename):
     header['Anode']=float(lines[32].strip())
     header['MeasTime']=float(lines[33].strip())
     header['Temperature']=float(lines[34].strip())
+    header['BeamPosX']=float(lines[36].strip())
+    header['BeamPosY']=float(lines[37].strip())
     header['Transm']=float(lines[41].strip())
     header['Energy']=jusifaHC/float(lines[43].strip())
     header['Dist']=float(lines[46].strip())
@@ -146,9 +149,17 @@ def readB1header(filename):
     header['Current2']=float(lines[82].strip())
     header['Detector']='Unknown'
     header['PixelSize']=(header['XPixel']+header['YPixel'])/2.0
+    
+    header['AnodeError']=np.sqrt(header['Anode'])
+    header['TransmError']=0
+    header['MonitorError']=np.sqrt(header['Monitor'])
+    header['MonitorPIEZOError']=np.sqrt(header['MonitorPIEZO'])
+    header['MonitorDORISError']=np.sqrt(header['MonitorDORIS'])
+    header['Date']=datetime.datetime(header['Year'],header['Month'],header['Day'],header['Hour'],header['Minutes'])
+    header['History']=[(datetime.datetime.now(),'Loaded from '+filename)]
     return header
 
-def read2dB1data(fsns,fileformat='org_%d',dirs=[]):
+def read2dB1data(fsns,fileformat='org_%05d',dirs=[]):
     """Read 2D measurement files, along with their header data
 
     Inputs:
@@ -164,10 +175,10 @@ def read2dB1data(fsns,fileformat='org_%d',dirs=[]):
     Examples:
         Read FSN 123-130:
         a) measurements with the Gabriel detector:
-        data,header=read2dB1data('ORG',range(123,131),'.DAT')
+        data,header=read2dB1data(range(123,131),'ORG%05d')
         b) measurements with a Pilatus* detector:
-        #in this case the org_*.header files should be present in the same folder
-        data,header=read2dB1data('org_',range(123,131),'.tif')
+        #in this case the org_*.header files should be present
+        data,header=read2dB1data(range(123,131),'org_%05d')
     """
     fsns=normalize_listargument(fsns)
     datas=[]
@@ -448,3 +459,67 @@ def listabtfiles(directory='.',fileformat='abt*.fio'):
         except IOError:
             pass
         print abt['name'], abt['scantype'], abt['title'], abt['start'].isoformat(), abt['end'].isoformat()
+        
+def getsamplenamesxls(fsns,xlsname,dirs,whattolist=None,headerformat='org_%05d.header'):
+    """ getsamplenames revisited, XLS output.
+    
+    Inputs:
+        fsns: FSN sequence
+        xlsname: XLS file name to output listing
+        dirs: either a single directory (string) or a list of directories, a la readheader()
+        whattolist: format specifier for listing. Should be a list of tuples. Each tuple
+            corresponds to a column in the worksheet, in sequence. The first element of
+            each tuple is the column title, eg. 'Distance' or 'Calibrated energy (eV)'.
+            The second element is either the corresponding field in the header dictionary
+            ('Dist' or 'EnergyCalibrated'), or a tuple of them, eg. ('FSN', 'Title', 'Energy').
+            If the column-descriptor tuple does not have a third element, the string
+            representation of each field (str(param[i][fieldname])) will be written
+            in the corresponding cell. If a third element is present, it is treated as a 
+            format string, and the values of the fields are substituted.
+        headerformat: C-style format string of header file names (e.g. org_%05d.header)
+        
+    Outputs:
+        an XLS workbook is saved.
+    
+    Notes:
+        if whattolist is not specified exactly (ie. is None), then the output
+            is similar to getsamplenames().
+        module xlwt is needed in order for this function to work. If it cannot
+            be imported, the other functions may work, only this function will
+            raise a NotImplementedError.
+    """
+    def readheader_swallow_exception(fsn):
+        try:
+            return readB1header(findfileindirs(headerformat%fsn,dirs))
+        except IOError:
+            return None
+    params=[readheader_swallow_exception(f) for f in fsns]
+    params=[a for a in params if a is not None];
+
+    if whattolist is None:
+        whattolist=[('FSN','FSN'),('Time','MeasTime'),('Energy','Energy'),
+                    ('Distance','Dist','%.0f'),('Position','PosSample'),
+                    ('Transmission','Transm'),('Temperature','Temperature'),
+                    ('Title','Title'),('Date',('Day','Month','Year','Hour','Minutes'),'%02d.%02d.%04d %02d:%02d')]
+    wb=xlwt.Workbook(encoding='utf8')
+    ws=wb.add_sheet('Measurements')
+    for i in range(len(whattolist)):
+        ws.write(0,i,whattolist[i][0])
+    for i in range(len(params)):
+        for j in range(len(whattolist)):
+            if np.isscalar(whattolist[j][1]):
+                fields=[whattolist[j][1]]
+            else:
+                fields=whattolist[j][1]
+            if len(whattolist[j])==2:
+                if len(fields)>=2:
+                    strtowrite=''.join([str(params[i][f]) for f in fields])
+                else:
+                    strtowrite=params[i][fields[0]]
+            elif len(whattolist[j])>=3:
+                strtowrite=whattolist[j][2] % tuple([params[i][f] for f in fields])
+            else:
+                assert False
+            ws.write(i+1,j,strtowrite)
+    wb.save(xlsname)
+    

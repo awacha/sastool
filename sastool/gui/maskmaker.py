@@ -205,9 +205,9 @@ class MaskMaker(gtk.Dialog):
         mw=np.ones(self._mask.shape+(4,));
         mw[:,:,3]=(-self._mask)*0.8
         self.fig.gca().imshow(mw,interpolation='nearest')
-        self.canvas.draw()
         if redraw:
             self.fig.colorbar(im)
+        self.canvas.draw()
         del mw
     def newmask(self,widget):
         self._mask=np.ones_like(self._matrix).astype(np.bool8)

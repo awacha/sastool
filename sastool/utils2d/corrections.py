@@ -43,7 +43,9 @@ def angledependentabsorption(twotheta,transmission):
             exp(-mu*d))
     
     The output matrix is of the same shape as twotheta. The scattering intensity
-        matrix should be multiplied by it.
+        matrix should be multiplied by it. Note, that this does not corrects for
+        sample transmission by itself, as the 2*theta -> 0 limit of this matrix
+        is unity.
     """
     mud=-np.log(transmission);
     cor=np.ones(twotheta.shape)

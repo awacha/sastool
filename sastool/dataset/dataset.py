@@ -42,7 +42,7 @@ class AliasedVectorAttributes(AliasedArrayAttributes, ArithmeticBase):
     
     
     """
-    _xtolerance = 1e-6
+    _xtolerance = 5e-4
     def __init__(self, **kwargs):
         ArithmeticBase.__init__(self)
         kwargs['normalnames'] = ['x', 'y', 'dy', 'dx']
@@ -76,6 +76,8 @@ AliasedVectorAttributes or its subclasses')
                     comp['dx'] = c._dx
                 except AttributeError:
                     pass # this is not a fatal error
+            else:
+                raise ValueError('incompatible abscissae')
         elif isinstance(c, ErrorValue):
             comp['x'] = self._x
             comp['y'] += c.val
@@ -378,6 +380,8 @@ AliasedVectorAttributes or its subclasses')
     
     @staticmethod
     def average(*datasets):
+        """Average several datasets (weighted average, errors squared are the weights)
+        """
         if len(datasets)==1 and hasattr(datasets[0],'__getitem__'):
             datasets=datasets[0]
         res=datasets[0].copy()
