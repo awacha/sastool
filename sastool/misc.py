@@ -17,6 +17,8 @@ def normalize_listargument(arg):
 
 def findfileindirs(filename,dirs=[],use_pythonpath=True,notfound_is_fatal=True,notfound_val=None):
     """Find file in multiple directories."""
+    if dirs is None:
+        dirs=[]
     dirs=normalize_listargument(dirs)
     if not dirs: #dirs is empty
         dirs=['.']

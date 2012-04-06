@@ -2,6 +2,7 @@ import sastool
 import itertools
 import collections
 import numpy as np
+import datetime
 
 datadirs=['/afs/bionano/misc/synchrotron_neutron/desy/hasylab/hasjusi1/ORG/']
 sensfsns=range(7721,7765)
@@ -53,13 +54,9 @@ config={'datadirs':datadirs,
         'verbose':True,
        }
 
-def header_add_history(header,text):
-    header['History'].append((datetime.datetime.now(),text))
-
-def describe_header(h):
-    return "FSN {FSN}; {Title}; {Dist} mm; {Energy} eV".format(**h)
-
+    
 def config_reloadmasks(config):
+    """(Re)load mask files into the config structure"""
     if config['verbose']:
         print "Reloading masks..."
     for k in set(config['maskfile'].values() + [config['maskfile'].default_factory()]):
