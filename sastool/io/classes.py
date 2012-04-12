@@ -13,6 +13,7 @@ import collections
 import numpy as np
 import matplotlib.pyplot as plt
 import numbers
+import h5py
 
 from .. import dataset
 from .. import utils2d
@@ -36,49 +37,6 @@ import twodim
 # reader function: can be (1) a function accepting a string and returning as
 #     much values as the number of field names is. Or if omitted, unicode() will
 #     be used.
-logfile_data = [('FSN', 'FSN', None, int),
-                  ('FSNs', 'FSNs', lambda l:' '.join([unicode(x) for x in l]),
-                   lambda s:[float(x) for x in s.replace(',', ' ').replace(';', ' ').split()]),
-                  ('Sample name', 'Title'),
-                  ('Sample title', 'Title'),
-                  ('Sample-to-detector distance (mm)', 'Dist', None, float),
-                  ('Sample thickness (cm)', 'Thickness', None, float),
-                  ('Sample transmission', 'Transm', None, float),
-                  ('Sample position (mm)', 'PosSample', None, float),
-                  ('Temperature', 'Temperature', None, float),
-                  ('Measurement time (sec)', 'MeasTime', None, float),
-                  ('Scattering on 2D detector (photons/sec)', 'ScatteringFlux',
-                   None, float),
-                  ('Dark current subtracted (cps)', 'dclevel', None, float),
-                  ('Dark current FSN', 'FSNdc', None, int),
-                  ('Empty beam FSN', 'FSNempty', None, int),
-                  ('Injection between Empty beam and sample measurements?',
-                   'InjectionEB', lambda b:['n', 'y'][bool(b)],
-                   lambda s:s.upper().startswith('Y')),
-                  ('Glassy carbon FSN', 'FSNref1', None, int),
-                  ('Glassy carbon thickness (cm)', 'Thicknessref1', None, float),
-                  ('Injection between Glassy carbon and sample measurements?',
-                   'InjectionGC', lambda b:['n', 'y'][bool(b)],
-                   lambda s:s.upper().startswith('Y')),
-                  ('Energy (eV)', 'Energy', None, float),
-                  ('Calibrated energy (eV)', 'EnergyCalibrated', None, float),
-                  ('Calibrated energy', 'EnergyCalibrated', None, float),
-                  ('Beam x y for integration', ('BeamPosX', 'BeamPosY'), None,
-                   lambda s: tuple([float(x) for x in s.replace(',',' ').replace(';',' ').split()])),
-                  ('Normalisation factor (to absolute units)', 'NormFactor',
-                   None, float),
-                  ('Relative error of normalisation factor (percentage)',
-                   'NormFactorRelativeError', None, float),
-                  ('Beam size X Y (mm)', ('BeamsizeX', 'BeamsizeY'), None,
-                   lambda s: tuple([float(x) for x in s.replace(',',' ').replace(';',' ').split()])),
-                  ('Pixel size of 2D detector (mm)', 'PixelSize', None, float),
-                  ('Primary intensity at monitor (counts/sec)', 'Monitor', None,
-                   float),
-                  ('Primary intensity calculated from GC (photons/sec/mm^2)',
-                   'PrimaryIntensity', None, float),
-                  ('Sample rotation around x axis', 'RotXsample', None, float),
-                  ('Sample rotation around y axis', 'RotYsample', None, float),
-                 ]
 
 class SASHeader(collections.defaultdict):
     """A class for holding measurement meta-data."""
@@ -95,6 +53,62 @@ class SASHeader(collections.defaultdict):
                   'Temperature':lambda a,b:(abs(a-b)<0.5),
                   'Title':lambda a,b:(a==b),
                   }
+    @staticmethod
+    def _linearize_history(history):
+        history_text=[str(x[0])+': '+x[1] for x in history]
+        history_text=[a.replace(';',';;') for a in history_text]
+        return '; '.join(history_text)
+    @staticmethod
+    def _delinearize_history(history_oneliner):
+        history_oneliner=history_oneliner.replace(';;','<*doublesemicolon*>')
+        history_list=[a.strip().replace('<*doublesemicolon*>',';') for a in history_oneliner.split(';')]
+        history=[a.split(':') for a in history_list]
+        history=[(int(a[0]),a[1].strip()) for a in history]
+        return history
+    _logfile_data = [('FSN', 'FSN', None, int),
+                     ('FSNs', 'FSNs', lambda l:' '.join([unicode(x) for x in l]),
+                      lambda s:[float(x) for x in s.replace(',', ' ').replace(';', ' ').split()]),
+                     ('Sample name', 'Title'),
+                     ('Sample title', 'Title'),
+                     ('Sample-to-detector distance (mm)', 'Dist', None, float),
+                     ('Sample thickness (cm)', 'Thickness', None, float),
+                     ('Sample transmission', 'Transm', None, float),
+                     ('Sample position (mm)', 'PosSample', None, float),
+                     ('Temperature', 'Temperature', None, float),
+                     ('Measurement time (sec)', 'MeasTime', None, float),
+                     ('Scattering on 2D detector (photons/sec)', 'ScatteringFlux',
+                      None, float),
+                     ('Dark current subtracted (cps)', 'dclevel', None, float),
+                     ('Dark current FSN', 'FSNdc', None, int),
+                     ('Empty beam FSN', 'FSNempty', None, int),
+                     ('Injection between Empty beam and sample measurements?',
+                      'InjectionEB', lambda b:['n', 'y'][bool(b)],
+                      lambda s:s.upper().startswith('Y')),
+                     ('Glassy carbon FSN', 'FSNref1', None, int),
+                     ('Glassy carbon thickness (cm)', 'Thicknessref1', None, float),
+                     ('Injection between Glassy carbon and sample measurements?',
+                      'InjectionGC', lambda b:['n', 'y'][bool(b)],
+                      lambda s:s.upper().startswith('Y')),
+                     ('Energy (eV)', 'Energy', None, float),
+                     ('Calibrated energy (eV)', 'EnergyCalibrated', None, float),
+                     ('Calibrated energy', 'EnergyCalibrated', None, float),
+                     ('Beam x y for integration', ('BeamPosX', 'BeamPosY'), None,
+                      lambda s: tuple([float(x) for x in s.replace(',',' ').replace(';',' ').split()])),
+                     ('Normalisation factor (to absolute units)', 'NormFactor',
+                      None, float),
+                     ('Relative error of normalisation factor (percentage)',
+                      'NormFactorRelativeError', None, float),
+                     ('Beam size X Y (mm)', ('BeamsizeX', 'BeamsizeY'), None,
+                      lambda s: tuple([float(x) for x in s.replace(',',' ').replace(';',' ').split()])),
+                     ('Pixel size of 2D detector (mm)', 'PixelSize', None, float),
+                     ('Primary intensity at monitor (counts/sec)', 'Monitor', None,
+                      float),
+                     ('Primary intensity calculated from GC (photons/sec/mm^2)',
+                      'PrimaryIntensity', None, float),
+                     ('Sample rotation around x axis', 'RotXsample', None, float),
+                     ('Sample rotation around y axis', 'RotYsample', None, float),
+                     ('History','History',_linearize_history,_delinearize_history),
+                    ]
     def __init__(self,*args,**kwargs):
         return super(SASHeader,self).__init__(self._default_factory,*args,**kwargs)
     def _default_factory(self,key):
@@ -182,7 +196,7 @@ class SASHeader(collections.defaultdict):
         fid=open(filename,'r'); #try to open. If this fails, an exception is raised
         for l in fid:
             try:
-                ld=[ld for ld in logfile_data if l.split(':')[0].strip()==ld[0]][0]
+                ld=[ld for ld in self._logfile_data if l.split(':')[0].strip()==ld[0]][0]
             except IndexError:
                 #line is not recognized.
                 continue
@@ -213,7 +227,7 @@ class SASHeader(collections.defaultdict):
         """
         allkeys=self.keys()
         f=open(filename,'wt')
-        for ld in logfile_data: #process each line
+        for ld in self._logfile_data: #process each line
             linebegin=ld[0]
             fieldnames=ld[1]
             #set the default formatter if it is not given
@@ -344,6 +358,22 @@ of the same length as the field names in logfile_data.')
         """
         return all([self._equiv_tests[k](self[k],other[k]) for k in self._equiv_tests]+
                    [other._equiv_tests[k](self[k],other[k]) for k in other._equiv_tests])
+    def write_as_hdf_attribs(self,hdf_entity):
+        for k in self.keys():
+            if k=='History':
+                hdf_entity.attrs[k]=self._linearize_history(self[k])
+            elif isinstance(self[k],numbers.Number):
+                hdf_entity.attrs[k]=self[k]
+            elif isinstance(self[k],basestring):
+                hdf_entity.attrs[k]=self[k].encode('utf-8')
+            elif isinstance(self[k],collections.Sequence):
+                hdf_entity.attrs[k]=self[k]
+            elif isinstance(self[k],np.ndarray):
+                hdf_entity.attrs[k]=self[k]
+            elif isinstance(self[k],bool):
+                hdf_entity.attrs[k]=self[k]
+            else:
+                raise ValueError('Invalid field type: '+str(k)+', ',repr(type(self[k])))
 
 class SASExposure(object):
     """A class for holding SAS exposure data, i.e. intensity, error, metadata, mask"""
@@ -353,6 +383,9 @@ class SASExposure(object):
     mask=None
     def __init__(self):
         super(SASExposure,self).__init__()
+    def check_for_mask(self):
+        if self.mask is None:
+            raise ValueError('mask not defined')
     def read_from_B1_int2dnorm(self,fsn,fileformat='int2dnorm%d',logfileformat='intnorm%d.log',dirs=['.']):
         dataname=None
         for extn in ['.npy','.mat']:
@@ -369,6 +402,7 @@ class SASExposure(object):
     def set_mask(self,mask):
         self.mask=mask.astype(np.uint8)
     def get_qrange(self,N=None,spacing='linear'):
+        self.check_for_mask()
         qrange=utils2d.integrate.autoqscale(self.header['EnergyCalibrated'],
                                             self.header['Dist'],
                                             self.header['PixelSize'],
@@ -387,6 +421,7 @@ class SASExposure(object):
         else:
             raise NotImplementedError
     def radial_average(self,qrange=None):
+        self.check_for_mask()
         q,I,E,A,p=utils2d.integrate.radint(self.Intensity,self.Error,
                                            self.header['EnergyCalibrated'],
                                            self.header['Dist'],
@@ -400,6 +435,13 @@ class SASExposure(object):
         ds.addfield('Area',A)
         ds.addfield('Pixels',p)
         return ds
+    def plot2d(self,zscale='log',crosshair=False,drawmask=True,qrange_on_axis=False):
+        
+        if zscale.upper().startswith('LOG'):
+            self._plotmat=np.log10(self.Intensity.copy())
+            goodidx=np.isfinite(self._plotmat)
+            self._plotmat[-goodidx]=self._plotmat[goodidx].min()
+        
     def imshow(self,*args,**kwargs):
         plt.imshow(np.log10(self.Intensity),*args,**kwargs)
     @classmethod
@@ -407,3 +449,25 @@ class SASExposure(object):
         obj=cls()
         obj.read_from_B1_int2dnorm(*args,**kwargs)
         return obj
+    def find_beam_semitransparent(self,bs_area=None):
+        self.check_for_mask()
+        raise NotImplementedError
+    def write_to_hdf5(self,hdf_or_filename,**kwargs):
+        if 'compression' not in kwargs:
+            kwargs['compression']='gzip'
+        hdffile=None
+        if isinstance(hdf_or_filename,basestring):
+            hdffile=h5py.highlevel.File(hdf_or_filename)
+        elif isinstance(hdf_or_filename,h5py.highlevel.File):
+            hdffile=hdf_or_filename
+        if hdffile is not None:
+            hdfgroup=hdffile.create_group('FSN%d'%self.header['FSN'])
+        elif isinstance(hdf_or_filename,h5py.highlevel.Group):
+            hdfgroup=hdf_or_filename
+        else:
+            raise ValueError('Argument hdf_or_filename should be a filename, a h5py.highlevel.File instance or a h5py.highlevel.Group instance.')
+        self.header.write_as_hdf_attribs(hdfgroup)
+        hdfgroup.create_dataset('Intensity',data=self.Intensity,**kwargs)
+        hdfgroup.create_dataset('Error',data=self.Error,**kwargs)
+        if isinstance(hdf_or_filename,basestring):
+            hdffile.close()

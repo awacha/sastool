@@ -94,7 +94,8 @@ def read2dintfile(fsn,fileformat='int2dnorm%d',logfileformat='intnorm%d.log',dir
     def read_and_eat_exception(f):
         try:
             return SASExposure.new_from_B1_int2dnorm(f,fileformat,logfileformat,dirs)
-        except:
+        except IOError:
+            print "Could not load files for FSN",f
             return None
     loaded=[read_and_eat_exception(f) for f in fsns]
     loaded=[l for l in loaded if l is not None]

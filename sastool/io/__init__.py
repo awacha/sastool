@@ -14,7 +14,7 @@ asa: Hecus ASA card (MBraun PSD50 detector)
 
 '''
 
-__all__=['b1','twodim','asa','onedim','edf','yellowsubmarine']
+__all__=['b1','twodim','asa','onedim','edf','yellowsubmarine','classes']
 
 import twodim
 import b1

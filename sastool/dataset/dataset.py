@@ -42,7 +42,7 @@ class AliasedVectorAttributes(AliasedArrayAttributes, ArithmeticBase):
     
     
     """
-    _xtolerance = 5e-4
+    _xtolerance = 1e-3
     def __init__(self, **kwargs):
         ArithmeticBase.__init__(self)
         kwargs['normalnames'] = ['x', 'y', 'dy', 'dx']
