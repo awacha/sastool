@@ -65,6 +65,19 @@ def energycalibration(energymeas,energycalib,energy1,degree=None):
         poly=np.lib.polynomial.polyfit(energymeas,energycalib,degree)
     return np.lib.polynomial.polyval(poly,energy1)
 
+def parse_number(val):
+    """Try to auto-detect the numeric type of the value. First a conversion to
+    int is tried. If this fails float is tried, and if that fails too, unicode()
+    is executed. If this also fails, a ValueError is raised.
+    """
+    funcs=[int, float, unicode]
+    for f in funcs:
+        try:
+            return f(val)
+        except:
+            pass
+    raise ValueError(val)
+
 class Pauser(object):
     """A general, state-retaining class for pausing in a similar way as Matlab(R)
     does. After instantiation the pause() method can be called

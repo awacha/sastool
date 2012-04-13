@@ -14,29 +14,38 @@ import numpy as np
 import matplotlib.pyplot as plt
 import numbers
 import h5py
+import functools
 
 from .. import dataset
 from .. import utils2d
 from .. import misc
 import twodim
 
-#information on how to store the param structure. Each sub-list corresponds to
-# a line in the param structure and should be of the form
-# [<linestart>,<field name(s)>,<formatter function>,<reader function>]
-#
-# Required are the first and second.
-#
-# linestart: the beginning of the line in the file, up to the colon.
-#
-# field name(s): field name can be a string or a tuple of strings.
-#
-# formatter function: can be (1) a function accepting a single argument (the 
-#     value of the field) or (2) a tuple of functions or (3) None. In the latter
-#     case and when omitted, unicode() will be used.
-# 
-# reader function: can be (1) a function accepting a string and returning as
-#     much values as the number of field names is. Or if omitted, unicode() will
-#     be used.
+def debug(*args,**kwargs):
+    for a in args:
+        print repr(a)
+    for k in kwargs:
+        print k,':',repr(kwargs[k])
+
+def _linearize_bool(b):
+    return ['n', 'y'][bool(b)]
+def _delinearize_bool(b):
+    if isinstance(b,basestring):
+        b=b.lower()
+        if b.startswith('y') or b=='true':
+            return True
+        elif b.startswith('n') or b=='false':
+            return False
+        else:
+            raise ValueError(b)
+    else:
+        return bool(b)
+def _linearize_list(l):
+    return ' '.join([unicode(x) for x in l])
+def _delinearize_list(l,converter=list):
+    return converter([misc.parse_number(x) for x in l.replace(',', ' ').replace(';',' ').split()])
+
+
 
 class SASHeader(collections.defaultdict):
     """A class for holding measurement meta-data."""
@@ -62,14 +71,31 @@ class SASHeader(collections.defaultdict):
     def _delinearize_history(history_oneliner):
         history_oneliner=history_oneliner.replace(';;','<*doublesemicolon*>')
         history_list=[a.strip().replace('<*doublesemicolon*>',';') for a in history_oneliner.split(';')]
-        history=[a.split(':') for a in history_list]
-        history=[(int(a[0]),a[1].strip()) for a in history]
+        history=[a.split(':',1) for a in history_list]
+        history=[(float(a[0]),a[1].strip()) for a in history]
         return history
+    #information on how to store the param structure. Each sub-list corresponds to
+    # a line in the param structure and should be of the form
+    # [<linestart>,<field name(s)>,<formatter function>,<reader function>]
+    #
+    # Required are the first and second.
+    #
+    # linestart: the beginning of the line in the file, up to the colon.
+    #
+    # field name(s): field name can be a string or a tuple of strings.
+    #
+    # formatter function: can be (1) a function accepting a single argument (the 
+    #     value of the field) or (2) a tuple of functions or (3) None. In the latter
+    #     case and when omitted, unicode() will be used.
+    # 
+    # reader function: can be (1) a function accepting a string and returning as
+    #     much values as the number of field names is. Or if omitted, unicode() will
+    #     be used.
+    #
     _logfile_data = [('FSN', 'FSN', None, int),
-                     ('FSNs', 'FSNs', lambda l:' '.join([unicode(x) for x in l]),
-                      lambda s:[float(x) for x in s.replace(',', ' ').replace(';', ' ').split()]),
-                     ('Sample name', 'Title'),
-                     ('Sample title', 'Title'),
+                     ('FSNs', 'FSNs', _linearize_list, _delinearize_list),
+                     ('Sample name', 'Title' ),
+                     ('Sample title', 'Title' ),
                      ('Sample-to-detector distance (mm)', 'Dist', None, float),
                      ('Sample thickness (cm)', 'Thickness', None, float),
                      ('Sample transmission', 'Transm', None, float),
@@ -82,24 +108,22 @@ class SASHeader(collections.defaultdict):
                      ('Dark current FSN', 'FSNdc', None, int),
                      ('Empty beam FSN', 'FSNempty', None, int),
                      ('Injection between Empty beam and sample measurements?',
-                      'InjectionEB', lambda b:['n', 'y'][bool(b)],
-                      lambda s:s.upper().startswith('Y')),
+                      'InjectionEB', _linearize_bool, _delinearize_bool),
                      ('Glassy carbon FSN', 'FSNref1', None, int),
                      ('Glassy carbon thickness (cm)', 'Thicknessref1', None, float),
                      ('Injection between Glassy carbon and sample measurements?',
-                      'InjectionGC', lambda b:['n', 'y'][bool(b)],
-                      lambda s:s.upper().startswith('Y')),
+                      'InjectionGC', _linearize_bool, _delinearize_bool),
                      ('Energy (eV)', 'Energy', None, float),
                      ('Calibrated energy (eV)', 'EnergyCalibrated', None, float),
                      ('Calibrated energy', 'EnergyCalibrated', None, float),
                      ('Beam x y for integration', ('BeamPosX', 'BeamPosY'), None,
-                      lambda s: tuple([float(x) for x in s.replace(',',' ').replace(';',' ').split()])),
+                      functools.partial(_delinearize_list,converter=tuple)),
                      ('Normalisation factor (to absolute units)', 'NormFactor',
                       None, float),
                      ('Relative error of normalisation factor (percentage)',
                       'NormFactorRelativeError', None, float),
                      ('Beam size X Y (mm)', ('BeamsizeX', 'BeamsizeY'), None,
-                      lambda s: tuple([float(x) for x in s.replace(',',' ').replace(';',' ').split()])),
+                      functools.partial(_delinearize_list,converter=tuple)),
                      ('Pixel size of 2D detector (mm)', 'PixelSize', None, float),
                      ('Primary intensity at monitor (counts/sec)', 'Monitor', None,
                       float),
@@ -109,6 +133,8 @@ class SASHeader(collections.defaultdict):
                      ('Sample rotation around y axis', 'RotYsample', None, float),
                      ('History','History',_linearize_history,_delinearize_history),
                     ]
+    _HDF5_read_postprocess_type=[(np.generic,lambda x:x.tolist()),]
+    _HDF5_read_postprocess_name={'FSNs':lambda x:x.tolist(),'History':_delinearize_history}
     def __init__(self,*args,**kwargs):
         return super(SASHeader,self).__init__(self._default_factory,*args,**kwargs)
     def _default_factory(self,key):
@@ -182,7 +208,7 @@ class SASHeader(collections.defaultdict):
         self['MonitorPIEZOError']=math.sqrt(self['MonitorPIEZO'])
         self['MonitorDORISError']=math.sqrt(self['MonitorDORIS'])
         self['Date']=datetime.datetime(self['Year'],self['Month'],self['Day'],self['Hour'],self['Minutes'])
-        self.add_history('Loaded from '+filename)
+        self.add_history('Original header loaded: '+filename)
         return self
     def read_from_B1_log(self,filename):
         """Read B1 logfile (*.log)
@@ -214,6 +240,7 @@ class SASHeader(collections.defaultdict):
             else:
                 self[ld[1]]=vals
         fid.close()
+        self.add_history('B1 logfile loaded: '+filename)
         return self;
     def write_B1_log(self,filename):
         """Write the param structure into a logfile. See writelogfile() for an explanation.
@@ -358,22 +385,32 @@ of the same length as the field names in logfile_data.')
         """
         return all([self._equiv_tests[k](self[k],other[k]) for k in self._equiv_tests]+
                    [other._equiv_tests[k](self[k],other[k]) for k in other._equiv_tests])
-    def write_as_hdf_attribs(self,hdf_entity):
+    def write_as_hdf5_attribs(self,hdf_entity):
         for k in self.keys():
             if k=='History':
                 hdf_entity.attrs[k]=self._linearize_history(self[k])
+            elif isinstance(self[k],bool):
+                hdf_entity.attrs[k]=int(self[k])
             elif isinstance(self[k],numbers.Number):
                 hdf_entity.attrs[k]=self[k]
             elif isinstance(self[k],basestring):
                 hdf_entity.attrs[k]=self[k].encode('utf-8')
             elif isinstance(self[k],collections.Sequence):
                 hdf_entity.attrs[k]=self[k]
-            elif isinstance(self[k],np.ndarray):
-                hdf_entity.attrs[k]=self[k]
-            elif isinstance(self[k],bool):
-                hdf_entity.attrs[k]=self[k]
             else:
                 raise ValueError('Invalid field type: '+str(k)+', ',repr(type(self[k])))
+    def read_from_hdf5(self,hdf_entity):
+        for k in hdf_entity.attrs.keys():
+            attr=hdf_entity.attrs[k]
+            if k in self._HDF5_read_postprocess_name:
+                self[k]=self._HDF5_read_postprocess_name[k](attr)
+            else:
+                typematch=[x for x in self._HDF5_read_postprocess_type if isinstance(attr,x[0]) ]
+                if typematch:
+                    self[k]=typematch[0][1](attr)
+                else:
+                    self[k]=attr
+        self.add_history('Header read from HDF:'+hdf_entity.file.filename+hdf_entity.name)
 
 class SASExposure(object):
     """A class for holding SAS exposure data, i.e. intensity, error, metadata, mask"""
@@ -396,8 +433,9 @@ class SASExposure(object):
         if not dataname:
             raise IOError('Cannot find two-dimensional file!')
         headername=misc.findfileindirs(logfileformat%fsn,dirs)
-        self.Intensity,self.Error=twodim.readint2dnorm(dataname)
         self.header=SASHeader.new_from_B1_log(headername)
+        self.Intensity,self.Error=twodim.readint2dnorm(dataname)
+        self.header.add_history('Intensity and Error matrices loaded from '+dataname)
         return self
     def set_mask(self,mask):
         self.mask=mask.astype(np.uint8)
@@ -466,8 +504,10 @@ class SASExposure(object):
             hdfgroup=hdf_or_filename
         else:
             raise ValueError('Argument hdf_or_filename should be a filename, a h5py.highlevel.File instance or a h5py.highlevel.Group instance.')
-        self.header.write_as_hdf_attribs(hdfgroup)
+        self.header.write_as_hdf5_attribs(hdfgroup)
         hdfgroup.create_dataset('Intensity',data=self.Intensity,**kwargs)
         hdfgroup.create_dataset('Error',data=self.Error,**kwargs)
         if isinstance(hdf_or_filename,basestring):
             hdffile.close()
+    def read_from_hdf5(self,hdf_or_filename):
+        pass
