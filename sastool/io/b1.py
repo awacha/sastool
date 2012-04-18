@@ -108,10 +108,20 @@ def readparamfile(filename):
     
     Inputs:
         filename: the file name
-            
+
     Output: the parameter dictionary
     """
     return SASHeader.new_from_B1_log(filename)
+
+def readlogfile(fsns,paramformat='intnorm%d.log',dirs=[]):
+    fsns=normalize_listargument(fsns)
+    logfiles=[]
+    for f in fsns:
+        try:
+            logfiles.append(readparamfile(findfileindirs(paramformat%f,dirs)))
+        except IOError:
+            pass
+    return logfiles
 
 def writeparamfile(filename,param):
     """Write the param structure into a logfile. See writelogfile() for an explanation.
@@ -137,6 +147,7 @@ def read1d(fsns,fileformat='intnorm%d.dat',paramformat='intnorm%d.log',dirs=[]):
             continue
         data=SASCurve.new_from_file(filename)
         param=readparamfile(paramname)
+        data.header=param
         datas.append(data)
         params.append(param)
     return datas,params
@@ -296,7 +307,7 @@ def getsamplenamesxls(fsns,xlsname,dirs,whattolist=None,headerformat='org_%05d.h
 
     if whattolist is None:
         whattolist=[('FSN','FSN'),('Time','MeasTime'),('Energy','Energy'),
-                    ('Distance','Dist','%.0f'),('Position','PosSample'),
+                    ('Distance','Dist'),('Position','PosSample'),
                     ('Transmission','Transm'),('Temperature','Temperature'),
                     ('Title','Title'),('Date',('Day','Month','Year','Hour','Minutes'),'%02d.%02d.%04d %02d:%02d')]
     wb=xlwt.Workbook(encoding='utf8')
@@ -304,9 +315,12 @@ def getsamplenamesxls(fsns,xlsname,dirs,whattolist=None,headerformat='org_%05d.h
     for i in range(len(whattolist)):
         ws.write(0,i,whattolist[i][0])
     for i in range(len(params)):
+        # for each param structure create a line in the table
         for j in range(len(whattolist)):
+            # for each parameter to be listed, create a column
             if np.isscalar(whattolist[j][1]):
-                fields=[whattolist[j][1]]
+                # if the parameter is a scalar, make it a list
+                fields=tuple([whattolist[j][1]])
             else:
                 fields=whattolist[j][1]
             if len(whattolist[j])==2:

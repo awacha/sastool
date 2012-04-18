@@ -7,6 +7,9 @@ from libc.math cimport *
 import numpy as np
 cimport numpy as np
 
+cdef extern from "math.h":
+    double fabs(double)
+    
 ctypedef struct Coordtype:
     double x
     double y

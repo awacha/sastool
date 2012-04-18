@@ -6,7 +6,9 @@ import numbers
 import time
 import matplotlib.pyplot as plt
 import matplotlib
+import random
 
+import fitting.easylsq
 
 def normalize_listargument(arg):
     """Check if arg is an iterable (list, tuple, set, dict, np.ndarray, except
@@ -144,3 +146,30 @@ class Pauser(object):
 _pauser=Pauser()
 pause=_pauser.pause
 
+_randstrbase='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+def random_str(Nchars=6):
+    return ''.join([_randstrbase[random.randint(0,len(_randstrbase)-1)] for i in xrange(Nchars)])
+
+def findpeak(x,y,dy=None,position=None,hwhm=None,baseline=None,amplitude=None):
+    """Find a (positive) peak in the dataset.
+    
+    Inputs:
+        x, y, dy: abscissa, ordinate and the error of the ordinate (can be None)
+        position, hwhm, baseline, amplitude: first guesses for the named parameters
+        
+    Outputs:
+        peak position, error of peak position, hwhm, error of hwhm, baseline,
+            error of baseline, amplitude, error of amplitude.
+            
+    Notes:
+        A Gauss curve is fitted.
+    """
+    if position is None: position=x[y==y.max()]
+    if hwhm is None: hwhm=0.5*(x.max()-x.min())
+    if baseline is None: baseline=y.min()
+    if amplitude is None: amplitude=y.max()-baseline
+    if dy is None: dy=np.ones_like(x)
+    def fitfunc(x_,amplitude_,position_,hwhm_,baseline_):
+        return amplitude_*np.exp(0.5*(x_-position_)**2/hwhm_**2)+baseline_
+    p,dp,statdict=fitting.easylsq.nlsq_fit(x,y,dy,fitfunc,(amplitude,position,hwhm,baseline))
+    return p[1],dp[1],p[2],dp[2],p[3],dp[3],p[0],dp[0]

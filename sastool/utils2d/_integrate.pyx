@@ -9,7 +9,11 @@ from libc.math cimport *
 cdef extern from "math.h":
     int isfinite(double)
     double INFINITY
-
+    double floor(double)
+    double ceil(double)
+    double fmod(double,double)
+    double fabs(double)
+    
 cdef double HC=12398.419 #Planck's constant times speed of light, in eV*Angstrom units
 
 cdef inline double gaussian(double x0, double sigma, double x):
@@ -26,8 +30,8 @@ def polartransform(np.ndarray[np.double_t, ndim=2] data not None,
         data: the 2D matrix
         r: vector of polar radii
         phi: vector of polar angles (degrees)
-        origx: the x (row) coordinate of the origin, starting from 1
-        origy: the y (column) coordinate of the origin, starting from 1
+        origx: the x (row) coordinate of the origin, starting from 0
+        origy: the y (column) coordinate of the origin, starting from 0
     Outputs:
         pdata: a matrix of len(phi) rows and len(r) columns which contains the
             polar representation of the image.
@@ -46,8 +50,8 @@ def polartransform(np.ndarray[np.double_t, ndim=2] data not None,
     
     for i from 0<=i<lenphi:
         for j from 0<=j<lenr:
-            x=origx-1+r[j]*cos(phi[i]);
-            y=origy-1+r[j]*sin(phi[i]);
+            x=origx+r[j]*cos(phi[i]);
+            y=origy+r[j]*sin(phi[i]);
             if (x>=0) and (y>=0) and (x<Nrows) and (y<Ncols):
                 pdata[i,j]=data[x,y];
     return pdata
@@ -144,9 +148,9 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
         res: pixel size. Either a vector (tuple) of two or a scalar. Must be
             expressed in the same units as the 'distance' parameter.
         bcx: the coordinate of the beam center along the first axis (row
-            coordinates), starting from 1
+            coordinates), starting from 0
         bcy: the coordinate of the beam center along the second axis (column
-            coordiantes), starting from 1
+            coordiantes), starting from 0
         mask: the mask matrix (of the same size as 'data'). Nonzero is masked,
             zero is not masked. None to omit.
         q: the q (or pixel) points at which the integration is requested, in
@@ -202,8 +206,8 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
     #Process input data
     (xres,yres)=radint_getres(res)
     #beam position
-    bcxa=bcx-1
-    bcya=bcy-1
+    bcxa=bcx
+    bcya=bcy
     #array shapes
     M,N= radint_testarrays(data,dataerr,mask)
     if (M<=0) or (N<=0):
@@ -233,7 +237,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
             mask=np.zeros((data.shape[0],data.shape[1]),dtype=np.uint8)
         q=autoqscale(energy, distance, xres, yres, bcxa, bcya, mask);
         if not flagmask:
-            del mask; mask=None
+            mask=None
     Numq=len(q)
     # initialize the output vectors
     Intensity=np.zeros(Numq,dtype=np.double)
@@ -341,7 +345,7 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
         energy: photon energy
         distance: sample-detector distance
         res: resolution (pixel size) of the detector (mm/pixel)
-        bcx, bcy: beam center coordinates, starting from 1.
+        bcx, bcy: beam center coordinates, starting from 0.
         mask: mask matrix; 1 means masked, 0 means non-masked
         Ntheta: number of desired points on the abscissa
         qmin: the lower bound of the circle stripe (expressed in q units)
@@ -369,8 +373,8 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
         raise ValueError('data, dataerr and mask should be of the same shape')
     Ntheta1=<Py_ssize_t>floor(Ntheta)
 
-    bcxa=bcx-1
-    bcya=bcy-1
+    bcxa=bcx
+    bcya=bcy
     
     theta=np.linspace(0,2*np.pi,Ntheta1) # the abscissa of the results
     I=np.zeros(Ntheta1,dtype=np.double) # vector of intensities
@@ -459,8 +463,8 @@ def calculateDmatrix(np.ndarray[np.uint8_t, ndim=2] mask, res, double bcx,
     Inputs:
         mask: mask matrix (only its shape is used)
         res: pixel size in mm-s. Can be a vector of length 2 or a scalar
-        bcx: Beam center in pixels, in the row direction, starting from 1
-        bcy: Beam center in pixels, in the column direction, starting from 1
+        bcx: Beam center in pixels, in the row direction, starting from 0
+        bcy: Beam center in pixels, in the column direction, starting from 0
         
     Output:
         A matrix of the shape of <mask>. Each element contains the distance
@@ -491,7 +495,7 @@ def calculateDmatrix(np.ndarray[np.uint8_t, ndim=2] mask, res, double bcx,
     D=np.zeros((mask.shape[0],mask.shape[1]))
     for i from 0<=i<M:
         for j from 0<=j<N:
-            D[i,j]=sqrt((res0*(i-bcx+1))**2+(res1*(j-bcy+1))**2)
+            D[i,j]=sqrt((res0*(i-bcx))**2+(res1*(j-bcy))**2)
     return D
 
 def twodimfromonedim(Py_ssize_t Nrows, Py_ssize_t Ncols, double pixelsize,
@@ -506,9 +510,9 @@ def twodimfromonedim(Py_ssize_t Nrows, Py_ssize_t Ncols, double pixelsize,
         pixelsize: the size of the pixel (i.e. mm)
         Nsubdiv: number of subpixels in each direction (to take the finite pixel
             size of real detectors into account)
-        bcx: row coordinate of the beam center in pixels, counting starts with 1
+        bcx: row coordinate of the beam center in pixels, counting starts with 0
         bcy: column coordinate of the beam center in pixels, counting starts
-            with 1
+            with 0
         curvefunc: a Python function. Takes exactly one argument and should
             return a scalar (double).
             
@@ -522,10 +526,10 @@ def twodimfromonedim(Py_ssize_t Nrows, Py_ssize_t Ncols, double pixelsize,
     out=np.zeros((Nrows,Ncols),np.double)
     h=pixelsize/Nsubdiv
     for i from 0<=i<Nrows:
-        x=(i-bcx+1)*pixelsize
+        x=(i-bcx)*pixelsize
         for j from 0<=j<Ncols:
             tmp=0
-            y=(j-bcy+1)*pixelsize
+            y=(j-bcy)*pixelsize
             for k from 0<=k<Nsubdiv:
                 for l from 0<=l<Nsubdiv:
                     r=sqrt((x+(k+0.5)*h)**2+(y+(l+0.5)*h)**2)

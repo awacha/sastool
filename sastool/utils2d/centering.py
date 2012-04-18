@@ -1,6 +1,7 @@
 import numpy as np
 from integrate import radintpix, azimintpix
 import scipy.optimize
+from .. import misc
 
 def findbeam_gravity(data,mask):
     """Find beam center with the "gravity" method
@@ -49,7 +50,7 @@ def findbeam_gravity(data,mask):
     ycent=nix/spamx
     xcent=niy/spamy
     # return the mean values as the centers.
-    return [xcent.mean()+1,ycent.mean()+1]
+    return [xcent.mean(),ycent.mean()]
 
 def findbeam_slices(data,orig_initial,mask=None,maxiter=0,epsfcn=0.001, dmin=0, dmax=np.inf):
     """Find beam center with the "slices" method
@@ -199,6 +200,31 @@ def findbeam_semitransparent(data,pri):
     d=data[Rmin:Rmax+1,Cmin:Cmax+1]
     x=np.arange(Rmin,Rmax+1)
     y=np.arange(Cmin,Cmax+1)
-    bcx=np.sum(np.sum(d,1)*x)/np.sum(d)+1
-    bcy=np.sum(np.sum(d,0)*y)/np.sum(d)+1
+    bcx=np.sum(np.sum(d,1)*x)/np.sum(d)
+    bcy=np.sum(np.sum(d,0)*y)/np.sum(d)
     return bcx,bcy
+
+def findbeam_radialpeak(data,orig_initial,mask,rmin,rmax,maxiter=100):
+    """Find the beam by minimizing the width of a peak in the radial average.
+    
+    Inputs:
+        data: scattering matrix
+        orig_initial: first guess for the origin
+        mask: mask matrix. Nonzero is non-masked.
+        rmin,rmax: distance from the origin (in pixels) of the peak range.
+        
+    Outputs:
+        the beam coordinates
+    
+    Notes:
+        A Gaussian will be fitted.
+    """
+    mask=1-mask.astype(np.uint8)
+    pix=np.arange(rmin,rmax,1)
+    def targetfunc(orig,data,mask,rmin,rmax):
+        I=radintpix(data,None,orig[0],orig[1],mask,pix)[1]
+        return misc.findpeak(pix,I)[2]
+    orig1=scipy.optimize.fmin(targetfunc,np.array(orig_initial),
+                              args=(data,mask,rmin,rmax),
+                              maxiter=maxiter,disp=0)
+    return orig1

@@ -9,6 +9,7 @@ from libc.math cimport *
 cdef extern from "math.h":
     int isfinite(double)
     double INFINITY
+    double fabs(double)
 
 #-------------------- Auxiliary functions -------------------------------------
 #
