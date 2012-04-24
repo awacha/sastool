@@ -20,6 +20,7 @@ import scipy.io
 from .. import dataset
 from .. import utils2d
 from .. import misc
+from . import edf
 import twodim
 
 
@@ -189,6 +190,8 @@ class SASHeader(collections.defaultdict):
     def __unicode__(self):
         return "FSN {FSN}; {Title}; {Dist} mm; {Energy} eV".format(**self)
     __str__ = __unicode__
+    def read_from_ESRF_ID02(self):
+        pass
     def read_from_B1_org(self, filename):
         #Planck's constant times speed of light: incorrect
         # constant in the old program on hasjusi1, which was
@@ -479,6 +482,9 @@ class SASExposure(object):
     def check_for_mask(self):
         if self.mask is None:
             raise ValueError('mask not defined')
+    def read_from_ESRF_ID02(self,fsn,fileformat,dirs=[]):
+        filename=misc.findfileindirs(fileformat%fsn,dirs)
+        
     def read_from_B1_org(self,fsn,fileformat='org_%05d',dirs=['.']):
         #try to load header file
         headername=''

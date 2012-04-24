@@ -16,6 +16,7 @@ import datetime
 import scipy.misc
 import scipy.io
 import re
+import dateutil.parser
 
 from _io import cbfdecompress # pylint : disable=E0611
 
@@ -363,3 +364,50 @@ def readmask(filename,fieldname=None,dirs='.'):
             raise ValueError('mask file contains multiple masks!')
         return f[validkeys[0]].astype(np.uint8)
     
+def _readedf_extractline(left, right):
+    functions=[int, float, lambda l:float(l.split(None,1)[0]),
+               lambda l:int(l.split(None,1)[0]),
+               lambda l:dateutil.parser.parse(l), unicode]
+    for f in functions:
+        try:
+            right=f(right)
+            break;
+        except ValueError:
+            continue
+    return right
+
+def readehf(filename):
+    f=open(filename,'r')
+    edf={}
+    if not f.readline().strip().startswith('{'):
+        raise ValueError('Invalid file format.')
+    for l in f:
+        l=l.strip()
+        if not l: continue
+        if l.endswith('}'): break #last line of header
+        try:
+            left,right=l.split('=',1)
+        except ValueError:
+            raise ValueError('Invalid line: '+l)
+        left=left.strip(); right=right.strip()
+        if not right.endswith(';'):
+            raise ValueError('Invalid line (does not end with a semicolon): '+l)
+        right=right[:-1].strip()
+        m=re.match('^(?P<left>.*)~(?P<continuation>\d+)$',left)
+        if m is not None:
+            edf[m.group('left')]=edf[m.group('left')]+right
+        else:
+            edf[left]=_readedf_extractline(left,right)
+    f.close()
+    return edf
+
+def readedf(filename):
+    edf=readehf(filename)
+    f=open(filename,'b')
+    f.read(edf['EDF_HeaderSize'])  # skip header.
+    if edf['DataType']=='FloatValue':
+        dtype=np.float32
+    else:
+        raise NotImplementedError('Not supported data type: %s'%edf['DataType'])
+    edf['data']=np.fromstring(f.read(edf['EDF_BinarySize']),dtype).reshape(edf['Dim_1'],edf['Dim_2'])
+    return edf

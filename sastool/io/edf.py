@@ -5,49 +5,8 @@ import re
 import glob
 import xlwt
 import itertools
+from twodim import readehf
 
-def _readedf_extractline(left, right):
-    functions=[int,
-               float,
-               lambda l:float(l.split(None,1)[0]),
-               lambda l:int(l.split(None,1)[0]),
-               lambda l:dateutil.parser.parse(l),
-               unicode]
-    for f in functions:
-        try:
-            right=f(right)
-            break;
-        except ValueError:
-            continue
-    return right
-
-def readedf(filename):
-    f=open(filename,'r')
-    edf={}
-    if not f.readline().strip().startswith('{'):
-        raise ValueError('Invalid file format.')
-    for l in f:
-        l=l.strip()
-        if l.endswith('}'): #last line of header
-            break
-        if not len(l):
-            continue
-        try:
-            left,right=l.split('=',1)
-        except:
-            print "INVALID LINE!"
-            print l
-        left=left.strip(); right=right.strip()
-        if not right.endswith(';'):
-            raise ValueError('Invalid line (does not end with a semicolon): '+l)
-        right=right[:-1].strip()
-        m=re.match('^(?P<left>.*)~(?P<continuation>\d+)$',left)
-        if m is not None:
-            edf[m.group('left')]=edf[m.group('left')]+right
-        else:
-            edf[left]=_readedf_extractline(left,right)
-    f.close()
-    return edf
 
 def listedf(outputname,fileglob='*/*ccd'):
     filenames=glob.glob(fileglob)
@@ -70,7 +29,7 @@ def listedf(outputname,fileglob='*/*ccd'):
     for i,f in zip(itertools.count(1),sorted(filenames)):
         if not i%100:
             print "%d/%d"%(i,len(filenames))
-        edf=readedf(f)
+        edf=readehf(f)
         ws.write(i,0,f)
         ws.write(i,1,edf['TitleBody'])
         ws.write(i,2,unicode(edf['Intensity1']/edf['Intensity0']))
