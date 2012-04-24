@@ -29,7 +29,7 @@ def radintpix(data, dataerr, bcx, bcy, mask=None, pix=None, returnavgpix=False,
     
     Relies heavily (completely) on radint().
     """
-    return radint(data, dataerr, -1, -1, -1, bcx, bcy, mask, pix, returnavgpix,
+    return radint(data, dataerr, -1, -1, -1, 1.0*bcx, 1.0*bcy, mask, pix, returnavgpix,
                   phi0, dphi, returnmask, symmetric_sector, doslice, False)
 
 

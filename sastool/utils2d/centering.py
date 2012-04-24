@@ -204,7 +204,7 @@ def findbeam_semitransparent(data,pri):
     bcy=np.sum(np.sum(d,0)*y)/np.sum(d)
     return bcx,bcy
 
-def findbeam_radialpeak(data,orig_initial,mask,rmin,rmax,maxiter=100):
+def findbeam_radialpeak(data,orig_initial,mask,rmin,rmax,maxiter=100,drive_by='amplitude',extent=10):
     """Find the beam by minimizing the width of a peak in the radial average.
     
     Inputs:
@@ -212,6 +212,11 @@ def findbeam_radialpeak(data,orig_initial,mask,rmin,rmax,maxiter=100):
         orig_initial: first guess for the origin
         mask: mask matrix. Nonzero is non-masked.
         rmin,rmax: distance from the origin (in pixels) of the peak range.
+        drive_by: 'hwhm' to minimize the hwhm of the peak or 'amplitude' to
+            maximize the peak amplitude
+        extent: approximate distance of the current and the real origin. Too
+            high a value makes the fitting procedure unstable. Too low a value
+            does not permit to move avay the current origin. 
         
     Outputs:
         the beam coordinates
@@ -219,12 +224,25 @@ def findbeam_radialpeak(data,orig_initial,mask,rmin,rmax,maxiter=100):
     Notes:
         A Gaussian will be fitted.
     """
+    orig_initial=np.array(orig_initial)
     mask=1-mask.astype(np.uint8)
-    pix=np.arange(rmin,rmax,1)
-    def targetfunc(orig,data,mask,rmin,rmax):
-        I=radintpix(data,None,orig[0],orig[1],mask,pix)[1]
-        return misc.findpeak(pix,I)[2]
-    orig1=scipy.optimize.fmin(targetfunc,np.array(orig_initial),
-                              args=(data,mask,rmin,rmax),
+    pix=np.arange(rmin*1.0,rmax*1.0,1)
+    if drive_by.lower()=='hwhm':
+        def targetfunc(orig,data,mask,rmin,rmax,orig_orig):
+            I=radintpix(data,None,orig[0]+orig_orig[0],orig[1]+orig_orig[1],mask,pix)[1]
+            p=misc.findpeak(pix,I)[2]
+            print orig[0]+orig_orig[0],orig[1]+orig_orig[1],p
+            return abs(p)
+    elif drive_by.lower()=='amplitude':
+        def targetfunc(orig,data,mask,rmin,rmax,orig_orig):
+            I=radintpix(data,None,orig[0]+orig_orig[0],orig[1]+orig_orig[1],mask,pix)[1]
+            fp=misc.findpeak(pix,I)
+            p=-(fp[6]+fp[4])
+            print orig[0]+orig_orig[0],orig[1]+orig_orig[1],p
+            return p
+    else:
+        raise ValueError('Invalid argument for drive_by %s'%drive_by)
+    orig1=scipy.optimize.fmin(targetfunc,np.array([extent,extent]),
+                              args=(data,mask,1.0*rmin,1.0*rmax,orig_initial-extent),
                               maxiter=maxiter,disp=0)
-    return orig1
+    return np.array(orig_initial)-extent+orig1

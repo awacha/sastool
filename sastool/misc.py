@@ -10,6 +10,8 @@ import random
 
 import fitting.easylsq
 
+_search_path=['.']
+
 def normalize_listargument(arg):
     """Check if arg is an iterable (list, tuple, set, dict, np.ndarray, except
         string!). If not, make a list of it. Numpy arrays are flattened and
@@ -172,4 +174,21 @@ def findpeak(x,y,dy=None,position=None,hwhm=None,baseline=None,amplitude=None):
     def fitfunc(x_,amplitude_,position_,hwhm_,baseline_):
         return amplitude_*np.exp(0.5*(x_-position_)**2/hwhm_**2)+baseline_
     p,dp,statdict=fitting.easylsq.nlsq_fit(x,y,dy,fitfunc,(amplitude,position,hwhm,baseline))
-    return p[1],dp[1],p[2],dp[2],p[3],dp[3],p[0],dp[0]
+    return p[1],dp[1],abs(p[2]),dp[2],p[3],dp[3],p[0],dp[0]
+
+def get_search_path():
+    return _search_path
+
+def append_search_path(folder):
+    _search_path.append(os.path.abspath(folder))
+
+def remove_from_search_path(folder):
+    abspath=os.path.abspath(folder)
+    _search_path.remove(abspath)
+    
+def set_search_path(pathlist):
+    for k in _search_path:
+        _search_path.remove(k)
+    _search_path.extend(pathlist)
+    
+        

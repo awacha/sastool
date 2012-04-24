@@ -70,7 +70,26 @@ def _delinearize_history(history_oneliner):
     history = [(float(a[0]), a[1].strip()) for a in history]
     return history
 
-
+class _HDF_parse_group(object):
+    def __init__(self,hdf_argument):
+        self.hdf_argument=hdf_argument
+    def __enter__(self):
+        if isinstance(self.hdf_argument,basestring):
+            self.hdf_file=h5py.highlevel.File(self.hdf_argument)
+            self.hdf_group=self.hdf_file
+        elif isinstance(self.hdf_argument,h5py.highlevel.File):
+            self.hdf_file=self.hdf_argument
+            self.hdf_group=self.hdf_file
+        elif isinstance(self.hdf_argument,h5py.highlevel.Group):
+            self.hdf_file=self.hdf_argument.file
+            self.hdf_group=self.hdf_argument
+        else:
+            raise ValueError
+        return self.hdf_group
+    def __exit__(self,exc_type,exc_value,exc_traceback):
+        if isinstance(self.hdf_argument,basestring):
+            self.hdf_file.close()
+            
 
 class SASHeader(collections.defaultdict):
     """A class for holding measurement meta-data."""
@@ -163,6 +182,8 @@ class SASHeader(collections.defaultdict):
             return []
         elif key.endswith('Error'):
             return 0
+        elif key in ['maskid']:
+            return None
         else:
             raise KeyError(key)
     def __unicode__(self):
@@ -416,7 +437,7 @@ of the same length as the field names in logfile_data.')
             self.add_history('Written to HDF:' + hdf_entity.file.filename + hdf_entity.name)
             for k in self.keys():
                 if k == 'History':
-                    hdf_entity.attrs[k] = self._linearize_history(self[k])
+                    hdf_entity.attrs[k] = _linearize_history(self[k]).encode('utf-8')
                 elif isinstance(self[k], bool):
                     hdf_entity.attrs[k] = int(self[k])
                 elif isinstance(self[k], numbers.Number):
@@ -447,13 +468,43 @@ class SASExposure(object):
     """A class for holding SAS exposure data, i.e. intensity, error, metadata, mask"""
     Intensity = None
     Error = None
+    Image = None
     header = None
     mask = None
+    matrices=collections.OrderedDict([('Image','Detector Image'),
+                                      ('Intensity','Corrected intensity'),
+                                      ('Error','Error of intensity')])
     def __init__(self):
         super(SASExposure, self).__init__()
     def check_for_mask(self):
         if self.mask is None:
             raise ValueError('mask not defined')
+    def read_from_B1_org(self,fsn,fileformat='org_%05d',dirs=['.']):
+        #try to load header file
+        headername=''
+        for extn in ['.header','.DAT','.dat','.DAT.gz','.dat.gz']:
+            try:
+                headername=misc.findfileindirs(fileformat%fsn+extn,dirs);
+            except IOError:
+                continue
+        if not headername:
+            raise IOError('Could not find header file')
+        dataname=''
+        for extn in ['.cbf','.tif','.tiff','.DAT','.DAT.gz','.dat','.dat.gz']:
+            try:
+                dataname=misc.findfileindirs(fileformat%fsn+extn,dirs)
+            except IOError:
+                continue
+        if not dataname:
+            raise IOError('Could not find 2d org file') #skip this file
+        self.header=SASHeader.new_from_B1_org(headername)
+        if dataname.lower().endswith('.cbf'):
+            self.Image=twodim.readcbf(dataname)
+        elif dataname.upper().endswith('.DAT') or dataname.upper().endswith('.DAT.GZ'):
+            self.Image=twodim.readjusifaorg(dataname).reshape(256,256)
+        else:
+            self.Image=twodim.readtif(dataname)
+        return self
     def read_from_B1_int2dnorm(self, fsn, fileformat = 'int2dnorm%d', logfileformat = 'intnorm%d.log', dirs = ['.']):
         dataname = None
         for extn in ['.npy', '.mat']:
@@ -470,6 +521,8 @@ class SASExposure(object):
         return self
     def set_mask(self, mask):
         self.mask = SASMask(mask)
+        self.header['maskid']=self.mask.maskid
+        self.header.add_history('Mask %s associated to exposure.'%self.mask.maskid)
     def get_qrange(self, N = None, spacing = 'linear'):
         self.check_for_mask()
         qrange = utils2d.integrate.autoqscale(self.header['EnergyCalibrated'],
@@ -489,7 +542,7 @@ class SASExposure(object):
             return np.arange(qrange.min(), qrange.max(), N)
         else:
             raise NotImplementedError
-    def radial_average(self, qrange = None):
+    def radial_average(self, qrange = None, pixel=False):
         self.check_for_mask()
         q, I, E, A, p = utils2d.integrate.radint(self.Intensity, self.Error,
                                            self.header['EnergyCalibrated'],
@@ -500,9 +553,13 @@ class SASExposure(object):
                                            1 - self.mask.mask, qrange,
                                            returnavgq = True,
                                            returnpixel = True)
-        ds = dataset.SASCurve(q, I, E)
+        if pixel:
+            ds = dataset.DataSet(p, I, E)
+            ds.addfield('q',q)
+        else:
+            ds = dataset.SASCurve(q, I, E)
+            ds.addfield('Pixels', p)
         ds.addfield('Area', A)
-        ds.addfield('Pixels', p)
         ds.header=SASHeader(self.header)
         return ds
     def plot2d(self, zscale = 'log', crosshair = False, drawmask = True, qrange_on_axis = False):
@@ -515,6 +572,11 @@ class SASExposure(object):
     def imshow(self, *args, **kwargs):
         plt.imshow(np.log10(self.Intensity), *args, **kwargs)
     @classmethod
+    def new_from_B1_org(cls,*args,**kwargs):
+        obj=cls()
+        obj.read_from_B1_org(*args,**kwargs)
+        return obj
+    @classmethod
     def new_from_B1_int2dnorm(cls, *args, **kwargs):
         obj = cls()
         obj.read_from_B1_int2dnorm(*args, **kwargs)
@@ -522,51 +584,55 @@ class SASExposure(object):
     def find_beam_semitransparent(self, bs_area = None):
         self.check_for_mask()
         raise NotImplementedError
+    def find_beam_radialpeak(self, pixmin, pixmax, drive_by='amplitude', extent=10):
+        self.check_for_mask()
+        bc=utils2d.centering.findbeam_radialpeak(self.Intensity,
+                                                 (self.header['BeamPosX'],
+                                                  self.header['BeamPosY']),
+                                                 self.mask.mask, pixmin,
+                                                 pixmax, drive_by=drive_by,
+                                                 extent=extent)
+        self.header['BeamPosX'],self.header['BeamPosY']=bc
+        self.header.add_history('Beam found by *radialpeak*: '+str(tuple(bc)))
+        return bc
     def write_to_hdf5(self, hdf_or_filename, **kwargs):
         if 'compression' not in kwargs:
             kwargs['compression'] = 'gzip'
-        hdffile = None
-        if isinstance(hdf_or_filename, basestring):
-            hdffile = h5py.highlevel.File(hdf_or_filename)
-        elif isinstance(hdf_or_filename, h5py.highlevel.File):
-            hdffile = hdf_or_filename
-        if hdffile is not None:
-            hdfgroup = hdffile.create_group('FSN%d' % self.header['FSN'])
-        elif isinstance(hdf_or_filename, h5py.highlevel.Group):
-            hdfgroup = hdf_or_filename
-        else:
-            raise ValueError('Argument hdf_or_filename should be a filename, a h5py.highlevel.File instance or a h5py.highlevel.Group instance.')
-        hdfgroup.create_dataset('Intensity', data = self.Intensity, **kwargs)
-        hdfgroup.create_dataset('Error', data = self.Error, **kwargs)
-        self.header.write_to_hdf5(hdfgroup)
-        if isinstance(hdf_or_filename, basestring):
-            hdffile.close()
-    def read_from_hdf5(self, hdf_group):
+        with _HDF_parse_group(hdf_or_filename) as hpg:
+            groupname='FSN%d'%self.header['FSN']
+            if groupname in hpg.keys():
+                del hpg[groupname]
+            hpg.create_group(groupname)
+            for k in ['Intensity','Error']:
+                hpg[groupname].create_dataset(k,data=self.__getattribute__(k),**kwargs)
+            self.header.write_to_hdf5(hpg[groupname])
+            if self.mask is not None:
+                self.mask.write_to_hdf5(hpg)
+    def read_from_hdf5(self, hdf_group,load_mask=True):
+        for k in hdf_group.keys():
+            self.__setattr__(k,hdf_group[k].value)
         self.header=SASHeader()
         self.header.read_from_hdf5(hdf_group)
-        pass
+        if self.header['maskid'] is not None:
+            self.mask=SASMask.new_from_hdf5(hdf_group.parent,self.header['maskid'])
     @classmethod
     def new_from_hdf5(cls, hdf_or_filename):
         #get a HDF file object
-        if isinstance(hdf_or_filename, basestring):
-            hdffile = h5py.highlevel.File(hdf_or_filename)
-        elif isinstance(hdf_or_filename, h5py.highlevel.File):
-            hdffile = hdf_or_filename
-        else:
-            hdffile = None
-        
-        if hdffile is not None:
-            hdfgroups = [x for x in hdffile.keys() if x.startswith('FSN')]
-        elif isinstance(hdf_or_filename,h5py.highlevel.Group):
-            hdfgroups = [hdf_or_filename]
-        else:
-            raise ValueError('Invalid argument hdf_or_filename.')
         ret=[]
-        for g in hdfgroups:
-            ret.append(cls())
-            ret[-1].read_from_hdf5(g)
-        if isinstance(hdf_or_filename):
-            hdffile.close()
+        with _HDF_parse_group(hdf_or_filename) as hpg:
+            if hpg.name.startswith('/FSN'):
+                hdfgroups=[hpg]
+            else:
+                hdfgroups = [x for x in hpg.keys() if x.startswith('FSN')]
+            for g in hdfgroups:
+                ret.append(cls())
+                ret[-1].read_from_hdf5(hpg[g],load_mask=False)
+            # adding masks later, thus only one copy of each mask will exist in
+            # the memory 
+            masknames=set([r.header['maskid'] for r in ret])
+            masks={mn:SASMask.new_from_hdf5(hpg,mn) for mn in masknames}
+            for r in ret:
+                r.set_mask(masks[r.header['maskid']])
         return ret
     @classmethod
     def common_qrange(cls,*exps):
@@ -631,4 +697,35 @@ class SASMask(object):
             raise ValueError('Mask %s not in the file!'%fieldname)
         self.maskid=fieldname
         self.mask=f[fieldname].astype(np.uint8)
-    
+    def write_to_mat(self,filename):
+        if filename.lower().endswith('.mat'):
+            scipy.io.savemat(filename,{self.maskid:self.mask})
+        elif filename.lower().endswith('.npz'):
+            np.savez(filename,**{self.maskid:self.mask})
+        else:
+            raise ValueError('File name %s not understood (should end with .mat or .npz).'%filename)
+    def write_to_hdf5(self,hdf_entity):
+        with _HDF_parse_group(hdf_entity) as hpg:
+            if self.maskid in hpg.keys():
+                del hpg[self.maskid]
+            hpg.create_dataset(self.maskid,data=self.mask,compression='gzip')
+    def read_from_hdf5(self,hdf_entity,maskid=None):
+        with _HDF_parse_group(hdf_entity) as hpg:
+            if len(hpg.keys())==0:
+                raise ValueError('No datasets in the HDF5 group!')
+            if maskid is None:
+                if len(hpg.keys())==1:
+                    self.maskid=hpg.keys()[0]
+                    self.mask=hpg[self.maskid].value
+                else:
+                    raise ValueError('More than one datasets in the HDF5 group\
+and maskid argument was omitted.')
+            else:
+                self.maskid=maskid
+                self.mask=hpg[maskid].value
+        return self
+    @classmethod
+    def new_from_hdf5(cls,hdf_entity,maskid=None):
+        obj=cls()
+        obj.read_from_hdf5(hdf_entity,maskid)
+        return obj

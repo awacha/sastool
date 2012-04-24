@@ -203,6 +203,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
     cdef double bcxa, bcya
     cdef np.ndarray[np.double_t, ndim=1] pixelout
     cdef bint flagmask, flagerror, flagq
+
     #Process input data
     (xres,yres)=radint_getres(res)
     #beam position
@@ -305,7 +306,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
                 if returnmask:
                     maskout[ix,iy]=0
                 if returnpixel:
-                    pixelout[l]+=sqrt(ix**2+iy**2)*w
+                    pixelout[l]+=sqrt((ix-bcxa)**2+(iy-bcya)**2)*w
                 break #avoid counting this pixel into higher q-bins.
     #normalize the results
     for l from 0<=l<Numq:
@@ -329,6 +330,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
         output.append(maskout)
     if returnpixel:
         output.append(pixelout)
+
     return tuple(output)
         
 

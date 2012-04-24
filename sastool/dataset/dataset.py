@@ -251,12 +251,9 @@ AliasedVectorAttributes or its subclasses')
             f = open(filename, 'wt')
         # comment line of columns.
         f.write('#%s\n'%'\t'.join(cols))
+        tmp=np.vstack([self.getfield(x) for x in cols]).T
+        np.savetxt(f,tmp,fmt=formatstring)
         # format string to use for each line
-        lineformat = '\t'.join([formatstring]*len(cols))+'\n'
-        for i in range(len(self)):
-            # make a data line
-            line = tuple([self.getfield(x)[i] for x in cols])
-            f.write(lineformat%line)
         if not hasattr(filename,'write'):
             # if we opened the file, close it.
             f.close()
@@ -325,37 +322,55 @@ AliasedVectorAttributes or its subclasses')
         else:
             return m
             
-    def extend(self,dataset):
+    def extend(self,dataset,verbose=True):
         """Merge two datasets. The original is left intact, the merged one is 
         returned.
         
         Note that points with the same abscissa aren't treated specially, i.e.
         that point will exist in the abscissa of the merged curve _twice_!
         """
-        obj=self.copy()
+        print "Extending..."
+        obj=type(self)()
         obj._shape=None
-        for k in ['_x','_y','_dx','_dy']:
-            if self.hasfield(k) and dataset.hasfield(k):
-                obj.addfield(k,np.concatenate((self.getfield(k),dataset.getfield(k))),False)
-            else:
-                print "Extend: skipping field %s"%k
-        obj._shape=obj.getfield(k).shape
+        myfields=set(self.unalias_keys(self.fields()))
+        otherfields=set(dataset.unalias_keys(dataset.fields()))
+        common_fields=myfields.intersection(otherfields)
+        obj.addfield('_x',np.concatenate((self._x,dataset._x)))
+        for k in common_fields-set('_x'):
+            obj.addfield(k,np.concatenate((self.getfield(k),dataset.getfield(k))))
         if hasattr(obj,'validate'):
             obj.validate()
         return obj.sort()
-        
+
     def unite(self, dataset, xmin=None, xmax=None, xsep=None, Npoints=30,
               scaleother=True, verbose=True):
-        """Merge 'dataset' with 'self' by scaling. Both datasets are
-        interpolated to np.linspace(xmin,xmax,Npoints). The scaling is the ratio
-        of the integrals of these two. If scaleother is True, 'dataset' will be
-        scaled to 'self'. If False, the other way round. xsep is the separating
-        value, i.e. the part of 'self' below 'xsep' and the part of 'dataset'
-        above 'xsep' will be merged.
+        """Merge 'dataset' with 'self' by scaling.
+        
+        Inputs:
+            dataset: other dataset to unite this dataset with.
+            xmin, xmax: overlap interval (for scaling) None to autodetect.
+            xsep: separator in 'x'. The part of the current dataset before xsep
+                and the part of the other dataset after xsep will be
+                concatenated. If None, a simple merge (interleaved) is done.
+            Npoints: number of points in the scaling interval (for re-binning)
+            scaleother: scale the other dataset to this one. If false, the
+                other way round.
+            verbose: if the scaling integrals and the scaling factor is to
+                be printed to the standard output
+        
+        Output: the merged dataset.
+        
+        Notes:
+            1) for scaling, both datasets are interpolated to 
+                np.linspace(xmin,xmax,Npoints). The scaling factor will be the 
+                ratio of the integrals (by the trapezoid formula) of these two.
+            2) the part of the current dataset BEFORE xsep will be added to
+                the part of the other dataset AFTER xsep. If xsep is None, the
+                two datasets will be merged simply.
         """
-        if xmin is None:
+        if xmin is None:   #auto-determine
             xmin=max(self._x.min(),dataset._x.min())
-        if xmax is None:
+        if xmax is None:   #auto-determine
             xmax=min(self._x.max(),dataset._x.max())
         if xmin>xmax:
             raise ValueError('Datasets do not overlap or xmin > xmax.')
@@ -374,10 +389,17 @@ AliasedVectorAttributes or its subclasses')
         else:
             obj=obj*(I2/I1)
         if xsep is not None:
-            return obj[obj._x<=xsep].extend(dataset[dataset._x>xsep])
+            smallx=obj[obj._x<=xsep]
+            bigx=dataset[dataset._x>xsep]
+            if verbose:
+                print "Small-x part: ",len(smallx)," data points."
+                print "High-x part: ",len(bigx)," data points."
+            uni=obj[obj._x<=xsep].extend(dataset[dataset._x>xsep])
         else:
-            return obj.extend(dataset)
-    
+            uni=obj.extend(dataset)
+        if verbose:
+            print "United dataset: ",len(uni)," data points."
+        return uni
     @staticmethod
     def average(*datasets):
         """Average several datasets (weighted average, errors squared are the weights)
@@ -389,10 +411,10 @@ AliasedVectorAttributes or its subclasses')
         res._dy=np.zeros_like(res._y)
         for ds in datasets:
             w=1/ds._dy**2
-            res._y=res._y+ds._y*w
-            res._dy=res._dy+w
-        res._y=res._y/res._dy
-        res._dy=np.sqrt(1/res._dy)
+            res._y+=ds._y*w
+            res._dy+=w
+        res._y/=res._dy
+        res._dy=np.sqrt(1.0/res._dy)
         return res
         
 
