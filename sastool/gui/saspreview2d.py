@@ -4,6 +4,7 @@ Created on Feb 14, 2012
 @author: andris
 '''
 
+import re
 import collections
 import numpy as np
 import itertools
@@ -176,6 +177,8 @@ class SAS2DLoader(gtk.VBox):
         finally:
             gtk.gdk.threads_leave()
         return False  # This is essential to unregister this from the idle callbacks.
+    
+
 class SAS2DPlotter(gtk.VBox):
     data = None
     def __init__(self,figure):
@@ -240,6 +243,7 @@ class SAS2DPlotter(gtk.VBox):
         table.attach(self.colourmapname,1,2,4,5)
         
         self.plotmask_cb=gtk.CheckButton('Show mask if available')
+        self.plotmask_cb.set_active(True)
         table.attach(self.plotmask_cb,0,2,5,6)
         
         hb=gtk.HButtonBox()
@@ -290,12 +294,9 @@ class SAS2DPlotter(gtk.VBox):
         self.fig.axes[0].imshow(mat,cmap=eval('matplotlib.cm.%s'%self.colourmapname.get_active_text()),
                                 interpolation='nearest')
         if self.plotmask_cb.get_active() and data.mask is not None:
-            print "Plotting mask"
-            self.fig.axes[0].imshow(mat,cmap=_colormap_for_mask,interpolation='nearest')
+            self.fig.axes[0].imshow(data.mask.mask,cmap=_colormap_for_mask,interpolation='nearest')
         else:
-            print "Not plotting mask"
             self.plotmask_cb.get_active()
-            print data.mask
         self.fig.axes[0].set_title(str(data.header))
         self.fig.axes[0].set_axis_bgcolor('black')
         self.fig.canvas.draw()
@@ -310,7 +311,7 @@ class SAS2DPlotter(gtk.VBox):
             self.fig.axes[0].cla()
             self.fig.axes[0].set_axis_bgcolor('white')
             self.fig.canvas.draw()
-    
+
 class SAS2DMasker(gtk.VBox):
     mask=None
     def __init__(self,matrix_source=None):
@@ -333,6 +334,14 @@ class SAS2DMasker(gtk.VBox):
         self.shape_label=gtk.Label('None so far')
         self.shape_label.set_alignment(0,0.5)
         tab.attach(self.shape_label,1,2,1,2)
+        
+        hb=gtk.HBox()
+        self.pack_start(hb,False)
+        b=gtk.Button('Attach to dataset')
+        b.connect('clicked',self.updatemaskindata)
+        hb.pack_start(b)
+        self.autoupdate_cb=gtk.CheckButton('Auto-attach')
+        hb.pack_start(self.autoupdate_cb)
         
         bb=gtk.HButtonBox()
         self.pack_start(bb,False)
@@ -392,10 +401,32 @@ class SAS2DMasker(gtk.VBox):
     def savemask(self,widget):
         pass
     def editmask(self,widget):
-        mm=maskmaker.MaskMaker(matrix=self.matrix_source.getmatrix(),mask=self.mask.mask)
+        mm=maskmaker.MaskMaker(matrix=self.matrix_source.getmatrix(),mask=self.mask.mask.copy())
         if mm.run()==gtk.RESPONSE_OK:
-            self.mask.mask=mm.get_mask()
+            mask=classes.SASMask(mm.get_mask())
+            if re.match('^.*_\d+$',self.mask.maskid) is None:
+                mask.maskid=self.mask.maskid+'_1'
+            else:
+                l,r=self.mask.maskid.rsplit('_',1)
+                mask.maskid=l+'_'+str(int(r)+1)
+            self.setmask(mask)
         mm.destroy()
+        self.updatemaskindata(True)
+    def updatemaskindata(self,widget=None):
+        if widget is None and not self.autoupdate_cb.get_active():
+            return True
+        datashape=self.matrix_source.getmatrix().shape
+        maskshape=self.mask.mask.shape
+        if datashape!=maskshape:
+            d=gtk.MessageDialog(self.get_toplevel(),
+                                gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+                                gtk.MESSAGE_ERROR, gtk.BUTTONS_OK,
+                                'Mask shape %s is incompatible with data shape %s'%(maskshape,datashape))
+            d.run()
+            d.destroy()
+        else:
+            self.matrix_source.getdata().set_mask(self.mask)
+        return True
         
 
 class SAS2DStatistics(gtk.Frame):
@@ -496,7 +527,7 @@ class SAS2DGUI(gtk.Window):
         maxdata=np.nanmax(exposition.__getattribute__(matrixtype))
         mindata=np.nanmin(exposition.__getattribute__(matrixtype))
         if self.data.mask is None:
-            self.data.setmask(self.masker.getmask())
+            self.masker.updatemaskindata()
         if self.data.mask is not None:
             maxmasked=np.nanmax(self.data.__getattribute__(matrixtype)*self.data.mask.mask)
             minmasked=np.nanmin(self.data.__getattribute__(matrixtype)*self.data.mask.mask)
@@ -516,7 +547,8 @@ class SAS2DGUI(gtk.Window):
                                                               ('Total counts (mask)',summasked),
                                                               ('Max. count (mask)',maxmasked),
                                                               ('Min. count (mask)',minmasked)]))
-        self.masker.setmask(self.data.mask)
+        if self.data.mask is not None:
+            self.masker.setmask(self.data.mask)
 
 def SAS2DGUI_run():
     w = SAS2DGUI()

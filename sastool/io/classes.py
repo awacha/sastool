@@ -544,6 +544,15 @@ class SASExposure(object):
         if self.mask is None:
             raise ValueError('mask not defined')
     def read_from_ESRF_ID02(self,fsn,fileformat,estimate_errors=True,dirs=[]):
+        """Read an EDF file (ESRF beamline ID02 SAXS pattern)
+        
+        Inputs:
+            fsn: file sequence number
+            fileformat: c-style file format, e.g. sc3269_0_%04dccd
+            estimate_errors: error matrices are usually not saved, but they can
+                be estimated from the intensity.
+            dirs: folders to look file for.
+        """
         filename=misc.findfileindirs(fileformat%fsn,dirs)
         edf=twodim.readedf(filename)
         self.header=SASHeader.new_from_ESRF_ID02(edf)
@@ -570,6 +579,23 @@ class SASExposure(object):
             I1=edf['Intensity1']
             self.Error=(0.5*sd*sd/ps2/I1+self.Intensity)*float(sd*sd)/(ps2*I1)
     def read_from_B1_org(self,fsn,fileformat='org_%05d',dirs=['.']):
+        """Read an original exposition (beamline B1, HASYLAB/DESY, Hamburg)
+        
+        Inputs:
+            fsn: file sequence number
+            fileformat: C-style file format (without extension)
+            dirs: folders to look for files in
+        
+        Notes:
+            We first try to load the header file. Extensions .header, .DAT,
+                .dat, .DAT.gz, .dat.gz are tried in this order.
+            If the header has been successfully loaded, we try to load the data.
+                Extensions: .cbf, .tif, .tiff, .DAT, .DAT.gz, .dat, .dat.gz are
+                tried in this sequence.
+            If either the header or the data cannot be loaded, an IOError is
+                raised.
+            
+        """
         #try to load header file
         headername=''
         for extn in ['.header','.DAT','.dat','.DAT.gz','.dat.gz']:
@@ -592,8 +618,10 @@ class SASExposure(object):
             self.Image=twodim.readcbf(dataname)
         elif dataname.upper().endswith('.DAT') or dataname.upper().endswith('.DAT.GZ'):
             self.Image=twodim.readjusifaorg(dataname).reshape(256,256)
-        else:
+        elif dataname.upper().endswith('.TIF') or dataname.upper().endswith('.TIFF'):
             self.Image=twodim.readtif(dataname)
+        else:
+            raise NotImplementedError(dataname)
         return self
     def read_from_B1_int2dnorm(self, fsn, fileformat = 'int2dnorm%d', logfileformat = 'intnorm%d.log', dirs = ['.']):
         dataname = None
@@ -614,6 +642,19 @@ class SASExposure(object):
         self.header['maskid']=self.mask.maskid
         self.header.add_history('Mask %s associated to exposure.'%self.mask.maskid)
     def get_qrange(self, N = None, spacing = 'linear'):
+        """Calculate the available q-range.
+        
+        Inputs:
+            N: if integer: the number of bins
+               if float: the distance between bins (equidistant bins)
+               if None: automatic determination of the number of bins
+            spacing: only effective if N is an integer. 'linear' means linearly
+                equidistant spacing (as in np.linspace), 'logarithmic' means
+                logarithmic spacing (as in np.logspace).
+        
+        Returns:
+            the q-scale in a numpy array.
+        """
         self.check_for_mask()
         qrange = utils2d.integrate.autoqscale(self.header['EnergyCalibrated'],
                                             self.header['Dist'],
@@ -633,6 +674,16 @@ class SASExposure(object):
         else:
             raise NotImplementedError
     def radial_average(self, qrange = None, pixel=False):
+        """Do a radial averaging
+        
+        Inputs:
+            qrange: the q-range. If None, auto-determine.
+            pixel: do a pixel-integration (instead of q)
+        
+        Outputs:
+            the one-dimensional curve as an instance of SASCurve (if pixel is
+                True) or DataSet (if pixel is False)
+        """
         self.check_for_mask()
         q, I, E, A, p = utils2d.integrate.radint(self.Intensity, self.Error,
                                            self.header['EnergyCalibrated'],
@@ -653,7 +704,10 @@ class SASExposure(object):
         ds.header=SASHeader(self.header)
         return ds
     def plot2d(self, zscale = 'log', crosshair = False, drawmask = True, qrange_on_axis = False):
-
+        """Plot the matrix (imshow)
+        
+        """
+        # @todo
         if zscale.upper().startswith('LOG'):
             self._plotmat = np.log10(self.Intensity.copy())
             goodidx = np.isfinite(self._plotmat)
@@ -738,10 +792,11 @@ class SASExposure(object):
         qmax=min([qr.max() for qr in qranges])
         N=min([len(qr) for qr in qranges])
         return np.linspace(qmin,qmax,N)
-
+    def getmatrix(self,name,othernames):
+        
 class SASMask(object):
-    mask = None
     maskid = None
+    _mask=None
     def __init__(self, maskmatrix=None):
         super(SASMask,self).__init__()
         if maskmatrix is not None:
@@ -764,6 +819,11 @@ class SASMask(object):
         return u'SASMask('+self.maskid+')'
     __str__=__unicode__
     __repr__=__unicode__
+    def _setmask(self, maskmatrix):
+        self._mask=maskmatrix.astype(np.uint8)
+    def _getmask(self):
+        return self._mask
+    mask=property(_getmask,_setmask,doc='Mask matrix')
     def copy_into(self,into):
         if not isinstance(into,type(self)):
             raise ValueError('Incompatible class!')

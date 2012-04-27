@@ -23,6 +23,13 @@ from matplotlib.figure import Figure
 import os
 import scipy.io
 
+#Mask matrix should be plotted with plt.imshow(maskmatrix, cmap=_colormap_for_mask)
+_colormap_for_mask=matplotlib.colors.ListedColormap(['white','white'],'_sastool_gui_saspreview2d_maskcolormap')
+_colormap_for_mask._init()
+_colormap_for_mask._lut[:,-1]=0
+_colormap_for_mask._lut[0,-1]=0.7
+
+
 
 class StatusLine(gtk.HBox):
     _signal_handlers = []
@@ -223,13 +230,10 @@ class MaskMaker(gtk.Dialog):
         if redraw:
             self.fig.clf()
         im = self.fig.gca().imshow(self._matrix, interpolation = 'nearest')
-        mw = np.ones(self._mask.shape + (4,));
-        mw[:, :, 3] = (-self._mask) * 0.8
-        self.fig.gca().imshow(mw, interpolation = 'nearest')
+        self.fig.gca().imshow(self._mask, cmap=_colormap_for_mask, interpolation = 'nearest')
         if redraw:
             self.fig.colorbar(im)
         self.canvas.draw()
-        del mw
     def newmask(self, widget):
         self._mask = np.ones_like(self._matrix).astype(np.bool8)
         self.update_graph(True)

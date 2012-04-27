@@ -60,7 +60,7 @@ setup(name='sastool', version=VERSION, author='Andras Wacha',
       description='Python macros for (A)SAXS data processing, fitting, plotting etc.',
       packages=['sastool','sastool.io','sastool.dataset','sastool.utils2d',
                 'sastool.fitting','sastool.gui','sastool.sim'],
+      scripts=['bin/sas2dgui.py'],
       cmdclass = {'build_ext': build_ext},
       ext_modules = ext_modules,
-      scripts = [],
       )
