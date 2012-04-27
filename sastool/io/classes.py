@@ -16,13 +16,13 @@ import numbers
 import h5py
 import functools
 import scipy.io
+import os
+import warnings
 
 from .. import dataset
 from .. import utils2d
 from .. import misc
-from . import edf
 import twodim
-
 
 def debug(*args, **kwargs):
     for a in args:
@@ -176,6 +176,7 @@ class SASHeader(collections.defaultdict):
                     ]
     _HDF5_read_postprocess_type = [(np.generic, lambda x:x.tolist()), ]
     _HDF5_read_postprocess_name = {'FSNs':lambda x:x.tolist(), 'History':_delinearize_history}
+    _key_aliases = {}
     def __init__(self, *args, **kwargs):
         return super(SASHeader, self).__init__(self._default_factory, *args, **kwargs)
     def _default_factory(self, key):
@@ -185,13 +186,64 @@ class SASHeader(collections.defaultdict):
             return 0
         elif key in ['maskid']:
             return None
+        elif key.startswith('FSN'):
+            return 0
         else:
             raise KeyError(key)
     def __unicode__(self):
-        return "FSN {FSN}; {Title}; {Dist} mm; {Energy} eV".format(**self)
+        return "FSN %s; %s; %s mm; %s eV" % (self['FSN'],self['Title'],self['Dist'],self['Energy'])
     __str__ = __unicode__
-    def read_from_ESRF_ID02(self):
-        pass
+    def __getitem__(self, key):
+        if key in self:
+            return super(SASHeader,self).__getitem__(key)
+        elif key in self._key_aliases:
+            return self.__getitem__(self._key_aliases[key])
+        else:
+            raise KeyError(key)
+    def __setitem__(self, key, value):
+        if key in self._key_aliases:
+            return self.__setitem__(self._key_aliases[key], value)
+        else:
+            return super(SASHeader,self).__setitem__(key, value)
+    def __delitem__(self, key):
+        if key in self:
+            return super(SASHeader,self).__delitem__(key)
+        elif key in self._key_aliases:
+            return self.__delitem__(self._key_aliases[key])
+        else:
+            raise KeyError(key)
+    def keys(self):
+        return super(SASHeader,self).keys()+self._key_aliases.keys()
+    def read_from_ESRF_ID02(self, filename_or_edf):
+        if isinstance(filename_or_edf,basestring):
+            filename_or_edf=twodim.readehf(filename_or_edf)
+        self.update(filename_or_edf)
+        self._key_aliases['FSN']='HMRunNumber'
+        self._key_aliases['BeamPosX']='Center_1'
+        self._key_aliases['BeamPosY']='Center_2'
+        self._key_aliases['MeasTime']='ExposureTime'
+        self._key_aliases['Monitor']='Intensity0'
+        self._key_aliases['Detector']='DetectorInfo'
+        self._key_aliases['Date']='HMStartTime'
+        self._key_aliases['Wavelength']='WaveLength'
+        self['Hour']=self['HMStartTime'].hour
+        self['Minutes']=self['HMStartTime'].minute
+        self['Month']=self['HMStartTime'].month
+        self['Day']=self['HMStartTime'].day
+        self['Year']=self['HMStartTime'].year
+        self['Transm']=self['Intensity1']/self['Intensity0']
+        self['Energy']=12398.419/(self['WaveLength']*1e10)
+        self['Dist']=self['SampleDistance']*1000;
+        self['XPixel']=(self['PSize_1']*1000)
+        self['YPixel']=(self['PSize_2']*1000)
+        self['PixelSize']=0.5*(self['XPixel']+self['YPixel'])
+        self['Title']=self['TitleBody']
+        self['Origin']='ESRF_ID02'
+        self['maskid']=os.path.splitext(self['MaskFileName'])[0]
+        for k in sorted([k for k in self if k.startswith('History')]):
+            self.add_history(self[k],self['HMStartTime'])
+        self.add_history('Loaded EDF header from file '+filename_or_edf['FileName'])
+        return self
     def read_from_B1_org(self, filename):
         #Planck's constant times speed of light: incorrect
         # constant in the old program on hasjusi1, which was
@@ -222,19 +274,20 @@ class SASHeader(collections.defaultdict):
         self['BeamPosX'] = float(lines[36].strip())
         self['BeamPosY'] = float(lines[37].strip())
         self['Transm'] = float(lines[41].strip())
-        self['Energy'] = jusifaHC / float(lines[43].strip())
+        self['Wavelength'] = float(lines[43].strip())
+        self['Energy'] = jusifaHC / self['Wavelength']
         self['Dist'] = float(lines[46].strip())
         self['XPixel'] = 1 / float(lines[49].strip())
         self['YPixel'] = 1 / float(lines[50].strip())
         self['Title'] = lines[53].strip().replace(' ', '_').replace('-', '_')
-        self['MonitorDORIS'] = float(lines[56].strip())
+        self['MonitorDORIS'] = float(lines[56].strip())  # aka. DORIS counter
         self['Owner'] = lines[57].strip()
         self['RotXSample'] = float(lines[59].strip())
         self['RotYSample'] = float(lines[60].strip())
         self['PosSample'] = float(lines[61].strip())
         self['DetPosX'] = float(lines[62].strip())
         self['DetPosY'] = float(lines[63].strip())
-        self['MonitorPIEZO'] = float(lines[64].strip())
+        self['MonitorPIEZO'] = float(lines[64].strip())  # aka. PIEZO counter
         self['BeamsizeX'] = float(lines[66].strip())
         self['BeamsizeY'] = float(lines[67].strip())
         self['PosRef'] = float(lines[70].strip())
@@ -246,13 +299,14 @@ class SASHeader(collections.defaultdict):
         self['Current2'] = float(lines[82].strip())
         self['Detector'] = 'Unknown'
         self['PixelSize'] = (self['XPixel'] + self['YPixel']) / 2.0
-
+        
         self['AnodeError'] = math.sqrt(self['Anode'])
         self['TransmError'] = 0
         self['MonitorError'] = math.sqrt(self['Monitor'])
         self['MonitorPIEZOError'] = math.sqrt(self['MonitorPIEZO'])
         self['MonitorDORISError'] = math.sqrt(self['MonitorDORIS'])
         self['Date'] = datetime.datetime(self['Year'], self['Month'], self['Day'], self['Hour'], self['Minutes'])
+        self['Origin'] = 'B1 original header'
         self.add_history('Original header loaded: ' + filename)
         return self
     def read_from_B1_log(self, filename):
@@ -356,11 +410,18 @@ of the same length as the field names in logfile_data.')
         for k in allkeys:
             f.write(k + ':\t' + unicode(self[k]) + '\n')
         f.close()
-    def add_history(self, text):
+    def add_history(self, text, time=None):
         """Add a new entry to the history."""
+        if time is None:
+            time=datetime.datetime.now()
         if 'History' not in self:
             self['History'] = []
-        self['History'].append(((datetime.datetime.now() - datetime.datetime.fromtimestamp(0)).total_seconds(), text))
+        self['History'].append(((time - datetime.datetime.fromtimestamp(0,time.tzinfo)).total_seconds(), text))
+    @classmethod
+    def new_from_ESRF_ID02(cls,filename):
+        inst = cls()
+        inst.read_from_ESRF_ID02(filename)
+        return inst
     @classmethod
     def new_from_B1_org(cls, filename):
         """Load a header from an org_?????.header file, beamline B1, HASYLAB"""
@@ -482,9 +543,32 @@ class SASExposure(object):
     def check_for_mask(self):
         if self.mask is None:
             raise ValueError('mask not defined')
-    def read_from_ESRF_ID02(self,fsn,fileformat,dirs=[]):
+    def read_from_ESRF_ID02(self,fsn,fileformat,estimate_errors=True,dirs=[]):
         filename=misc.findfileindirs(fileformat%fsn,dirs)
-        
+        edf=twodim.readedf(filename)
+        self.header=SASHeader.new_from_ESRF_ID02(edf)
+        self.Intensity=edf['data']
+        mask=SASMask(misc.findfileindirs(self.header['MaskFileName'],dirs))
+        if self.Intensity.shape!=mask.mask.shape:
+            if all(self.Intensity.shape[i]>mask.mask.shape[i] for i in [0,1]):
+                xbin,ybin=[self.Intensity.shape[i]/mask.mask.shape[i] for i in [0,1]]
+                extend=True
+            elif all(self.Intensity.shape[i]<mask.mask.shape[i] for i in [0,1]):
+                xbin,ybin=[mask.mask.shape[i]/self.Intensity.shape[i] for i in [0,1]]
+                extend=False
+            else:
+                raise ValueError('Cannot do simultaneous forward and backward mask binning.')
+            warnings.warn('Rebinning mask: %s x %s, direction: %s'%(xbin,ybin,['shrink','enlarge'][extend]))
+            mask=mask.rebin(xbin,ybin,extend)
+        self.set_mask(mask)
+        dummypixels=np.absolute(self.Intensity-self.header['Dummy'])<=self.header['DDummy']
+        #self.Intensity[dummypixels]=0
+        self.mask.mask&=(-dummypixels).reshape(self.Intensity.shape)
+        if estimate_errors:
+            sd=edf['SampleDistance']
+            ps2=edf['PSize_1']*edf['PSize_2']
+            I1=edf['Intensity1']
+            self.Error=(0.5*sd*sd/ps2/I1+self.Intensity)*float(sd*sd)/(ps2*I1)
     def read_from_B1_org(self,fsn,fileformat='org_%05d',dirs=['.']):
         #try to load header file
         headername=''
@@ -578,6 +662,11 @@ class SASExposure(object):
     def imshow(self, *args, **kwargs):
         plt.imshow(np.log10(self.Intensity), *args, **kwargs)
     @classmethod
+    def new_from_ESRF_ID02(cls,*args,**kwargs):
+        obj=cls()
+        obj.read_from_ESRF_ID02(*args,**kwargs)
+        return obj
+    @classmethod
     def new_from_B1_org(cls,*args,**kwargs):
         obj=cls()
         obj.read_from_B1_org(*args,**kwargs)
@@ -657,8 +746,11 @@ class SASMask(object):
         super(SASMask,self).__init__()
         if maskmatrix is not None:
             if isinstance(maskmatrix,basestring) and \
-                maskmatrix.lower()[-4:] in ['.mat','.npz']:
+                maskmatrix.lower()[-4:] in ['.mat','.npz','.npy']:
                 self.read_from_mat(maskmatrix)
+            elif isinstance(maskmatrix,basestring) and \
+                maskmatrix.lower()[-4:] in ['.edf']:
+                self.read_from_edf(maskmatrix)
             elif isinstance(maskmatrix,np.ndarray):
                 self.mask=maskmatrix.astype(np.uint8)
                 self.maskid='mask'+misc.random_str(6)
@@ -668,6 +760,10 @@ class SASMask(object):
                 raise NotImplementedError
         else:
             self.maskid='mask'+misc.random_str(6)
+    def __unicode__(self):
+        return u'SASMask('+self.maskid+')'
+    __str__=__unicode__
+    __repr__=__unicode__
     def copy_into(self,into):
         if not isinstance(into,type(self)):
             raise ValueError('Incompatible class!')
@@ -676,6 +772,11 @@ class SASMask(object):
         else:
             into.mask = None
         into.maskid = self.maskid
+    def read_from_edf(self,filename):
+        edf=twodim.readedf(filename)
+        self.maskid=os.path.splitext(os.path.split(edf['FileName'])[1])[0]
+        self.mask=(np.absolute(edf['data']-edf['Dummy'])>edf['DDummy']).reshape(edf['data'].shape)
+        return self
     def read_from_mat(self,filename,fieldname=None):
         """Try to load a maskfile (Matlab(R) matrix file or numpy npz)
         
@@ -687,6 +788,8 @@ class SASMask(object):
             f=scipy.io.loadmat(filename)
         elif filename.lower().endswith('.npz'):
             f=np.load(filename)
+        elif filename.lower().endswith('.npy'):
+            f=dict([(os.path.splitext(os.path.split(filename)[1])[0],np.load(filename))])
         else:
             raise ValueError('Invalid file name format!')
         
@@ -708,6 +811,8 @@ class SASMask(object):
             scipy.io.savemat(filename,{self.maskid:self.mask})
         elif filename.lower().endswith('.npz'):
             np.savez(filename,**{self.maskid:self.mask})
+        elif filename.lower().endswith('.npy'):
+            np.save(filename,self.mask)
         else:
             raise ValueError('File name %s not understood (should end with .mat or .npz).'%filename)
     def write_to_hdf5(self,hdf_entity):
@@ -734,4 +839,9 @@ and maskid argument was omitted.')
     def new_from_hdf5(cls,hdf_entity,maskid=None):
         obj=cls()
         obj.read_from_hdf5(hdf_entity,maskid)
+        return obj
+    def rebin(self,xbin,ybin,enlarge=False):
+        obj=type(self)()
+        obj.mask=twodim.rebinmask(self.mask.astype(np.uint8),int(xbin),int(ybin),enlarge)
+        obj.maskid=self.maskid+'bin%dx%d_%s'%(xbin,ybin,['shrink','enlarge'][enlarge])
         return obj

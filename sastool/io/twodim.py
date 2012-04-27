@@ -399,11 +399,12 @@ def readehf(filename):
         else:
             edf[left]=_readedf_extractline(left,right)
     f.close()
+    edf['FileName']=filename
     return edf
 
 def readedf(filename):
     edf=readehf(filename)
-    f=open(filename,'b')
+    f=open(filename,'rb')
     f.read(edf['EDF_HeaderSize'])  # skip header.
     if edf['DataType']=='FloatValue':
         dtype=np.float32
@@ -411,3 +412,27 @@ def readedf(filename):
         raise NotImplementedError('Not supported data type: %s'%edf['DataType'])
     edf['data']=np.fromstring(f.read(edf['EDF_BinarySize']),dtype).reshape(edf['Dim_1'],edf['Dim_2'])
     return edf
+
+def rebinmask(mask, binx, biny, enlarge=False):
+    """Re-bin (shrink or enlarge) mask matrix.
+    
+    Inputs:
+        mask: numpy array (dtype: np.uint8) of mask matrix. One is nonmasked,
+            zero is masked.
+        binx: binning along the 0th axis (integer)
+        biny: binning along the 1st axis (integer)
+        enlarge: direction of binning. If True, the matrix will be enlarged,
+            otherwise shrinked (this is the default)
+    
+    Output:
+        the binned mask matrix, of shape M/binx times N/biny or M*binx times
+            N*biny(original mask is M times N pixels).
+    """
+    if not enlarge and ( (mask.shape[0] % binx) or (mask.shape[1] % biny)):
+        raise ValueError('The number of pixels of the mask matrix should be divisible by the binning in each direction!')
+    if enlarge:
+        return mask.repeat(binx,axis=0).repeat(biny,axis=1)
+    else:
+        return mask[::binx,::biny]
+
+

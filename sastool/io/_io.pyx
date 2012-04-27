@@ -57,3 +57,4 @@ def cbfdecompress(data, Py_ssize_t dim1, Py_ssize_t dim2):
         print "dim1*dim2 is",dim1*dim2
         raise ValueError, "Binary data does not have enough points."
     return outarray.reshape((dim2,dim1))
+

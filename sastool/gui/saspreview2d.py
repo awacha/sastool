@@ -25,6 +25,7 @@ from matplotlib.figure import Figure
 from . import patheditor
 from ..io import classes
 from .. import misc
+from . import maskmaker
 
 #Mask matrix should be plotted with plt.imshow(maskmatrix, cmap=_colormap_for_mask)
 _colormap_for_mask=matplotlib.colors.ListedColormap(['white','white'],'_sastool_gui_saspreview2d_maskcolormap')
@@ -91,8 +92,25 @@ class SAS2DLoader(gtk.VBox):
         self.B1procfsn_spinbutton.connect('value_changed',self.on_openfile)
         b1proc.attach(self.B1procfsn_spinbutton,1,2,2,3)
         
-        vb=gtk.VBox()
-        self.notebook.append_page(vb,gtk.Label('ID02'))
+        #### Input measurements from ID02, ESRF
+        
+        id2=gtk.Table()
+        self.notebook.append_page(id2,gtk.Label('ID02'))
+        l=gtk.Label('File format:')
+        l.set_alignment(0,0.5)
+        id2.attach(l,0,1,0,1,gtk.FILL,gtk.FILL)
+        self.ID2fileformat_entry=gtk.Entry()
+        self.ID2fileformat_entry.set_text('xxyyyy_0_%04dccd')
+        id2.attach(self.ID2fileformat_entry,1,2,0,1)
+        l=gtk.Label('FSN')
+        l.set_alignment(0,0.5)
+        id2.attach(l,0,1,1,2)
+        self.ID2fsn_spinbutton=gtk.SpinButton(gtk.Adjustment(0,0,1e10,1,10),digits=0)
+        self.ID2fsn_spinbutton.connect('value_changed',self.on_openfile)
+        id2.attach(self.ID2fsn_spinbutton,1,2,1,2)
+        self.ID2create_errormatrix_cb=gtk.CheckButton("Estimate errors")
+        self.ID2create_errormatrix_cb.set_active(True)
+        id2.attach(self.ID2create_errormatrix_cb,0,2,2,3)
         
         b=gtk.Button(stock=gtk.STOCK_OPEN)
         self.pack_start(b,False)
@@ -102,36 +120,36 @@ class SAS2DLoader(gtk.VBox):
         if self._previously_opened is None:
             self._previously_opened={'pagename':None,'args':tuple(),'data':None}
         currentpagename=self.notebook.get_tab_label_text(self.notebook.get_nth_page(self.notebook.get_current_page()))
+        dirs=misc.get_search_path()
         try:
             if currentpagename=='B1 org':
                 fsn=self.B1orgfsn_spinbutton.get_value()
                 fileformat=self.B1orgfileformat_entry.get_text()
-                dirs=misc.get_search_path()
-                if (self._previously_opened['pagename']==currentpagename and 
-                    self._previously_opened['args']==(fsn,fileformat,dirs)):
-                    print "Not reloading..."
-                    return True
-                else:
-                    data=classes.SASExposure.new_from_B1_org(fsn,fileformat,dirs)
-                    self._previously_opened['pagename']=currentpagename
-                    self._previously_opened['args']=(fsn,fileformat,dirs)
-                    self._previously_opened['data']=data
+                args=(fsn,fileformat,dirs)
+                func=classes.SASExposure.new_from_B1_org
             elif currentpagename=='B1 processed':
                 fsn=self.B1procfsn_spinbutton.get_value()
                 fileformat=self.B1procfileformat_entry.get_text()
                 logfileformat=self.B1proclogformat_entry.get_text()
-                dirs=misc.get_search_path()
-                if (self._previously_opened['pagename']==currentpagename and
-                    self._previously_opened['args']==(fsn,fileformat,logfileformat,dirs)):
-                    print "Not reloading..."
-                    return True # do not emit the signal
-                else:
-                    data = classes.SASExposure.new_from_B1_int2dnorm(fsn,fileformat,logfileformat,dirs)
-                    self._previously_opened['pagename']=currentpagename
-                    self._previously_opened['args']=(fsn,fileformat,logfileformat,dirs)
-                    self._previously_opened['data']=data
+                args=(fsn,fileformat,logfileformat,dirs)
+                func=classes.SASExposure.new_from_B1_int2dnorm
             elif currentpagename=='ID02':
-                pass
+                fsn=self.ID2fsn_spinbutton.get_value()
+                fileformat=self.ID2fileformat_entry.get_text()
+                estimate_errors=self.ID2create_errormatrix_cb.get_active()
+                args=(fsn,fileformat,estimate_errors,dirs)
+                func=classes.SASExposure.new_from_ESRF_ID02
+            else:
+                raise NotImplementedError(currentpagename)
+            if (self._previously_opened['pagename']==currentpagename and
+                self._previously_opened['args']==args):
+                print "Not reloading..."
+                return True
+            else:
+                data=func(*args)
+                self._previously_opened['pagename']=currentpagename
+                self._previously_opened['args']=args
+                self._previously_opened['data']=data
         except IOError:
             return False
         # call the callbacks. This can take some time, this is why we do things so complicated 
@@ -272,7 +290,12 @@ class SAS2DPlotter(gtk.VBox):
         self.fig.axes[0].imshow(mat,cmap=eval('matplotlib.cm.%s'%self.colourmapname.get_active_text()),
                                 interpolation='nearest')
         if self.plotmask_cb.get_active() and data.mask is not None:
+            print "Plotting mask"
             self.fig.axes[0].imshow(mat,cmap=_colormap_for_mask,interpolation='nearest')
+        else:
+            print "Not plotting mask"
+            self.plotmask_cb.get_active()
+            print data.mask
         self.fig.axes[0].set_title(str(data.header))
         self.fig.axes[0].set_axis_bgcolor('black')
         self.fig.canvas.draw()
@@ -287,13 +310,93 @@ class SAS2DPlotter(gtk.VBox):
             self.fig.axes[0].cla()
             self.fig.axes[0].set_axis_bgcolor('white')
             self.fig.canvas.draw()
-
+    
 class SAS2DMasker(gtk.VBox):
-    def __init__(self):
+    mask=None
+    def __init__(self,matrix_source=None):
         gtk.VBox.__init__(self)
+        self.matrix_source=matrix_source
+        tab=gtk.Table()
+        self.pack_start(tab,False)
+        l=gtk.Label('Loaded mask:')
+        l.set_alignment(0,0.5)
+        tab.attach(l,0,1,0,1,gtk.FILL,gtk.FILL)
+        self.maskid_entry=gtk.Entry()
+        self.maskid_entry.set_text('None so far')
+        self.maskid_entry.set_sensitive(False)
+        self.maskid_entry.connect('changed',self.maskid_changed)
+        tab.attach(self.maskid_entry,1,2,0,1)
         
+        l=gtk.Label('Mask shape:')
+        l.set_alignment(0,0.5)
+        tab.attach(l,0,1,1,2,gtk.FILL,gtk.FILL)
+        self.shape_label=gtk.Label('None so far')
+        self.shape_label.set_alignment(0,0.5)
+        tab.attach(self.shape_label,1,2,1,2)
+        
+        bb=gtk.HButtonBox()
+        self.pack_start(bb,False)
+        b=gtk.Button(stock=gtk.STOCK_OPEN)
+        b.connect('clicked',self.openmask)
+        bb.add(b)
+        b=gtk.Button(stock=gtk.STOCK_EDIT)
+        b.connect('clicked',self.editmask)
+        bb.add(b)
+        b=gtk.Button(stock=gtk.STOCK_SAVE)
+        b.connect('clicked',self.savemask)
+        bb.add(b)
+    def maskid_changed(self,widget):
+        if self.mask is not None:
+            self.mask.maskid=widget.get_text()
+        return False
+    def setmask(self,mask):
+        self.mask=mask
+        self.maskid_entry.set_text(self.mask.maskid)
+        self.maskid_entry.set_sensitive(True)
+        self.shape_label.set_text('%d x %d'%self.mask.mask.shape)
     def getmask(self):
+        return self.mask
+    def openmask(self,widget):
+        if not hasattr(self,'open_fcd'):
+            self.open_fcd=gtk.FileChooserDialog('Open mask file...',self.get_toplevel(),
+                                                gtk.FILE_CHOOSER_ACTION_OPEN,
+                                                (gtk.STOCK_OK,gtk.RESPONSE_OK,
+                                                 gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL))
+            ff=gtk.FileFilter()
+            ff.set_name('All mask files')
+            ff.add_pattern('*.mat')
+            ff.add_pattern('*.npy')
+            ff.add_pattern('*.npz')
+            ff.add_pattern('*.edf')
+            self.open_fcd.add_filter(ff)
+            ff=gtk.FileFilter()
+            ff.set_name('All files')
+            ff.add_pattern('*')
+            self.open_fcd.add_filter(ff)
+            ff=gtk.FileFilter()
+            ff.set_name('Matlab (R) matrices')
+            ff.add_pattern('*.mat')
+            self.open_fcd.add_filter(ff)
+            ff=gtk.FileFilter()
+            ff.set_name('Numpy arrays')
+            ff.add_pattern('*.npy')
+            ff.add_pattern('*.npz')
+            self.open_fcd.add_filter(ff)
+            ff=gtk.FileFilter()
+            ff.set_name('ESRF Data Format')
+            ff.add_pattern('*.edf')
+            self.open_fcd.add_filter(ff)
+        if self.open_fcd.run()==gtk.RESPONSE_OK:
+            self.setmask(classes.SASMask(self.open_fcd.get_filename()))
+        self.open_fcd.hide()
+    def savemask(self,widget):
         pass
+    def editmask(self,widget):
+        mm=maskmaker.MaskMaker(matrix=self.matrix_source.getmatrix(),mask=self.mask.mask)
+        if mm.run()==gtk.RESPONSE_OK:
+            self.mask.mask=mm.get_mask()
+        mm.destroy()
+        
 
 class SAS2DStatistics(gtk.Frame):
     def __init__(self):
@@ -334,7 +437,7 @@ class SAS2DGUI(gtk.Window):
         self.axes=self.fig.add_subplot(111)
 
         self.canvas = FigureCanvasGTKAgg(self.fig)
-        self.canvas.set_size_request(300, 200)
+        self.canvas.set_size_request(500, 200)
         figvbox.pack_start(self.canvas, True, True, 0)
         #self.canvas.mpl_connect('button_press_event', self._on_matplotlib_mouseclick)
 
@@ -359,19 +462,29 @@ class SAS2DGUI(gtk.Window):
         
         ex=gtk.Expander(label='Masking')
         vb.pack_start(ex,False,True)
-        self.masker=SAS2DMasker()
+        self.masker=SAS2DMasker(matrix_source=self)
         ex.add(self.masker)
+
+        centerer=gtk.Expander(label='Centering')
+        vb.pack_start(centerer,False,True)
+
         
         integrator=gtk.Expander(label='Radial averaging')
         vb.pack_start(integrator,False,True)
-        centerer=gtk.Expander(label='Centering')
-        vb.pack_start(centerer,False,True)
         
         self.statistics=SAS2DStatistics()
         vb.pack_end(self.statistics,False)
         
         self.show_all()
         self.hide()
+    def getdata(self):
+        return self.data
+    def getmatrix(self):
+        if self.data is not None:
+            matrixtype=[x for x in self.data.matrices.keys() if self.data.matrices[x]==self.plotter.matrixtype.get_active_text()][0]
+            return self.data.__getattribute__(matrixtype)
+        else:
+            return None
     def file_opened(self,widget,exposition):
         if self.data is not None:
             del self.data
@@ -382,12 +495,28 @@ class SAS2DGUI(gtk.Window):
         Nandata=(-np.isfinite(exposition.__getattribute__(matrixtype))).sum()
         maxdata=np.nanmax(exposition.__getattribute__(matrixtype))
         mindata=np.nanmin(exposition.__getattribute__(matrixtype))
+        if self.data.mask is None:
+            self.data.setmask(self.masker.getmask())
+        if self.data.mask is not None:
+            maxmasked=np.nanmax(self.data.__getattribute__(matrixtype)*self.data.mask.mask)
+            minmasked=np.nanmin(self.data.__getattribute__(matrixtype)*self.data.mask.mask)
+            summasked=np.nansum(self.data.__getattribute__(matrixtype)*self.data.mask.mask)
+        else:
+            maxmasked='N/A'
+            minmasked='N/A'
+            summasked='N/A'
+        shape=self.data.__getattribute__(matrixtype).shape
         self.statistics.update_table(collections.OrderedDict([('FSN',str(self.data.header['FSN'])),
                                                               ('Title',self.data.header['Title']),
+                                                              ('Shape','%d x %d'%shape),
                                                               ('Total counts',sumdata),
                                                               ('Invalid pixels',Nandata),
                                                               ('Max. count',maxdata),
-                                                              ('Min. count',mindata)]))
+                                                              ('Min. count',mindata),
+                                                              ('Total counts (mask)',summasked),
+                                                              ('Max. count (mask)',maxmasked),
+                                                              ('Min. count (mask)',minmasked)]))
+        self.masker.setmask(self.data.mask)
 
 def SAS2DGUI_run():
     w = SAS2DGUI()
