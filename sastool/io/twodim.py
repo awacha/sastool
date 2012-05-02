@@ -73,15 +73,15 @@ def readyellowsubmarine(nameformat,fsns=None,dirs='.'):
                 par['PosDetector']=int(s[0x56:0x5b])
                 par['max']=long(s[0x38:0x3d])
                 par['selector_speed']=long(s[0x3d:0x42])
-                par['wavelength']=long(s[0x42:0x44])
+                par['WaveLength']=long(s[0x42:0x44])
                 par['Dist_Ech_det']=long(s[0x44:0x49])
                 par['comments']=re.sub(r'\s+',' ',s[0x6d:0x100].strip())
                 par['sum']=long(s[0x65:0x6d])
                 par['BeamPosX']=float(s[0x49:0x4d])
                 par['BeamPosY']=float(s[0x4d:0x51])
                 par['AngleBase']=float(s[0x51:0x56])
-                par['Datetime']=datetime.datetime(par['Year'],par['Month'],par['Day'],par['Hour'],par['Minute'],par['Second'])
-                
+                par['Date']=datetime.datetime(par['Year'],par['Month'],par['Day'],par['Hour'],par['Minute'],par['Second'])
+                par['Energy']=12398.419/par['WaveLength']
                 params.append(par)
                 datas.append(np.fromstring(s[0x100:],'>u2').astype(np.double).reshape((64,64)))
                 break

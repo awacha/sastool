@@ -530,19 +530,62 @@ of the same length as the field names in logfile_data.')
 
 class SASExposure(object):
     """A class for holding SAS exposure data, i.e. intensity, error, metadata, mask"""
-    Intensity = None
-    Error = None
-    Image = None
-    header = None
-    mask = None
     matrices=collections.OrderedDict([('Image','Detector Image'),
                                       ('Intensity','Corrected intensity'),
                                       ('Error','Error of intensity')])
+    _nr_instances=0
     def __init__(self):
         super(SASExposure, self).__init__()
+        self.Intensity=None
+        self.Error=None
+        self.Image=None
+        self.header=None
+        self.mask=None
+        SASExposure._nr_instances+=1
+        print "SASExposure instances: ",SASExposure._nr_instances
     def check_for_mask(self):
         if self.mask is None:
             raise ValueError('mask not defined')
+        
+### -------------- Loading routines (new_from_xyz) ------------------------
+
+    @classmethod
+    def new_from_ESRF_ID02(cls,*args,**kwargs):
+        obj=cls()
+        obj.read_from_ESRF_ID02(*args,**kwargs)
+        return obj
+    @classmethod
+    def new_from_B1_org(cls,*args,**kwargs):
+        obj=cls()
+        obj.read_from_B1_org(*args,**kwargs)
+        return obj
+    @classmethod
+    def new_from_B1_int2dnorm(cls, *args, **kwargs):
+        obj = cls()
+        obj.read_from_B1_int2dnorm(*args, **kwargs)
+        return obj
+    @classmethod
+    def new_from_hdf5(cls, hdf_or_filename):
+        #get a HDF file object
+        ret=[]
+        with _HDF_parse_group(hdf_or_filename) as hpg:
+            if hpg.name.startswith('/FSN'):
+                hdfgroups=[hpg]
+            else:
+                hdfgroups = [x for x in hpg.keys() if x.startswith('FSN')]
+            for g in hdfgroups:
+                ret.append(cls())
+                ret[-1].read_from_hdf5(hpg[g],load_mask=False)
+            # adding masks later, thus only one copy of each mask will exist in
+            # the memory 
+            masknames=set([r.header['maskid'] for r in ret])
+            masks={mn:SASMask.new_from_hdf5(hpg,mn) for mn in masknames}
+            for r in ret:
+                r.set_mask(masks[r.header['maskid']])
+        return ret
+
+### -------------- reading routines--------------------------
+
     def read_from_ESRF_ID02(self,fsn,fileformat,estimate_errors=True,dirs=[]):
         """Read an EDF file (ESRF beamline ID02 SAXS pattern)
         
@@ -578,6 +621,7 @@ class SASExposure(object):
             ps2=edf['PSize_1']*edf['PSize_2']
             I1=edf['Intensity1']
             self.Error=(0.5*sd*sd/ps2/I1+self.Intensity)*float(sd*sd)/(ps2*I1)
+
     def read_from_B1_org(self,fsn,fileformat='org_%05d',dirs=['.']):
         """Read an original exposition (beamline B1, HASYLAB/DESY, Hamburg)
         
@@ -623,6 +667,7 @@ class SASExposure(object):
         else:
             raise NotImplementedError(dataname)
         return self
+
     def read_from_B1_int2dnorm(self, fsn, fileformat = 'int2dnorm%d', logfileformat = 'intnorm%d.log', dirs = ['.']):
         dataname = None
         for extn in ['.npy', '.mat']:
@@ -637,10 +682,44 @@ class SASExposure(object):
         self.Intensity, self.Error = twodim.readint2dnorm(dataname)
         self.header.add_history('Intensity and Error matrices loaded from ' + dataname)
         return self
+
+    def read_from_hdf5(self, hdf_group,load_mask=True):
+        for k in hdf_group.keys():
+            self.__setattr__(k,hdf_group[k].value)
+        self.header=SASHeader()
+        self.header.read_from_hdf5(hdf_group)
+        if self.header['maskid'] is not None:
+            self.mask=SASMask.new_from_hdf5(hdf_group.parent,self.header['maskid'])
+
+    def read_from_PAXE(self, fsn, fileformat='XE%04d.DAT', dirs=['.']):
+        
+### ------------------- Interface routines ------------------------------------
     def set_mask(self, mask):
         self.mask = SASMask(mask)
         self.header['maskid']=self.mask.maskid
         self.header.add_history('Mask %s associated to exposure.'%self.mask.maskid)
+    def get_matrix(self,name='Intensity',othernames=None):
+        name=self.get_matrix_name(name,othernames)
+        return getattr(self,name)
+    def get_matrix_name(self,name='Intensity',othernames=None):
+        if name in self.matrices.values():
+            name=[k for k in self.matrices if self.matrices[k]==name][0]
+        if hasattr(self,name) and (getattr(self,name) is not None):
+            return name
+        if othernames is None:
+            othernames=self.matrices
+        
+        for k in othernames:
+            try:
+                if getattr(self,k) is not None:
+                    return k
+            except AttributeError:
+                pass
+        raise AttributeError('No matrix in this instance of'+str(type(self)))
+
+
+### ------------------- Routines for radial integration -----------------------
+
     def get_qrange(self, N = None, spacing = 'linear'):
         """Calculate the available q-range.
         
@@ -673,6 +752,17 @@ class SASExposure(object):
             return np.arange(qrange.min(), qrange.max(), N)
         else:
             raise NotImplementedError
+
+    @classmethod
+    def common_qrange(cls,*exps):
+        if not all([isinstance(e,cls) for e in exps]):
+            raise ValueError('All arguments should be SASExposure instances.')
+        qranges=[e.get_qrange() for e in exps]
+        qmin=max([qr.min() for qr in qranges])
+        qmax=min([qr.max() for qr in qranges])
+        N=min([len(qr) for qr in qranges])
+        return np.linspace(qmin,qmax,N)
+
     def radial_average(self, qrange = None, pixel=False):
         """Do a radial averaging
         
@@ -703,6 +793,9 @@ class SASExposure(object):
         ds.addfield('Area', A)
         ds.header=SASHeader(self.header)
         return ds
+
+### ---------------------- Plotting -------------------------------------------
+
     def plot2d(self, zscale = 'log', crosshair = False, drawmask = True, qrange_on_axis = False):
         """Plot the matrix (imshow)
         
@@ -715,35 +808,37 @@ class SASExposure(object):
 
     def imshow(self, *args, **kwargs):
         plt.imshow(np.log10(self.Intensity), *args, **kwargs)
-    @classmethod
-    def new_from_ESRF_ID02(cls,*args,**kwargs):
-        obj=cls()
-        obj.read_from_ESRF_ID02(*args,**kwargs)
-        return obj
-    @classmethod
-    def new_from_B1_org(cls,*args,**kwargs):
-        obj=cls()
-        obj.read_from_B1_org(*args,**kwargs)
-        return obj
-    @classmethod
-    def new_from_B1_int2dnorm(cls, *args, **kwargs):
-        obj = cls()
-        obj.read_from_B1_int2dnorm(*args, **kwargs)
-        return obj
-    def find_beam_semitransparent(self, bs_area = None):
+
+###  ------------------------ Beam center finding -----------------------------
+
+    def update_beampos(self,bc,source=None):
+        self.header['BeamPosX'],self.header['BeamPosY']=bc
+        if not source:
+            self.header.add_history('Beam position updated to:'+str(tuple(bc)))
+        else:
+            self.header.add_history('Beam found by *%s*: %s'(source,str(tuple(bc))))
+    def find_beam_semitransparent(self, bs_area, update=True):
         self.check_for_mask()
-        raise NotImplementedError
-    def find_beam_radialpeak(self, pixmin, pixmax, drive_by='amplitude', extent=10):
+        bc=utils2d.centering.findbeam_semitransparent(self.get_matrix(), bs_area)
+        if update:
+            self.update_beampos(bc, source='semitransparent')
+        return bc
+    def find_beam_slices(self):
+        pass
+    def find_beam_radialpeak(self, pixmin, pixmax, drive_by='amplitude', extent=10, update=True, callback=None):
         self.check_for_mask()
-        bc=utils2d.centering.findbeam_radialpeak(self.Intensity,
+        bc=utils2d.centering.findbeam_radialpeak(self.get_matrix(),
                                                  (self.header['BeamPosX'],
                                                   self.header['BeamPosY']),
                                                  self.mask.mask, pixmin,
                                                  pixmax, drive_by=drive_by,
                                                  extent=extent)
-        self.header['BeamPosX'],self.header['BeamPosY']=bc
-        self.header.add_history('Beam found by *radialpeak*: '+str(tuple(bc)))
+        if update:
+            self.update_beampos(bc,source='radialpeak')
         return bc
+    
+### ----------------------- Writing routines ----------------------------------
+
     def write_to_hdf5(self, hdf_or_filename, **kwargs):
         if 'compression' not in kwargs:
             kwargs['compression'] = 'gzip'
@@ -757,43 +852,16 @@ class SASExposure(object):
             self.header.write_to_hdf5(hpg[groupname])
             if self.mask is not None:
                 self.mask.write_to_hdf5(hpg)
-    def read_from_hdf5(self, hdf_group,load_mask=True):
-        for k in hdf_group.keys():
-            self.__setattr__(k,hdf_group[k].value)
-        self.header=SASHeader()
-        self.header.read_from_hdf5(hdf_group)
-        if self.header['maskid'] is not None:
-            self.mask=SASMask.new_from_hdf5(hdf_group.parent,self.header['maskid'])
-    @classmethod
-    def new_from_hdf5(cls, hdf_or_filename):
-        #get a HDF file object
-        ret=[]
-        with _HDF_parse_group(hdf_or_filename) as hpg:
-            if hpg.name.startswith('/FSN'):
-                hdfgroups=[hpg]
-            else:
-                hdfgroups = [x for x in hpg.keys() if x.startswith('FSN')]
-            for g in hdfgroups:
-                ret.append(cls())
-                ret[-1].read_from_hdf5(hpg[g],load_mask=False)
-            # adding masks later, thus only one copy of each mask will exist in
-            # the memory 
-            masknames=set([r.header['maskid'] for r in ret])
-            masks={mn:SASMask.new_from_hdf5(hpg,mn) for mn in masknames}
-            for r in ret:
-                r.set_mask(masks[r.header['maskid']])
-        return ret
-    @classmethod
-    def common_qrange(cls,*exps):
-        if not all([isinstance(e,cls) for e in exps]):
-            raise ValueError('All arguments should be SASExposure instances.')
-        qranges=[e.get_qrange() for e in exps]
-        qmin=max([qr.min() for qr in qranges])
-        qmax=min([qr.max() for qr in qranges])
-        N=min([len(qr) for qr in qranges])
-        return np.linspace(qmin,qmax,N)
-    def getmatrix(self,name,othernames):
-        
+    def __del__(self):
+        print "Deleting instance of SASExposure"
+        del self.Intensity
+        del self.Error
+        del self.Image
+        del self.header
+        del self.mask
+        SASExposure._nr_instances-=1
+        print "SASExposure instances remaining: ",SASExposure._nr_instances
+            
 class SASMask(object):
     maskid = None
     _mask=None

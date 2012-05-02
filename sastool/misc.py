@@ -10,7 +10,9 @@ import random
 
 import fitting.easylsq
 
-_search_path=['.']
+global sastool_search_path
+
+sastool_search_path=['.']
 
 def normalize_listargument(arg):
     """Check if arg is an iterable (list, tuple, set, dict, np.ndarray, except
@@ -177,18 +179,20 @@ def findpeak(x,y,dy=None,position=None,hwhm=None,baseline=None,amplitude=None):
     return p[1],dp[1],abs(p[2]),dp[2],p[3],dp[3],p[0],dp[0]
 
 def get_search_path():
-    return _search_path
+    global sastool_search_path
+    return sastool_search_path
 
 def append_search_path(folder):
-    _search_path.append(os.path.abspath(folder))
+    global sastool_search_path
+    sastool_search_path.append(os.path.abspath(folder))
 
 def remove_from_search_path(folder):
+    global sastool_search_path
     abspath=os.path.abspath(folder)
-    _search_path.remove(abspath)
+    sastool_search_path.remove(abspath)
     
 def set_search_path(pathlist):
-    for k in _search_path:
-        _search_path.remove(k)
-    _search_path.extend(pathlist)
+    global sastool_search_path
+    sastool_search_path=pathlist
     
         

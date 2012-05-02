@@ -28,6 +28,9 @@ from ..io import classes
 from .. import misc
 from . import maskmaker
 
+class sastool_break_loop(Exception):
+    pass
+
 #Mask matrix should be plotted with plt.imshow(maskmatrix, cmap=_colormap_for_mask)
 _colormap_for_mask=matplotlib.colors.ListedColormap(['white','white'],'_sastool_gui_saspreview2d_maskcolormap')
 _colormap_for_mask._init()
@@ -199,7 +202,8 @@ class SAS2DPlotter(gtk.VBox):
         self.colourscale.append_text('Log10')
         self.colourscale.set_active(0)
         table.attach(self.colourscale,1,2,0,1)
-
+        self.colourscale.connect('changed',self.replot)
+        
         l=gtk.Label('Matrix to plot')
         l.set_alignment(0,0.5)
         table.attach(l,0,1,1,2,gtk.FILL,gtk.FILL)
@@ -210,8 +214,9 @@ class SAS2DPlotter(gtk.VBox):
         for v in classes.SASExposure.matrices.itervalues():
             self.matrixtype.append_text(v)
         self.matrixtype.set_active(0)
+        self.matrixtype.connect('changed',self.replot)
         table.attach(self.matrixtype,1,2,1,2)
-
+        
         
         self.maxint_cb=gtk.CheckButton('Max. value:')
         table.attach(self.maxint_cb,0,1,2,3,gtk.FILL,gtk.FILL)
@@ -240,10 +245,12 @@ class SAS2DPlotter(gtk.VBox):
         for v in colourmap_names:
             self.colourmapname.append_text(v)
         self.colourmapname.set_active(colourmap_names.index('jet'))
+        self.colourmapname.connect('changed',self.replot)
         table.attach(self.colourmapname,1,2,4,5)
         
         self.plotmask_cb=gtk.CheckButton('Show mask if available')
         self.plotmask_cb.set_active(True)
+        self.plotmask_cb.connect('toggled',self.replot)
         table.attach(self.plotmask_cb,0,2,5,6)
         
         hb=gtk.HButtonBox()
@@ -256,18 +263,18 @@ class SAS2DPlotter(gtk.VBox):
         hb.add(b)
     def minmaxint_activate(self,cb,entry):
         entry.set_sensitive(cb.get_active());
+    def update_matrixtype(self,data,name=None):
+        if name is None:
+            name=self.matrixtype.get_active_text()
+        matrixtype=data.get_matrix_name(name)
+        self.matrixtype.set_active(data.matrices.keys().index(matrixtype))
+    def get_matrixtype(self):
+        return [k for k in classes.SASExposure.matrices if classes.SASExposure.matrices[k]==self.matrixtype.get_active_text()][0]
     def plot2d(self,data):
         if not self.fig.axes:
             return
-        valid_attributes=[x for x in data.matrices.keys() if isinstance(data.__getattribute__(x),np.ndarray)]
-        if not valid_attributes:
-            return
-        matrixtype=[x for x in data.matrices.keys() if data.matrices[x]==self.matrixtype.get_active_text()][0]
-        
-        if matrixtype not in valid_attributes:
-            matrixtype=valid_attributes[0]
-            self.matrixtype.set_active([i for i,k in zip(itertools.count(0),data.matrices.keys()) if k==matrixtype][0])
-        mat=data.__getattribute__(matrixtype).copy()
+        self.update_matrixtype(data)
+        mat=data.get_matrix(self.matrixtype.get_active_text())
         if self.minint_cb.get_active():
             minint=float(self.minint_entry.get_text())
         else:
@@ -299,6 +306,12 @@ class SAS2DPlotter(gtk.VBox):
             self.plotmask_cb.get_active()
         self.fig.axes[0].set_title(str(data.header))
         self.fig.axes[0].set_axis_bgcolor('black')
+        
+        if len(self.fig.axes)>1:
+            self.fig.colorbar(self.fig.axes[0].images[0],cax=self.fig.axes[1])
+        else:
+            self.fig.colorbar(self.fig.axes[0].images[0])
+        
         self.fig.canvas.draw()
         if self.data is not None:
             del self.data
@@ -307,10 +320,10 @@ class SAS2DPlotter(gtk.VBox):
         if self.data is not None:
             self.plot2d(self.data)
     def clear(self,widget=None):
-        if self.fig.axes:
-            self.fig.axes[0].cla()
-            self.fig.axes[0].set_axis_bgcolor('white')
-            self.fig.canvas.draw()
+        self.fig.clf()
+        self.fig.add_subplot(111)
+        self.fig.axes[0].set_axis_bgcolor('white')
+        self.fig.canvas.draw()
 
 class SAS2DMasker(gtk.VBox):
     mask=None
@@ -401,7 +414,7 @@ class SAS2DMasker(gtk.VBox):
     def savemask(self,widget):
         pass
     def editmask(self,widget):
-        mm=maskmaker.MaskMaker(matrix=self.matrix_source.getmatrix(),mask=self.mask.mask.copy())
+        mm=maskmaker.MaskMaker(matrix=self.matrix_source.get_matrix(),mask=self.mask.mask.copy())
         if mm.run()==gtk.RESPONSE_OK:
             mask=classes.SASMask(mm.get_mask())
             if re.match('^.*_\d+$',self.mask.maskid) is None:
@@ -415,7 +428,7 @@ class SAS2DMasker(gtk.VBox):
     def updatemaskindata(self,widget=None):
         if widget is None and not self.autoupdate_cb.get_active():
             return True
-        datashape=self.matrix_source.getmatrix().shape
+        datashape=self.matrix_source.get_matrix().shape
         maskshape=self.mask.mask.shape
         if datashape!=maskshape:
             d=gtk.MessageDialog(self.get_toplevel(),
@@ -432,9 +445,12 @@ class SAS2DMasker(gtk.VBox):
 class SAS2DStatistics(gtk.Frame):
     def __init__(self):
         gtk.Frame.__init__(self,'Statistics')
+        sw=gtk.ScrolledWindow()
+        self.add(sw)
+        sw.set_policy(gtk.POLICY_AUTOMATIC,gtk.POLICY_AUTOMATIC)
         self.table=gtk.Table()
         self.table_widgets=[]
-        self.add(self.table)
+        sw.add_with_viewport(self.table)
     def clear_table(self):
         for tw in self.table_widgets:
             self.table.remove(tw)
@@ -450,20 +466,183 @@ class SAS2DStatistics(gtk.Frame):
             self.table.attach(self.table_widgets[-1],1,2,i,i+1)
         self.table.show_all()
 
+class SAS2DCenterer(gtk.VBox):
+    def __init__(self,matrix_source=None):
+        super(SAS2DCenterer,self).__init__()
+        self.matrix_source=matrix_source
+        self.notebook=gtk.Notebook()
+        self.pack_start(self.notebook)
+        #self.notebook.set_tab_pos(gtk.POS_LEFT)
+        self.notebook.set_scrollable(True)
+        ### semitransparent beam finding
+        tab=gtk.Table()
+        self.notebook.append_page(tab,gtk.Label('Semitransp.'))
+        l=gtk.Label('row min:')
+        l.set_alignment(0,0.5)
+        tab.attach(l,0,1,0,1,gtk.FILL,gtk.FILL)
+        self.rmin_entry=gtk.Entry()
+        tab.attach(self.rmin_entry,1,2,0,1)
+
+        l=gtk.Label('row max:')
+        l.set_alignment(0,0.5)
+        tab.attach(l,0,1,1,2,gtk.FILL,gtk.FILL)
+        self.rmax_entry=gtk.Entry()
+        tab.attach(self.rmax_entry,1,2,1,2)
+
+        l=gtk.Label('col min:')
+        l.set_alignment(0,0.5)
+        tab.attach(l,0,1,2,3,gtk.FILL,gtk.FILL)
+        self.cmin_entry=gtk.Entry()
+        tab.attach(self.cmin_entry,1,2,2,3)
+
+        l=gtk.Label('col max:')
+        l.set_alignment(0,0.5)
+        tab.attach(l,0,1,3,4,gtk.FILL,gtk.FILL)
+        self.cmax_entry=gtk.Entry()
+        tab.attach(self.cmax_entry,1,2,3,4)
+        
+        b=gtk.Button('Get from current zoom')
+        b.connect('clicked',self.get_pri_from_zoom)
+        tab.attach(b,0,2,4,5)
+        ### by-hand beam finding
+        tab=gtk.Table()
+        self.notebook.append_page(tab,gtk.Label('Click'))
+
+        ### gravity beam finding
+        tab=gtk.Table()
+        self.notebook.append_page(tab,gtk.Label('Gravity'))
+        
+        ### sectors beam finding
+        tab=gtk.Table()
+        self.notebook.append_page(tab,gtk.Label('Sectors'))
+        
+        ### Azimuthal beam finding
+        tab=gtk.Table()
+        self.notebook.append_page(tab,gtk.Label('Azimuthal'))
+        
+        ### Radial peak beam finding
+        tab=gtk.Table()
+        self.notebook.append_page(tab,gtk.Label('Radial peak'))
+        
+        
+        hbb=gtk.HButtonBox()
+        self.pack_end(hbb)
+        b=gtk.Button(stock=gtk.STOCK_EXECUTE)
+        b.connect('clicked',self.findcenter)
+        hbb.add(b)
+        b=gtk.Button(stock=gtk.STOCK_HELP)
+        b.connect('clicked',self.helpmessage)
+        hbb.add(b)
+        b=gtk.Button(stock=gtk.STOCK_APPLY)
+        b.connect('clicked',self.update_dataset)
+        hbb.add(b)
+    def centeringmode(self):
+        return self.notebook.get_tab_label_text(self.notebook.get_nth_page(self.notebook.get_current_page()))
+    def findcenter(self,widget):
+        d=gtk.Dialog('Centering...',self.get_toplevel(),gtk.DIALOG_DESTROY_WITH_PARENT|gtk.DIALOG_MODAL,(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL))
+        pb=gtk.ProgressBar()
+        d.vbox.pack_start(pb)
+        def breakloop():
+            raise sastool_break_loop('user break')
+        d.action_area.get_children()[0].connect('clicked',breakloop)
+        pb.set_text('Finding beam position...')
+        def callback():
+            pb.pulse()
+            while gtk.events_pending():
+                gtk.main_iteration()
+        data=self.matrix_source.data.get_matrix()
+        try:
+            if self.centeringmode()=='Semitransp.':
+                pass
+            elif self.centeringmode()=='Click':
+                pass
+            elif self.centeringmode()=='Gravity':
+                pass
+            elif self.centeringmode()=='Sectors':
+                pass
+            elif self.centeringmode()=='Azimuthal':
+                pass
+            elif self.centeringmode()=='Radial peak':
+                pass
+        except sastool_break_loop:
+            #User break in iteration
+            pass
+        except:
+            #other error
+            pass
+        else:
+            #Success, should return the beam center somewhere
+            pass
+        finally:
+            d.destroy()
+        return True
+    def helpmessage(self,widget):
+        if self.centeringmode()=='Semitransp.':
+            title="Semi-transparent algorithm"
+            msg="If the scattering pattern was recorded using a semi-transparent \
+beamstop, you can zoom to the beam area and a weighting algorithm \
+can find the beam position for you."""
+            goodfor='Images with visible attenuated beam'
+        elif self.centeringmode()=='Click':
+            title="By-hand centering"
+            msg="After pressing 'Execute', click the image to select the beam \
+position by hand."
+            goodfor=''
+        elif self.centeringmode()=='Gravity':
+            title="Gravity method"
+            msg="Finds the beam center by finding the center of gravity in \
+both directions."
+            goodfor='Images where not much masking is needed. Marked Bragg-rings improve precision.'
+        elif self.centeringmode()=='Sectors':
+            title=""
+            msg=""
+            goodfor='High accuracy isotropic images where the full azimuth range is available.'
+        elif self.centeringmode()=='Azimuthal':
+            title=""
+            msg=""
+            goodfor="Images having a point of inversion and fully available azimuth range."
+        elif self.centeringmode()=='Radial peak':
+            title=""
+            msg=""
+            goodfor="Images with a pronounced Bragg-peak (small anisotropy should be OK)."
+        
+        else:
+            title=self.centeringmode()
+            msg="""This centering algorithm has not yet been documented.
+            """
+            goodfor="None"
+        md=gtk.MessageDialog(parent=self.get_toplevel(), 
+                             flags=gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+                             type=gtk.MESSAGE_INFO, buttons=gtk.BUTTONS_OK)
+        md.set_markup('<b>Description:</b>\n%s\n<b>Good for:</b>\n%s\n'%(msg,goodfor))
+        md.set_title(title)
+        md.run()
+        md.destroy()
+        return True
+    def update_dataset(self,widget):
+        pass
+    def get_pri_from_zoom(self,widget):
+        colmin,colmax,rowmin,rowmax=self.matrix_source.getzoom()
+        self.cmin_entry.set_text('%.4f'%min(colmin,colmax))
+        self.cmax_entry.set_text('%.4f'%max(colmin,colmax))
+        self.rmin_entry.set_text('%.4f'%min(rowmin,rowmax))
+        self.rmax_entry.set_text('%.4f'%max(rowmin,rowmax))
+        return True
 class SAS2DGUI(gtk.Window):
-    data=None
     def __init__(self,*args,**kwargs):
+        self.data=None
         gtk.Window.__init__(self,*args,**kwargs)
         self.set_title('SAS 2D GUI tool')
-        
-        hb=gtk.HBox()
-        self.add(hb)
+        hpaned=gtk.HPaned()
+        self.add(hpaned)
+        vpaned=gtk.VPaned()
+        hpaned.add1(vpaned)
         vb=gtk.VBox()
-        hb.pack_start(vb,False,False)
+        vpaned.pack1(vb,True,False)
         
         # add a matplotlib figure
         figvbox = gtk.VBox()
-        hb.pack_start(figvbox)
+        hpaned.add2(figvbox)
         self.fig = Figure(figsize = (0.5, 0.4), dpi = 72)
         self.axes=self.fig.add_subplot(111)
 
@@ -474,7 +653,7 @@ class SAS2DGUI(gtk.Window):
 
         hb1 = gtk.HBox() # the toolbar below the figure
         figvbox.pack_start(hb1, False, True, 0)
-        self.graphtoolbar = NavigationToolbar2GTKAgg(self.canvas, hb)
+        self.graphtoolbar = NavigationToolbar2GTKAgg(self.canvas, hpaned)
         hb1.pack_start(self.graphtoolbar, True, True, 0)
         
         #build the toolbar on the left pane
@@ -495,22 +674,29 @@ class SAS2DGUI(gtk.Window):
         vb.pack_start(ex,False,True)
         self.masker=SAS2DMasker(matrix_source=self)
         ex.add(self.masker)
-
-        centerer=gtk.Expander(label='Centering')
-        vb.pack_start(centerer,False,True)
-
+        
+        ex=gtk.Expander(label='Centering')
+        vb.pack_start(ex,False,True)
+        self.centerer=SAS2DCenterer(matrix_source=self)
+        ex.add(self.centerer)
+        
         
         integrator=gtk.Expander(label='Radial averaging')
         vb.pack_start(integrator,False,True)
         
         self.statistics=SAS2DStatistics()
-        vb.pack_end(self.statistics,False)
+        vpaned.pack2(self.statistics,True,False)
         
         self.show_all()
         self.hide()
+    def getzoom(self):
+        if not self.fig.axes:
+            self.fig.add_subplot(111)
+            self.canvas.draw()
+        return self.fig.axes[0].axis()
     def getdata(self):
         return self.data
-    def getmatrix(self):
+    def get_matrix(self):
         if self.data is not None:
             matrixtype=[x for x in self.data.matrices.keys() if self.data.matrices[x]==self.plotter.matrixtype.get_active_text()][0]
             return self.data.__getattribute__(matrixtype)
@@ -520,23 +706,23 @@ class SAS2DGUI(gtk.Window):
         if self.data is not None:
             del self.data
         self.data=exposition
-        self.plotter.plot2d(exposition)
-        matrixtype=[x for x in exposition.matrices.keys() if exposition.matrices[x]==self.plotter.matrixtype.get_active_text()][0]
-        sumdata=np.nansum(exposition.__getattribute__(matrixtype))
-        Nandata=(-np.isfinite(exposition.__getattribute__(matrixtype))).sum()
-        maxdata=np.nanmax(exposition.__getattribute__(matrixtype))
-        mindata=np.nanmin(exposition.__getattribute__(matrixtype))
+        self.plotter.update_matrixtype(self.data)
+        mat=self.data.get_matrix(self.plotter.get_matrixtype())
+        sumdata=np.nansum(mat)
+        Nandata=(-np.isfinite(mat)).sum()
+        maxdata=np.nanmax(mat)
+        mindata=np.nanmin(mat)
         if self.data.mask is None:
             self.masker.updatemaskindata()
         if self.data.mask is not None:
-            maxmasked=np.nanmax(self.data.__getattribute__(matrixtype)*self.data.mask.mask)
-            minmasked=np.nanmin(self.data.__getattribute__(matrixtype)*self.data.mask.mask)
-            summasked=np.nansum(self.data.__getattribute__(matrixtype)*self.data.mask.mask)
+            maxmasked=np.nanmax(mat*self.data.mask.mask)
+            minmasked=np.nanmin(mat*self.data.mask.mask)
+            summasked=np.nansum(mat*self.data.mask.mask)
         else:
             maxmasked='N/A'
             minmasked='N/A'
             summasked='N/A'
-        shape=self.data.__getattribute__(matrixtype).shape
+        shape=mat.shape
         self.statistics.update_table(collections.OrderedDict([('FSN',str(self.data.header['FSN'])),
                                                               ('Title',self.data.header['Title']),
                                                               ('Shape','%d x %d'%shape),
@@ -549,8 +735,17 @@ class SAS2DGUI(gtk.Window):
                                                               ('Min. count (mask)',minmasked)]))
         if self.data.mask is not None:
             self.masker.setmask(self.data.mask)
-
+        self.plotter.plot2d(self.data)
+    def __del__(self):
+        del self.data
+        super(SAS2DGUI,self).__del__()
+        
 def SAS2DGUI_run():
     w = SAS2DGUI()
+    def f(widget,event,*args,**kwargs):
+        widget.destroy()
+        del widget
+    w.connect('delete-event',f)
     w.show()
+    
     
