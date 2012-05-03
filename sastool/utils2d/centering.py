@@ -23,15 +23,15 @@ def findbeam_gravity(data,mask):
     y=np.arange(data1.shape[1])
     # two column vectors, both containing ones. The length of onex and
     # oney corresponds to length of x and y, respectively.
-    onex=np.ones((len(x),1))
-    oney=np.ones((len(y),1))
+    onex=np.ones_like(x)
+    oney=np.ones_like(y)
     # Multiply the matrix with x. Each element of the resulting column
     # vector will contain the center of gravity of the corresponding row
     # in the matrix, multiplied by the "weight". Thus: nix_i=sum_j( A_ij
     # * x_j). If we divide this by spamx_i=sum_j(A_ij), then we get the
     # center of gravity. The length of this column vector is len(y).
-    nix=np.dot(data1,x).flatten()
-    spamx=np.dot(data1,onex).flatten()
+    nix=np.dot(x,data1)
+    spamx=np.dot(onex,data1)
     # indices where both nix and spamx is nonzero.
     goodx=((nix!=0) & (spamx!=0))
     # trim y, nix and spamx by goodx, eliminate invalid points.
@@ -39,8 +39,8 @@ def findbeam_gravity(data,mask):
     spamx=spamx[goodx]
 
     # now do the same for the column direction.
-    niy=np.dot(data1.T,y).flatten()
-    spamy=np.dot(data1.T,oney).flatten()
+    niy=np.dot(data1,y)
+    spamy=np.dot(data1,oney)
     goody=((niy!=0) & (spamy!=0))
     niy=niy[goody]
     spamy=spamy[goody]
@@ -53,7 +53,7 @@ def findbeam_gravity(data,mask):
     return [xcent.mean(),ycent.mean()]
 
 def findbeam_slices(data,orig_initial,mask=None,maxiter=0,epsfcn=0.001,
-                      dmin=0, dmax=np.inf, callback=None):
+                    dmin=0, dmax=np.inf, sector_width= np.pi/9.0, callback=None):
     """Find beam center with the "slices" method
     
     Inputs:
@@ -66,13 +66,13 @@ def findbeam_slices(data,orig_initial,mask=None,maxiter=0,epsfcn=0.001,
         epsfcn: input for scipy.optimize.leastsq
         dmin: disregard pixels nearer to the origin than this
         dmax: disregard pixels farther from the origin than this
+        sector_width: width of sectors in radians
         callback: callback function (expects no arguments)
         
     Output:
         a vector of length 2 with the x (row) and y (column) coordinates
          of the origin.
     """
-    sector_wid=np.pi/9.
     if mask is None:
         mask=np.ones(data.shape)
     def targetfunc(orig,data,mask,callback):
@@ -81,8 +81,8 @@ def findbeam_slices(data,orig_initial,mask=None,maxiter=0,epsfcn=0.001,
         I=[None]*4; A=[None]*4
         for i in range(4):
             p[i],I[i],A[i]=radintpix(data, None, orig[0], orig[1], mask=mask,
-                                     phi0=(i*2+1)*np.pi/4-0.5*sector_wid,
-                                     dphi=(i*2+1)*np.pi/4+0.5*sector_wid)
+                                     phi0=(i*2+1)*np.pi/4-0.5*sector_width,
+                                     dphi=(i*2+1)*np.pi/4+0.5*sector_width)
         minpix=max(max([x.min() for x in p]),dmin)
         maxpix=min(min([x.max() for x in p]),dmax)
         if (maxpix<minpix):

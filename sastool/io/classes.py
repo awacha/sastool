@@ -91,6 +91,9 @@ class _HDF_parse_group(object):
         if isinstance(self.hdf_argument,basestring):
             self.hdf_file.close()
             
+class SASMaskException(Exception):
+    pass
+
 
 class SASHeader(collections.defaultdict):
     """A class for holding measurement meta-data."""
@@ -251,7 +254,7 @@ class SASHeader(collections.defaultdict):
         # compatibility with that.
         jusifaHC = 12396.4
         if filename.upper().endswith('.GZ'):
-            fid = gzip.GzipFile(filename, 'rt')
+            fid = gzip.GzipFile(filename, 'r')
         else:
             fid = open(filename, 'rt')
         lines = fid.readlines()
@@ -533,7 +536,6 @@ class SASExposure(object):
     matrices=collections.OrderedDict([('Image','Detector Image'),
                                       ('Intensity','Corrected intensity'),
                                       ('Error','Error of intensity')])
-    _nr_instances=0
     def __init__(self):
         super(SASExposure, self).__init__()
         self.Intensity=None
@@ -541,12 +543,17 @@ class SASExposure(object):
         self.Image=None
         self.header=None
         self.mask=None
-        SASExposure._nr_instances+=1
-        print "SASExposure instances: ",SASExposure._nr_instances
     def check_for_mask(self):
         if self.mask is None:
-            raise ValueError('mask not defined')
-        
+            raise SASMaskException('mask not defined')
+    def __del__(self):
+        print "Deleting instance of SASExposure"
+        del self.Intensity
+        del self.Error
+        del self.Image
+        del self.header
+        del self.mask
+
 ### -------------- Loading routines (new_from_xyz) ------------------------
 
     @classmethod
@@ -692,7 +699,7 @@ class SASExposure(object):
             self.mask=SASMask.new_from_hdf5(hdf_group.parent,self.header['maskid'])
 
     def read_from_PAXE(self, fsn, fileformat='XE%04d.DAT', dirs=['.']):
-        
+        raise NotImplementedError
 ### ------------------- Interface routines ------------------------------------
     def set_mask(self, mask):
         self.mask = SASMask(mask)
@@ -763,36 +770,171 @@ class SASExposure(object):
         N=min([len(qr) for qr in qranges])
         return np.linspace(qmin,qmax,N)
 
-    def radial_average(self, qrange = None, pixel=False):
+    def radial_average(self, qrange = None, pixel=False, matrix='Intensity', errormatrix='Error'):
         """Do a radial averaging
         
         Inputs:
             qrange: the q-range. If None, auto-determine.
             pixel: do a pixel-integration (instead of q)
-        
+            matrix: matrix to use for averaging
+            errormatrix: error matrix to use for averaging (or None)
+            
         Outputs:
             the one-dimensional curve as an instance of SASCurve (if pixel is
-                True) or DataSet (if pixel is False)
+                False) or DataSet (if pixel is True)
         """
         self.check_for_mask()
-        q, I, E, A, p = utils2d.integrate.radint(self.Intensity, self.Error,
-                                           self.header['EnergyCalibrated'],
-                                           self.header['Dist'],
-                                           self.header['PixelSize'],
-                                           self.header['BeamPosX'],
-                                           self.header['BeamPosY'],
-                                           1 - self.mask.mask, qrange,
-                                           returnavgq = True,
-                                           returnpixel = True)
-        if pixel:
-            ds = dataset.DataSet(p, I, E)
-            ds.addfield('q',q)
+        mat=getattr(self,matrix)
+        if errormatrix is not None:
+            err=getattr(self,errormatrix)
         else:
+            err=None
+        if not pixel:
+            res = utils2d.integrate.radint(mat,err,
+                                               self.header['EnergyCalibrated'],
+                                               self.header['Dist'],
+                                               self.header['PixelSize'],
+                                               self.header['BeamPosX'],
+                                               self.header['BeamPosY'],
+                                               1 - self.mask.mask, qrange,
+                                               returnavgq = True,
+                                               returnpixel = True)
+            if err is not None:
+                q,I,E,A,p=res
+            else:
+                q,I,A,p=res
+                E=np.zeros_like(q)
             ds = dataset.SASCurve(q, I, E)
             ds.addfield('Pixels', p)
+        else:
+            res = utils2d.integrate.radintpix(mat,err,
+                                                     self.header['BeamPosX'],
+                                                     self.header['BeamPosY'],
+                                                     1-self.mask.mask, qrange,
+                                                     returnavgpix=True)
+            if err is not None:
+                p,I,E,A=res
+            else:
+                p,I,A=res
+                E=np.zeros_like(p)
+            ds = dataset.DataSet(p, I, E)
         ds.addfield('Area', A)
         ds.header=SASHeader(self.header)
         return ds
+    
+    def sector_average(self, phi0, dphi, qrange=None, pixel=False, matrix='Intensity', errormatrix='Error', symmetric_sector=False):
+        """Do a radial averaging restricted to one sector.
+        
+        Inputs:
+            phi0: start of the sector (radians).
+            dphi: sector width (radians)
+            qrange: the q-range. If None, auto-determine.
+            pixel: do a pixel-integration (instead of q)
+            matrix: matrix to use for averaging
+            errormatrix: error matrix to use for averaging (or None)
+            symmetric_sectors: if the sector should be symmetric (phi0+pi needs
+                also be taken into account)
+        Outputs:
+            the one-dimensional curve as an instance of SASCurve (if pixel is
+                False) or DataSet (if pixel is True)
+    
+        Notes:
+            x is row direction, y is column. 0 degree is +x, 90 degree is +y.
+        """
+        self.check_for_mask()
+        mat=getattr(self,matrix)
+        if errormatrix is not None:
+            err=getattr(self,errormatrix)
+        else:
+            err=None
+        if not pixel:
+            res = utils2d.integrate.radint(mat,err,
+                                               self.header['EnergyCalibrated'],
+                                               self.header['Dist'],
+                                               self.header['PixelSize'],
+                                               self.header['BeamPosX'],
+                                               self.header['BeamPosY'],
+                                               1 - self.mask.mask, qrange,
+                                               returnavgq = True,
+                                               returnpixel = True,
+                                               phi0=phi0, dphi=dphi, symmetric_sector=symmetric_sector)
+            if err is not None:
+                q,I,E,A,p=res
+            else:
+                q,I,A,p=res
+                E=np.zeros_like(q)
+            ds = dataset.SASCurve(q, I, E)
+            ds.addfield('Pixels', p)
+        else:
+            res = utils2d.integrate.radintpix(mat,err,
+                                                     self.header['BeamPosX'],
+                                                     self.header['BeamPosY'],
+                                                     1-self.mask.mask, qrange,
+                                                     returnavgpix=True, phi0=phi0,
+                                                     dphi=dphi, symmetric_sector=symmetric_sector)
+            if err is not None:
+                p,I,E,A=res
+            else:
+                p,I,A=res
+                E=np.zeros_like(p)
+            ds = dataset.DataSet(p, I, E)
+        ds.addfield('Area', A)
+        ds.header=SASHeader(self.header)
+        return ds
+
+    def azimuthal_average(self, qmin, qmax, Ntheta=100, pixel=False, matrix='Intensity', errormatrix='Error'):
+        """Do an azimuthal averaging restricted to a ring.
+        
+        Inputs:
+            qmin, qmax: lower and upper bounds of the ring (q or pixel)
+            Ntheta: number of points in the output.
+            pixel: do a pixel-integration (instead of q)
+            matrix: matrix to use for averaging
+            errormatrix: error matrix to use for averaging (or None)
+        
+        Outputs:
+            the one-dimensional curve as an instance of DataSet
+    
+        Notes:
+            x is row direction, y is column. 0 degree is +x, 90 degree is +y.
+        """
+        self.check_for_mask()
+        mat=getattr(self,matrix)
+        if errormatrix is not None:
+            err=getattr(self,errormatrix)
+        else:
+            err=None
+        if not pixel:
+            res = utils2d.integrate.azimint(mat,err,
+                                               self.header['EnergyCalibrated'],
+                                               self.header['Dist'],
+                                               self.header['PixelSize'],
+                                               self.header['BeamPosX'],
+                                               self.header['BeamPosY'],
+                                               1 - self.mask.mask, Ntheta,
+                                               qmin = qmin, qmax=qmax)
+            if err is not None:
+                theta,I,E,A=res
+            else:
+                theta,I,A=res
+                E=np.zeros_like(theta)
+            ds = dataset.DataSet(theta, I, E)
+        else:
+            res = utils2d.integrate.azimintpix(mat,err,
+                                                     self.header['BeamPosX'],
+                                                     self.header['BeamPosY'],
+                                                     1-self.mask.mask, Ntheta,
+                                                     pixmin=qmin, pixmax=qmax)
+            if err is not None:
+                theta,I,E,A=res
+            else:
+                theta,I,A=res
+                E=np.zeros_like(theta)
+            ds = dataset.DataSet(theta, I, E)
+        ds.addfield('Area', A)
+        ds.header=SASHeader(self.header)
+        return ds
+
 
 ### ---------------------- Plotting -------------------------------------------
 
@@ -816,15 +958,46 @@ class SASExposure(object):
         if not source:
             self.header.add_history('Beam position updated to:'+str(tuple(bc)))
         else:
-            self.header.add_history('Beam found by *%s*: %s'(source,str(tuple(bc))))
+            self.header.add_history('Beam found by *%s*: %s'%(source,str(tuple(bc))))
     def find_beam_semitransparent(self, bs_area, update=True):
-        self.check_for_mask()
+        bs_area=[min(bs_area[2:]),max(bs_area[2:]),min(bs_area[:2]),max(bs_area[:2])]
         bc=utils2d.centering.findbeam_semitransparent(self.get_matrix(), bs_area)
         if update:
             self.update_beampos(bc, source='semitransparent')
         return bc
-    def find_beam_slices(self):
-        pass
+    def find_beam_slices(self, pixmin=0, pixmax=np.inf, sector_width=np.pi/9.,
+                         update=True, callback=None):
+        self.check_for_mask()
+        bc=utils2d.centering.findbeam_slices(self.get_matrix(),
+                                             (self.header['BeamPosX'],
+                                              self.header['BeamPosY']),
+                                             self.mask.mask, dmin=pixmin, 
+                                             dmax=pixmax, 
+                                             sector_width=sector_width,
+                                             callback=callback)
+        if update:
+            self.update_beampos(bc, source='slices')
+        return bc
+    def find_beam_gravity(self, update=True):
+        self.check_for_mask()
+        bc=utils2d.centering.findbeam_gravity(self.get_matrix(),self.mask.mask)
+        if update:
+            self.update_beampos(bc,source='gravity')
+        return bc
+    
+    def find_beam_azimuthal_fold(self, Ntheta=50, dmin=0, dmax=np.inf,
+                                 update=True, callback=None):
+        self.check_for_mask()
+        bc=utils2d.centering.findbeam_azimuthal_fold(self.get_matrix(),
+                                                     (self.header['BeamPosX'],
+                                                      self.header['BeamPosY']),
+                                                     self.mask.mask,
+                                                     Ntheta=Ntheta, dmin=dmin,
+                                                     dmax=dmax, callback=callback)
+        if update:
+            self.update_beampos(bc,source='azimuthal_fold')
+        return bc
+    
     def find_beam_radialpeak(self, pixmin, pixmax, drive_by='amplitude', extent=10, update=True, callback=None):
         self.check_for_mask()
         bc=utils2d.centering.findbeam_radialpeak(self.get_matrix(),
@@ -832,7 +1005,7 @@ class SASExposure(object):
                                                   self.header['BeamPosY']),
                                                  self.mask.mask, pixmin,
                                                  pixmax, drive_by=drive_by,
-                                                 extent=extent)
+                                                 extent=extent, callback=callback)
         if update:
             self.update_beampos(bc,source='radialpeak')
         return bc
@@ -852,15 +1025,6 @@ class SASExposure(object):
             self.header.write_to_hdf5(hpg[groupname])
             if self.mask is not None:
                 self.mask.write_to_hdf5(hpg)
-    def __del__(self):
-        print "Deleting instance of SASExposure"
-        del self.Intensity
-        del self.Error
-        del self.Image
-        del self.header
-        del self.mask
-        SASExposure._nr_instances-=1
-        print "SASExposure instances remaining: ",SASExposure._nr_instances
             
 class SASMask(object):
     maskid = None
