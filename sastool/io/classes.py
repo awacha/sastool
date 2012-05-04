@@ -12,12 +12,14 @@ import math
 import collections
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
 import numbers
 import h5py
 import functools
 import scipy.io
 import os
 import warnings
+import itertools
 
 from .. import dataset
 from .. import utils2d
@@ -94,8 +96,10 @@ class _HDF_parse_group(object):
 class SASMaskException(Exception):
     pass
 
+class SASAverageException(Exception):
+    pass
 
-class SASHeader(collections.defaultdict):
+class SASHeader(dict):
     """A class for holding measurement meta-data."""
     # the following define fields treated specially when adding one or more
     # headers together.
@@ -181,7 +185,7 @@ class SASHeader(collections.defaultdict):
     _HDF5_read_postprocess_name = {'FSNs':lambda x:x.tolist(), 'History':_delinearize_history}
     _key_aliases = {}
     def __init__(self, *args, **kwargs):
-        return super(SASHeader, self).__init__(self._default_factory, *args, **kwargs)
+        return super(SASHeader, self).__init__(*args, **kwargs)
     def _default_factory(self, key):
         if key in ['FSNs']:
             return []
@@ -193,16 +197,18 @@ class SASHeader(collections.defaultdict):
             return 0
         else:
             raise KeyError(key)
+    def __missing__(self,key):
+        val=self._default_factory(key)
+        super(SASHeader,self).__setitem__(key,val)
+        return val
     def __unicode__(self):
         return "FSN %s; %s; %s mm; %s eV" % (self['FSN'],self['Title'],self['Dist'],self['Energy'])
     __str__ = __unicode__
     def __getitem__(self, key):
-        if key in self:
-            return super(SASHeader,self).__getitem__(key)
-        elif key in self._key_aliases:
-            return self.__getitem__(self._key_aliases[key])
+        if key in self._key_aliases:
+            return super(SASHeader,self).__getitem__(self._key_aliases[key])
         else:
-            raise KeyError(key)
+            return super(SASHeader,self).__getitem__(key)
     def __setitem__(self, key, value):
         if key in self._key_aliases:
             return self.__setitem__(self._key_aliases[key], value)
@@ -215,20 +221,41 @@ class SASHeader(collections.defaultdict):
             return self.__delitem__(self._key_aliases[key])
         else:
             raise KeyError(key)
+    def __contains__(self, key):
+        if key in self._key_aliases:
+            return super(SASHeader,self).__contains__(self._key_aliases[key])
+        else:
+            return super(SASHeader,self).__contains__(key)
+    def __iter__(self):
+        return self.iterkeys()
     def keys(self):
         return super(SASHeader,self).keys()+self._key_aliases.keys()
+    def values(self):
+        return super(SASHeader,self).values()+[self[self._key_aliases[x]] for x in self._key_aliases]
+    def items(self):
+        return zip(keys,values)
+    def iterkeys(self):
+        return itertools.chain(super(SASHeader,self).iterkeys(),self._key_aliases.iterkeys())
+    def itervalues(self):
+        return itertools.chain(super(SASHeader,self).itervalues(),
+                 itertools.imap(lambda x:self[self._key_aliases[x]],self._key_aliases.iterkeys() ))
+    def iteritems(self):
+        return itertools.izip(self.iterkeys(),self.itervalues())
+    def keys(self):
+        return 
     def read_from_ESRF_ID02(self, filename_or_edf):
         if isinstance(filename_or_edf,basestring):
             filename_or_edf=twodim.readehf(filename_or_edf)
         self.update(filename_or_edf)
         self._key_aliases['FSN']='HMRunNumber'
-        self._key_aliases['BeamPosX']='Center_1'
-        self._key_aliases['BeamPosY']='Center_2'
+        self._key_aliases['BeamPosX']='Center_2'
+        self._key_aliases['BeamPosY']='Center_1'
         self._key_aliases['MeasTime']='ExposureTime'
         self._key_aliases['Monitor']='Intensity0'
         self._key_aliases['Detector']='DetectorInfo'
         self._key_aliases['Date']='HMStartTime'
         self._key_aliases['Wavelength']='WaveLength'
+        self._key_aliases['EnergyCalibrated']='Energy'
         self['Hour']=self['HMStartTime'].hour
         self['Minutes']=self['HMStartTime'].minute
         self['Month']=self['HMStartTime'].month
@@ -546,8 +573,11 @@ class SASExposure(object):
     def check_for_mask(self):
         if self.mask is None:
             raise SASMaskException('mask not defined')
+    def check_for_q(self):
+        missing=[x for x in  ['BeamPosX','BeamPosY','Dist','EnergyCalibrated','PixelSize'] if x not in self.header]
+        if missing:
+            raise SASAverageException('Fields missing from header: '+str(missing))
     def __del__(self):
-        print "Deleting instance of SASExposure"
         del self.Intensity
         del self.Error
         del self.Image
@@ -606,7 +636,7 @@ class SASExposure(object):
         filename=misc.findfileindirs(fileformat%fsn,dirs)
         edf=twodim.readedf(filename)
         self.header=SASHeader.new_from_ESRF_ID02(edf)
-        self.Intensity=edf['data']
+        self.Intensity=edf['data'].astype(np.double)
         mask=SASMask(misc.findfileindirs(self.header['MaskFileName'],dirs))
         if self.Intensity.shape!=mask.mask.shape:
             if all(self.Intensity.shape[i]>mask.mask.shape[i] for i in [0,1]):
@@ -938,15 +968,96 @@ class SASExposure(object):
 
 ### ---------------------- Plotting -------------------------------------------
 
-    def plot2d(self, zscale = 'log', crosshair = False, drawmask = True, qrange_on_axis = False):
+    def plot2d(self, **kwargs):
         """Plot the matrix (imshow)
         
+        Allowed keyword arguments [and their default values]:
+        
+        zscale ['linear']: colour scaling of the image. Either a string ('log',
+            'log10' or 'linear', case insensitive), or an unary function which
+            operates on a numpy array and returns a numpy array of the same
+            shape, e.g. np.log, np.sqrt etc.
+        crosshair [True]: if a cross-hair marking the beam position is to be
+            plotted.
+        drawmask [True]: if the mask is to be plotted.
+        qrange_on_axis [True]: if the q-range is to be set to the axis.
+        matrix ['Intensity']: the matrix which is to be plotted. If this is not
+            present, another one will be chosen quietly
+        axis [None]: the axis into which the image should be plotted. If None,
+            defaults to the currently active axis (returned by plt.gca())
+        invalid_color ['black']: the color for invalid (NaN or infinite) pixels
+        mask_opacity [0.8]: the opacity of the overlaid mask (1 is fully opaque,
+            0 is fully transparent)
+        
+        All other keywords are forwarded to plt.imshow()
+        
+        Returns: the image instance returned by imshow()
         """
-        # @todo
-        if zscale.upper().startswith('LOG'):
-            self._plotmat = np.log10(self.Intensity.copy())
-            goodidx = np.isfinite(self._plotmat)
-            self._plotmat[-goodidx] = self._plotmat[goodidx].min()
+        kwargs_default={'zscale':'linear',
+                        'crosshair':True,
+                        'drawmask':True,
+                        'qrange_on_axis':True,
+                        'matrix':'Intensity',
+                        'axis':None,
+                        'invalid_color':'black',
+                        'mask_opacity':0.6,
+                        'interpolation':'nearest',
+                        'origin':'upper'}
+        my_kwargs=['zscale','crosshair','drawmask','qrange_on_axis','matrix',
+                   'axis','invalid_color','mask_opacity']
+        kwargs_default.update(kwargs)
+        kwargs_for_imshow={k:kwargs_default[k] for k in kwargs_default if k not in my_kwargs}
+        if isinstance(kwargs_default['zscale'],basestring):
+            if kwargs_default['zscale'].upper().startswith('LOG10'):
+                kwargs_default['zscale']=np.log10
+            elif kwargs_default['zscale'].upper().startswith('LN'):
+                kwargs_default['zscale']=np.log
+            elif kwargs_default['zscale'].upper().startswith('LIN'):
+                kwargs_default['zscale']=lambda a:a.copy()
+            elif kwargs_default['zscale'].upper().startswith('LOG'):
+                kwargs_default['zscale']=np.log
+            else:
+                raise ValueError('Invalid value for zscale: %s'%kwargs_default['zscale'])
+        mat=kwargs_default['zscale'](self.get_matrix(kwargs_default['matrix']))
+
+        if kwargs_default['drawmask']:
+            self.check_for_mask() # die if no mask is present
+
+        if kwargs_default['qrange_on_axis']:
+            self.check_for_q()
+            xmin=4*np.pi*np.sin(0.5*np.arctan((0-self.header['BeamPosY'])*self.header['PixelSize']/self.header['Dist']))*self.header['EnergyCalibrated']/12398.419
+            xmax=4*np.pi*np.sin(0.5*np.arctan((mat.shape[1]-self.header['BeamPosY'])*self.header['PixelSize']/self.header['Dist']))*self.header['EnergyCalibrated']/12398.419
+            ymin=4*np.pi*np.sin(0.5*np.arctan((0-self.header['BeamPosX'])*self.header['PixelSize']/self.header['Dist']))*self.header['EnergyCalibrated']/12398.419
+            ymax=4*np.pi*np.sin(0.5*np.arctan((mat.shape[0]-self.header['BeamPosX'])*self.header['PixelSize']/self.header['Dist']))*self.header['EnergyCalibrated']/12398.419
+            if kwargs_for_imshow['origin'].upper()=='UPPER': 
+                kwargs_for_imshow['extent']=[xmin,xmax,ymax,ymin]
+            else:
+                kwargs_for_imshow['extent']=[xmin,xmax,ymin,ymax]
+            bcx=0
+            bcy=0
+        else:
+            bcx=self.header['BeamPosX']
+            bcy=self.header['BeamPosY']
+            xmin=0; xmax=mat.shape[1]; ymin=0; ymax=mat.shape[0]
+        
+        if kwargs_default['axis'] is None:
+            kwargs_default['axis']=plt.gca()
+        ret=kwargs_default['axis'].imshow(mat,**kwargs_for_imshow)
+        if kwargs_default['drawmask']:
+            #Mask matrix should be plotted with plt.imshow(maskmatrix, cmap=_colormap_for_mask)
+            _colormap_for_mask=matplotlib.colors.ListedColormap(['white','white'],'_sastool_%s'%misc.random_str(10))
+            _colormap_for_mask._init()
+            _colormap_for_mask._lut[:,-1]=0
+            _colormap_for_mask._lut[0,-1]=kwargs_default['mask_opacity']
+            kwargs_for_imshow['cmap']=_colormap_for_mask
+            kwargs_default['axis'].imshow(self.mask.mask,**kwargs_for_imshow)
+        if kwargs_default['crosshair']:
+            ax=kwargs_default['axis'].axis()
+            kwargs_default['axis'].plot([xmin,xmax],[bcx]*2,'w-')
+            kwargs_default['axis'].plot([bcy]*2,[ymin,ymax],'w-')
+            kwargs_default['axis'].axis(ax)
+        kwargs_default['axis'].figure.canvas.draw()
+        return ret
 
     def imshow(self, *args, **kwargs):
         plt.imshow(np.log10(self.Intensity), *args, **kwargs)

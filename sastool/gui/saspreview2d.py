@@ -184,8 +184,8 @@ class SAS2DLoader(gtk.VBox):
     
 
 class SAS2DPlotter(gtk.VBox):
-    data = None
     def __init__(self,figure):
+        data = None
         gtk.VBox.__init__(self)
         self.fig=figure
         table=gtk.Table()
@@ -272,6 +272,11 @@ class SAS2DPlotter(gtk.VBox):
     def get_matrixtype(self):
         return [k for k in classes.SASExposure.matrices if classes.SASExposure.matrices[k]==self.matrixtype.get_active_text()][0]
     def plot2d(self,data):
+        if hasattr(self,'mat'):
+            del self.mat
+        if hasattr(self,'data'):
+            del self.data
+            self.data=None
         if not self.fig.axes:
             return
         self.update_matrixtype(data)
@@ -315,11 +320,11 @@ class SAS2DPlotter(gtk.VBox):
             self.fig.colorbar(self.fig.axes[0].images[0])
         
         self.fig.canvas.draw()
-        if self.data is not None:
-            del self.data
         self.data=data
         self.mat=mat
     def replot(self,widget=None):
+        if not hasattr(self,'data'):
+            return
         if self.data is not None:
             self.plot2d(self.data)
     def clear(self,widget=None):
@@ -847,9 +852,7 @@ radial intensity curve."
             x=self.matrix_source.get_data().header['BeamPosY']+d*np.cos(t)
             y=self.matrix_source.get_data().header['BeamPosX']+d*np.sin(t)
             self.matrix_source.fig.axes[0].plot(x,y,'w-')
-            del t
-            del x
-            del y
+            del t,x,y
         self.matrix_source.fig.axes[0].axis(ax)
         self.matrix_source.canvas.draw()
     def testbeampos(self,widget):
@@ -889,13 +892,13 @@ radial intensity curve."
                                   pixel=True,
                                   matrix=self.matrix_source.get_data().get_matrix_name(),
                                   errormatrix=None)
-        ds.semilogy(sp,'b.-',label='<-')
+        l1=ds.semilogy(sp,'b.-',label='<-')
         sp1=sp.twinx()
-        sp1.plot(ds.x,ds.Area,'r-',label='->')
+        l2=sp1.plot(ds.x,ds.Area,'r-',label='->')
         sp.set_xlabel('Azimuth angle')
         sp.set_ylabel('Intensity')
         sp1.set_ylabel('Effective area of bins (pixel)')
-        sp.legend(loc='best')
+        sp.legend((l1,l2),('<-','->'),loc='best')
         # overlapping of slices
         sp=self.matrix_source.fig.add_subplot(2,2,3)
         sp.set_title('Overlap of diagonal sectors')
@@ -939,10 +942,6 @@ class SAS2DGUI(gtk.Window):
         self.canvas.set_size_request(500, 200)
         figvbox.pack_start(self.canvas, True, True, 0)
         #self.canvas.mpl_connect('button_press_event', self._on_matplotlib_mouseclick)
-        if not hasattr(self.fig,'show'):
-            self.fig.show=self.canvas.draw
-
-
 
         hb1 = gtk.HBox() # the toolbar below the figure
         figvbox.pack_start(hb1, False, True, 0)
