@@ -23,3 +23,5 @@ import edf
 import onedim
 import yellowsubmarine
 import classes
+
+from classes import SASHeader, SASExposure, SASMask

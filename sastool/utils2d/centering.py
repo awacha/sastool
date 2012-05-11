@@ -1,5 +1,5 @@
 import numpy as np
-from integrate import radintpix, azimintpix
+from integrate import radintpix, azimintpix, radint_nsector
 import scipy.optimize
 from .. import misc
 
@@ -77,19 +77,17 @@ def findbeam_slices(data,orig_initial,mask=None,maxiter=0,epsfcn=0.001,
         mask=np.ones(data.shape)
     def targetfunc(orig,data,mask,callback):
         #integrate four sectors
-        p=[None]*4;
-        I=[None]*4; A=[None]*4
-        for i in range(4):
-            p[i],I[i],A[i]=radintpix(data, None, orig[0], orig[1], mask=mask,
-                                     phi0=(i*2+1)*np.pi/4-0.5*sector_width,
-                                     dphi=(i*2+1)*np.pi/4+0.5*sector_width)
-        minpix=max(max([x.min() for x in p]),dmin)
-        maxpix=min(min([x.max() for x in p]),dmax)
+        I=[None]*4;
+        p,Ints,A=radint_nsector(data, None, -1, -1, -1, orig[0], orig[1], mask=mask,
+                             phi0=np.pi/4-0.5*sector_width, dphi=sector_width,
+                             Nsector=4);
+        minpix=max(max(p.min(0).tolist()),dmin)
+        maxpix=min(min(p.max(0).tolist()),dmax)
         if (maxpix<minpix):
             raise ValueError('The four slices do not overlap! Please give a\
  better approximation for the origin or use another centering method.')
         for i in range(4):
-            I[i]=I[i][(p[i]>=minpix)&(p[i]<=maxpix)];
+            I[i]=Ints[:,i][(p[:,i]>=minpix)&(p[:,i]<=maxpix)];
         ret= ((I[0]-I[2])**2+(I[1]-I[3])**2)/(maxpix-minpix)
         if callback is not None:
             callback()

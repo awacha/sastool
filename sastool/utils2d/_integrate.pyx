@@ -200,15 +200,11 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
     cdef np.ndarray[np.uint8_t,ndim=2] maskout
     cdef double symmetric_sector_periodicity
     cdef double sinphi0,cosphi0
-    cdef double bcxa, bcya
     cdef np.ndarray[np.double_t, ndim=1] pixelout
     cdef bint flagmask, flagerror, flagq
 
     #Process input data
     (xres,yres)=radint_getres(res)
-    #beam position
-    bcxa=bcx
-    bcya=bcy
     #array shapes
     M,N= radint_testarrays(data,dataerr,mask)
     if (M<=0) or (N<=0):
@@ -236,7 +232,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
     if q is None:
         if not flagmask:
             mask=np.zeros((data.shape[0],data.shape[1]),dtype=np.uint8)
-        q=autoqscale(energy, distance, xres, yres, bcxa, bcya, mask);
+        q=autoqscale(energy, distance, xres, yres, bcx, bcy, mask);
         if not flagmask:
             mask=None
     Numq=len(q)
@@ -268,12 +264,12 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
                 #disregard nonfinite (NaN or inf) pixels.
                 continue
             # coordinates of the pixel in length units (mm)
-            x=((ix-bcxa)*xres)
-            y=((iy-bcya)*yres)
+            x=((ix-bcx)*xres)
+            y=((iy-bcy)*yres)
             if dphia>0: #slice or sector averaging.
                 if doslice and fabs(sinphi0*x/xres-cosphi0*y/yres)>dphia:
                     continue
-                elif fmod(atan2(y,x)-phi0a+M_PI*10,symmetric_sector_periodicity*M_PI)>dphia:
+                if (not doslice) and fmod(atan2(y,x)-phi0a+M_PI*10,symmetric_sector_periodicity*M_PI)>dphia:
                     continue
             #normalized distance of the pixel from the origin
             if flagq:
@@ -306,7 +302,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
                 if returnmask:
                     maskout[ix,iy]=0
                 if returnpixel:
-                    pixelout[l]+=sqrt((ix-bcxa)**2+(iy-bcya)**2)*w
+                    pixelout[l]+=sqrt((ix-bcx)**2+(iy-bcy)**2)*w
                 break #avoid counting this pixel into higher q-bins.
     #normalize the results
     for l from 0<=l<Numq:
@@ -331,6 +327,372 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
     if returnpixel:
         output.append(pixelout)
 
+    return tuple(output)
+        
+def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
+           np.ndarray[np.double_t,ndim=2] dataerr,
+           double energy, double distance, res,
+           double bcx, double bcy,
+           np.ndarray[np.uint8_t, ndim=2] mask,
+           np.ndarray[np.double_t, ndim=1] q=None,
+           bint returnavgq=False, double phi0=0, double dphi=0,
+           Py_ssize_t Nsector=4,
+           returnmask=False, bint doslice=False, bint returnpixel=False):
+    """ Radial averaging of scattering images: several sectors at once.
+    
+    Inputs:
+        data: the intensity matrix
+        dataerr: the error (standard deviation) matrix (of the same size as
+            'data'). Or None to disregard it.
+        energy: the real photon/neutron energy (eV)
+        distance: the distance from the sample to the detector
+        res: pixel size. Either a vector (tuple) of two or a scalar. Must be
+            expressed in the same units as the 'distance' parameter.
+        bcx: the coordinate of the beam center along the first axis (row
+            coordinates), starting from 0
+        bcy: the coordinate of the beam center along the second axis (column
+            coordiantes), starting from 0
+        mask: the mask matrix (of the same size as 'data'). Nonzero is masked,
+            zero is not masked. None to omit.
+        q: the q (or pixel) points at which the integration is requested, in
+            1/Angstroem (or pixel) units. If None, optimum range will be chosen
+            automagically by taking the mask and the geometry into account.
+        returnavgq: if True, returns the average q (or pixel) value for each
+            bin, i.e. the average of the q (or pixel distance) values
+            corresponding to the centers of the pixels which fell into each bin.
+            False by default.
+        phi0: starting angle if sector integration is requested. Expressed
+            in radians.
+        dphi: arc angle if sector integration is requested. Expressed in
+            radians. OR, if sliceorsector is True, this is the width of the
+            slice, in pixels. 0 implies simple radial integration without
+            constraints.
+        Nsector: number of sectors or slices. This many sectors of angular width
+            dphi will be chosen in a rotation-symmetric manner, starting from
+            phi0.
+        returnmask: True if the effective mask matrix is to be returned
+            (0 for pixels taken into account, 1 for all the others).
+        doslice: True if slice, False (default) if sector (or just radial)
+            integration is preferred. In the former case, dphi is interpreted as
+            the width of the slice in pixel units.
+        returnpixel: return pixel coordinates for integrated bins. False by
+            default.
+    
+    If any of 'energy', 'distance' or 'res' is zero or negative, pixel-based
+    integration is done, with q denoting pixel everywhere.
+    
+    Outputs: q, Intensity, Error, Area, [effective mask], [pixel]
+    """
+    cdef double xres,yres
+    cdef Py_ssize_t N,M
+    cdef np.ndarray[np.double_t, ndim=2] qout
+    cdef np.ndarray[np.double_t, ndim=2] Intensity
+    cdef np.ndarray[np.double_t, ndim=2] Error
+    cdef np.ndarray[np.double_t, ndim=2] Area
+    cdef Py_ssize_t ix,iy
+    cdef Py_ssize_t l
+    cdef double x,y,q1
+    cdef double * qmax
+    cdef double *weight
+    cdef double w
+    cdef double rho
+    cdef double phi0a,dphia
+    cdef Py_ssize_t Numq
+    cdef np.ndarray[np.uint8_t,ndim=2] maskout
+    cdef double symmetric_sector_periodicity
+    cdef double *sinphi0
+    cdef double *cosphi0
+    cdef np.ndarray[np.double_t, ndim=2] pixelout
+    cdef bint flagmask, flagerror, flagq
+    cdef Py_ssize_t sector_idx
+
+    #Process input data
+    (xres,yres)=radint_getres(res)
+    #array shapes
+    M,N= radint_testarrays(data,dataerr,mask)
+    if (M<=0) or (N<=0):
+        raise ValueError('data, dataerr and mask should be of the same shape')
+    flagerror=(dataerr is not None);
+    flagmask=(mask is not None);
+    #if any of energy, distance, res is nonpositive, pixel-based integration.
+    flagq=((energy>0) and (distance>0) and (xres>0) and (yres>0));
+    
+    phi0a=phi0; dphia=dphi;
+    # the equation of the line of the slice is x*sin(phi0)-y*cos(phi0)==0.
+    # this is the normalized equation, ie. sin(phi0)**2+(-cos(phi0))**2=1,
+    # therefore the signed distance of the point x,y from this line is
+    # simply x*sin(phi0)-y*cos(phi0). We will use this to determine if a
+    # point falls into this slice or not.
+    sinphi0=<double*>malloc(Nsector*sizeof(double))
+    cosphi0=<double*>malloc(Nsector*sizeof(double))
+    for l from 0<=l<Nsector:
+        sinphi0[l]=sin(phi0a+2*M_PI/Nsector*l)
+        cosphi0[l]=cos(phi0a+2*M_PI/Nsector*l)
+
+    if returnmask:
+        maskout=np.ones((data.shape[0],data.shape[1]),dtype=np.uint8)
+    # if the q-scale was not supplied, create one.
+    if q is None:
+        if not flagmask:
+            mask=np.zeros((data.shape[0],data.shape[1]),dtype=np.uint8)
+        q=autoqscale(energy, distance, xres, yres, bcx, bcy, mask);
+        if not flagmask:
+            mask=None
+    Numq=len(q)
+    # initialize the output vectors
+    Intensity=np.zeros((Numq,Nsector),dtype=np.double)
+    Error=np.zeros((Numq,Nsector),dtype=np.double)
+    Area=np.zeros((Numq,Nsector),dtype=np.double)
+    qout=np.zeros((Numq,Nsector),dtype=np.double)
+    pixelout=np.zeros((Numq,Nsector),dtype=np.double)
+    # set the upper bounds of the q-bins in qmax
+    qmax=<double *>malloc(Numq*sizeof(double))
+    weight=<double *>malloc(Numq*Nsector*sizeof(double))
+    for l from 0<=l<Numq:
+        #initialize the weight and the qmax array.
+        weight[l]=0
+        if l==Numq-1:
+            qmax[l]=q[Numq-1]
+        else:
+            qmax[l]=0.5*(q[l]+q[l+1])
+    sector_idx=0;
+    #loop through pixels
+    for ix from 0<=ix<M: #rows
+        for iy from 0<=iy<N: #columns
+            if flagmask and (mask[ix,iy]): #if the pixel is masked, disregard it.
+                continue
+            if not isfinite(data[ix,iy]):
+                #disregard nonfinite (NaN or inf) pixels.
+                continue
+            if flagerror and not isfinite(dataerr[ix,iy]):
+                #disregard nonfinite (NaN or inf) pixels.
+                continue
+            # coordinates of the pixel in length units (mm)
+            x=((ix-bcx)*xres)
+            y=((iy-bcy)*yres)
+            #find the sector this point falls into. Trick: start the iteration
+            # with the last found sector. Maybe this reduces the number of
+            # iterations needed for finding the appropriate sector index.
+            for l from sector_idx<=l<(sector_idx+Nsector):
+                if doslice and fabs(sinphi0[l%Nsector]*x/xres-cosphi0[l%Nsector]*y/yres)>dphia:
+                    break
+                if (not doslice) and fmod(atan2(y,x)-phi0a-2*M_PI/Nsector*(l%Nsector)+M_PI*10*Nsector,2*M_PI)<dphia:
+                    break
+            #print l,
+            if l>=(sector_idx+Nsector): #point does not fall in any of the sectors
+                continue
+            sector_idx=l%Nsector # normalize the sector index.
+            #print sector_idx,
+            #normalized distance of the pixel from the origin
+            if flagq:
+                rho=sqrt(x*x+y*y)/distance
+                q1=4*M_PI*sin(0.5*atan(rho))*energy/HC
+            else:
+                q1=sqrt(x*x/xres/xres+y*y/yres/yres);
+            if q1<q[0]: #q underflow
+                continue
+            if q1>q[Numq-1]: #q overflow
+                continue
+            if flagq:
+                #weight, corresponding to the Jacobian (integral with respect to q,
+                # not on the detector plane)
+                w=(2*M_PI*energy/HC/distance)**2*(2+rho**2+2*sqrt(1+rho**2))/( (1+rho**2+sqrt(1+rho**2))**2*sqrt(1+rho**2) )
+            else:
+                w=1;
+            for l from 0<=l<Numq: # Find the q-bin
+                if (q1>qmax[l]):
+                    #not there yet
+                    continue
+                #we reach this point only if q1 is in the l-th bin. Calculate
+                # the contributions of this pixel to the weighted average.
+                qout[l,sector_idx]+=q1*w
+                Intensity[l,sector_idx]+=data[ix,iy]*w
+                if flagerror:
+                    Error[l,sector_idx]+=dataerr[ix,iy]**2*w**2
+                Area[l,sector_idx]+=1
+                weight[l*Nsector+sector_idx]+=w
+                if returnmask:
+                    maskout[ix,iy]=0
+                if returnpixel:
+                    pixelout[l,sector_idx]+=sqrt((ix-bcx)**2+(iy-bcy)**2)*w
+                break #avoid counting this pixel into higher q-bins.
+    #normalize the results
+    for sector_idx from 0<=sector_idx<Nsector:
+        for l from 0<=l<Numq:
+            if weight[l*Nsector+sector_idx]>0:
+                qout[l,sector_idx]/=weight[l*Nsector+sector_idx]
+                Intensity[l,sector_idx]/=weight[l*Nsector+sector_idx]
+                if flagerror:
+                    Error[l,sector_idx]=sqrt(Error[l,sector_idx])/weight[l*Nsector+sector_idx]
+                pixelout[l,sector_idx]/=weight[l*Nsector+sector_idx]
+    #cleanup memory
+    free(qmax)
+    free(weight)
+    free(sinphi0)
+    free(cosphi0)
+    #prepare return values
+    if not returnavgq:
+        for l from 0<=l<Nsector:
+            qout[:,l]=q
+    output=[qout,Intensity]
+    if flagerror:
+        output.append(Error)
+    output.append(Area)
+    if returnmask:
+        output.append(maskout)
+    if returnpixel:
+        output.append(pixelout)
+
+    return tuple(output)
+
+
+        
+def radint_fullq(np.ndarray[np.double_t,ndim=2] data not None,
+           np.ndarray[np.double_t,ndim=2] dataerr,
+           double energy, double distance, res,
+           double bcx, double bcy,
+           np.ndarray[np.uint8_t, ndim=2] mask,
+           np.ndarray[np.double_t, ndim=1] q=None,
+           bint returnavgq=False,
+           returnmask=False):
+    """ Radial averaging of scattering images.
+    
+    Inputs:
+        data: the intensity matrix
+        dataerr: the error (standard deviation) matrix (of the same size as
+            'data'). Or None to disregard it.
+        energy: the real photon/neutron energy (eV)
+        distance: the distance from the sample to the detector
+        res: pixel size. Either a vector (tuple) of two or a scalar. Must be
+            expressed in the same units as the 'distance' parameter.
+        bcx: the coordinate of the beam center along the first axis (row
+            coordinates), starting from 0
+        bcy: the coordinate of the beam center along the second axis (column
+            coordiantes), starting from 0
+        mask: the mask matrix (of the same size as 'data'). Nonzero is masked,
+            zero is not masked. None to omit.
+        q: the q (or pixel) points at which the integration is requested, in
+            1/Angstroem (or pixel) units. If None, optimum range will be chosen
+            automagically by taking the mask and the geometry into account.
+        returnavgq: if True, returns the average q (or pixel) value for each
+            bin, i.e. the average of the q (or pixel distance) values
+            corresponding to the centers of the pixels which fell into each bin.
+            False by default.
+        returnmask: True if the effective mask matrix is to be returned
+            (0 for pixels taken into account, 1 for all the others).
+
+    
+    Outputs: q, Intensity, Error, Area, [effective mask]
+    """
+    cdef double xres,yres
+    cdef Py_ssize_t N,M
+    cdef np.ndarray[np.double_t, ndim=1] qout
+    cdef np.ndarray[np.double_t, ndim=1] Intensity
+    cdef np.ndarray[np.double_t, ndim=1] Error
+    cdef np.ndarray[np.double_t, ndim=1] Area
+    cdef Py_ssize_t ix,iy
+    cdef Py_ssize_t l
+    cdef double x,y,q1
+    cdef double * qmax
+    cdef double *weight
+    cdef double w
+    cdef double rho
+    cdef Py_ssize_t Numq
+    cdef np.ndarray[np.uint8_t,ndim=2] maskout
+    cdef bint flagmask, flagerror
+
+    #Process input data
+    (xres,yres)=radint_getres(res)
+    #array shapes
+    M,N= radint_testarrays(data,dataerr,mask)
+    if (M<=0) or (N<=0):
+        raise ValueError('data, dataerr and mask should be of the same shape')
+    flagerror=(dataerr is not None);
+    flagmask=(mask is not None);
+    
+    if returnmask:
+        maskout=np.ones((data.shape[0],data.shape[1]),dtype=np.uint8)
+    # if the q-scale was not supplied, create one.
+    if q is None:
+        if not flagmask:
+            mask=np.zeros((data.shape[0],data.shape[1]),dtype=np.uint8)
+        q=autoqscale(energy, distance, xres, yres, bcx, bcy, mask);
+        if not flagmask:
+            mask=None
+    Numq=len(q)
+    # initialize the output vectors
+    Intensity=np.zeros(Numq,dtype=np.double)
+    Error=np.zeros(Numq,dtype=np.double)
+    Area=np.zeros(Numq,dtype=np.double)
+    qout=np.zeros(Numq,dtype=np.double)
+    # set the upper bounds of the q-bins in qmax
+    qmax=<double *>malloc(Numq*sizeof(double))
+    weight=<double *>malloc(Numq*sizeof(double))
+    for l from 0<=l<Numq:
+        #initialize the weight and the qmax array.
+        weight[l]=0
+        if l==Numq-1:
+            qmax[l]=q[Numq-1]
+        else:
+            qmax[l]=0.5*(q[l]+q[l+1])
+    #loop through pixels
+    for ix from 0<=ix<M: #rows
+        for iy from 0<=iy<N: #columns
+            if flagmask and (mask[ix,iy]): #if the pixel is masked, disregard it.
+                continue
+            if not isfinite(data[ix,iy]):
+                #disregard nonfinite (NaN or inf) pixels.
+                continue
+            if flagerror and not isfinite(dataerr[ix,iy]):
+                #disregard nonfinite (NaN or inf) pixels.
+                continue
+            # coordinates of the pixel in length units (mm)
+            x=((ix-bcx)*xres)
+            y=((iy-bcy)*yres)
+            #normalized distance of the pixel from the origin
+            rho=sqrt(x*x+y*y)/distance
+            q1=4*M_PI*sin(0.5*atan(rho))*energy/HC
+            if q1<q[0]: #q underflow
+                continue
+            if q1>q[Numq-1]: #q overflow
+                continue
+            #weight, corresponding to the Jacobian (integral with respect to q,
+            # not on the detector plane)
+            w=(2*M_PI*energy/HC/distance)**2*(2+rho**2+2*sqrt(1+rho**2))/( (1+rho**2+sqrt(1+rho**2))**2*sqrt(1+rho**2) )
+            for l from 0<=l<Numq: # Find the q-bin
+                if (q1>qmax[l]):
+                    #not there yet
+                    continue
+                #we reach this point only if q1 is in the l-th bin. Calculate
+                # the contributions of this pixel to the weighted average.
+                qout[l]+=q1*w
+                Intensity[l]+=data[ix,iy]*w
+                if flagerror:
+                    Error[l]+=dataerr[ix,iy]**2*w**2
+                Area[l]+=1
+                weight[l]+=w
+                if returnmask:
+                    maskout[ix,iy]=0
+                break #avoid counting this pixel into higher q-bins.
+    #normalize the results
+    for l from 0<=l<Numq:
+        if weight[l]>0:
+            qout[l]/=weight[l]
+            Intensity[l]/=weight[l]
+            if flagerror:
+                Error[l]=sqrt(Error[l])/weight[l]
+    #cleanup memory
+    free(qmax)
+    free(weight)
+    #prepare return values
+    if not returnavgq:
+        qout=q
+    output=[qout,Intensity]
+    if flagerror:
+        output.append(Error)
+    output.append(Area)
+    if returnmask:
+        output.append(maskout)
     return tuple(output)
         
 
@@ -361,7 +723,7 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
     """
     cdef np.ndarray[np.double_t, ndim=1] theta, I, E, A
     cdef Py_ssize_t ix,iy, M, N, index, Ntheta1, escaped
-    cdef double bcxa, bcya, d, x, y, phi
+    cdef double d, x, y, phi
     cdef double q
     cdef int errorwasnone
     cdef double resx,resy
@@ -374,9 +736,6 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
     if (M<=0) or (N<=0):
         raise ValueError('data, dataerr and mask should be of the same shape')
     Ntheta1=<Py_ssize_t>floor(Ntheta)
-
-    bcxa=bcx
-    bcya=bcy
     
     theta=np.linspace(0,2*np.pi,Ntheta1) # the abscissa of the results
     I=np.zeros(Ntheta1,dtype=np.double) # vector of intensities
@@ -394,8 +753,8 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
                 continue
             if flagerror and not isfinite(dataerr[ix,iy]):
                 continue
-            x=(ix-bcxa)*resx
-            y=(iy-bcya)*resy
+            x=(ix-bcx)*resx
+            y=(iy-bcy)*resy
             d=sqrt(x**2+y**2)
             if flagq:
                 q=4*M_PI*sin(0.5*atan2(d,distance))*energy/HC
@@ -480,8 +839,7 @@ def calculateDmatrix(np.ndarray[np.uint8_t, ndim=2] mask, res, double bcx,
     cdef double res1
     cdef Py_ssize_t N
     cdef Py_ssize_t M
-    cdef double bcxd
-    cdef double bcyd
+
     if type(res)!=type([]) and type(res)!=type(tuple()):
         res0=res;
         res1=res;
@@ -490,8 +848,6 @@ def calculateDmatrix(np.ndarray[np.uint8_t, ndim=2] mask, res, double bcx,
     else:
         res0=res[0]
         res1=res[1]
-    bcxd=bcx;
-    bcyd=bcy;
     M=mask.shape[0]
     N=mask.shape[1]
     D=np.zeros((mask.shape[0],mask.shape[1]))

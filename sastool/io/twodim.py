@@ -25,6 +25,40 @@ from sastool.misc import normalize_listargument
 def readjusifaorg(filename):
     return np.loadtxt(filename,skiprows=133)
 
+def readPAXE(filename):
+    f=open(filename,'r')
+    s=f.read()
+    f.close()
+    par={}
+    par['FSN']=int(s[2:6])
+    par['Owner']=s[6:12].strip()
+    par['Title']=s[12:0x18].strip()
+    par['MeasTime']=long(s[0x18:0x1e])
+    par['Monitor']=long(s[0x1e:0x26])
+    par['Day']=int(s[0x26:0x28])
+    par['Month']=int(s[0x29:0x2b])
+    par['Year']=int(s[0x2c:0x30])
+    par['Hour']=int(s[0x30:0x32])
+    par['Minute']=int(s[0x33:0x35])
+    par['Second']=int(s[0x36:0x38])
+    par['PosSample']=int(s[0x60:0x65])
+    par['PosBS']=int(s[0x5b:0x60])
+    par['PosDetector']=int(s[0x56:0x5b])
+    par['max']=long(s[0x38:0x3d])
+    par['selector_speed']=long(s[0x3d:0x42])
+    par['WaveLength']=long(s[0x42:0x44])
+    par['Dist']=long(s[0x44:0x49])
+    par['comments']=re.sub(r'\s+',' ',s[0x6d:0x100].strip())
+    par['sum']=long(s[0x65:0x6d])
+    par['BeamPosX']=float(s[0x49:0x4d])
+    par['BeamPosY']=float(s[0x4d:0x51])
+    par['AngleBase']=float(s[0x51:0x56])
+    par['Date']=datetime.datetime(par['Year'],par['Month'],par['Day'],par['Hour'],par['Minute'],par['Second'])
+    par['Energy']=12398.419/par['WaveLength']
+    par['Detector']='XE'
+    par['PixelSize']=1
+    return par,np.fromstring(s[0x100:],'>u2').astype(np.double).reshape((64,64))
+
 def readyellowsubmarine(nameformat,fsns=None,dirs='.'):
     """Read data measured at the SANS instrument (aka. Yellow Submarine)
     of the Budapest Neutron Centre.
@@ -48,46 +82,13 @@ def readyellowsubmarine(nameformat,fsns=None,dirs='.'):
     datas=[]
     params=[]
     for fn in filenames:
-        for d in dirs:
-            try:
-                f=open(os.path.join(d,fn),'r')
-            except IOError:
-                continue
-            try:
-                s=f.read()            
-                f.close()
-                par={}
-                par['FSN']=int(s[2:6])
-                par['Owner']=s[6:12].strip()
-                par['Title']=s[12:0x18].strip()
-                par['MeasTime']=long(s[0x18:0x1e])
-                par['Monitor']=long(s[0x1e:0x26])
-                par['Day']=int(s[0x26:0x28])
-                par['Month']=int(s[0x29:0x2b])
-                par['Year']=int(s[0x2c:0x30])
-                par['Hour']=int(s[0x30:0x32])
-                par['Minute']=int(s[0x33:0x35])
-                par['Second']=int(s[0x36:0x38])
-                par['PosSample']=int(s[0x60:0x65])
-                par['PosBS']=int(s[0x5b:0x60])
-                par['PosDetector']=int(s[0x56:0x5b])
-                par['max']=long(s[0x38:0x3d])
-                par['selector_speed']=long(s[0x3d:0x42])
-                par['WaveLength']=long(s[0x42:0x44])
-                par['Dist_Ech_det']=long(s[0x44:0x49])
-                par['comments']=re.sub(r'\s+',' ',s[0x6d:0x100].strip())
-                par['sum']=long(s[0x65:0x6d])
-                par['BeamPosX']=float(s[0x49:0x4d])
-                par['BeamPosY']=float(s[0x4d:0x51])
-                par['AngleBase']=float(s[0x51:0x56])
-                par['Date']=datetime.datetime(par['Year'],par['Month'],par['Day'],par['Hour'],par['Minute'],par['Second'])
-                par['Energy']=12398.419/par['WaveLength']
-                params.append(par)
-                datas.append(np.fromstring(s[0x100:],'>u2').astype(np.double).reshape((64,64)))
-                break
-            except ValueError:
-                print "File %s is invalid! Skipping."%fn
-                continue
+        try:
+            fname=misc.findfileindirs(fn,dirs=dirs)
+        except IOError:
+            continue
+        par,dat=readPAXE(fname)
+        params.append(par)
+        datas.append(dat)
     if fsns is None:
         return datas[0],params[0]
     else:
@@ -174,7 +175,7 @@ def readcbf(name):
     return cbfdecompress(cbfbin[datastart:datastart+nbytes],dim1,dim2)
 
 def bdf_read(filename):
-    """Read bdf file (Bessy Data Format)
+    """Read bdf file (Bessy Data Format v1)
 
     Input:
         filename: the name of the file
@@ -412,6 +413,96 @@ def readedf(filename):
         raise NotImplementedError('Not supported data type: %s'%edf['DataType'])
     edf['data']=np.fromstring(f.read(edf['EDF_BinarySize']),dtype).reshape(edf['Dim_1'],edf['Dim_2'])
     return edf
+
+
+def readbhfv2(filename):
+    header={}
+    f=open(filename,'rt')
+    for l in f:
+        if not l.startswith('#'):
+            continue
+        l=l[1:].strip()
+        section,keyvalue=l.split(None,1)
+        if section not in header.keys():
+            if section in ['HIS']:
+                header[section]=[]
+            else:
+                header[section]={}
+        if section in ['HIS']:
+            header[section].append(keyvalue)
+        else:
+            key,value=keyvalue.split('=')
+            value=value.strip()
+            try:
+                value=float(value)
+            except ValueError:
+                pass
+            header[section][key.strip()]=value
+    f.close()
+    header['xdim']=header['C']['xdim']
+    header['ydim']=header['C']['ydim']
+    header['type']=header['C']['type']
+    return header
+
+def readbdfv2(filename, bdfext='.bdf', bhfext='.bhf'):
+    datas=readbhfv2(filename+bhfext)
+    f=open(filename+bdfext,'r')
+    s=f.read()
+    datasets=re.findall('#([A-Z]+)\[([0-9]+):([0-9]+)\]',s)
+    names=[d[0] for d in datasets]
+    xsize=[long(d[1]) for d in datasets]
+    ysize=[long(d[2]) for d in datasets]
+    dt=np.dtype(datas['type'])
+    for i in range(len(datasets)):
+        start=s.find('#%s' % names[i])
+        if i<len(datasets)-1:
+            end=s.find('#%s'%(names[i+1]))
+        else:
+            end=len(s)
+        s1=s[start:end]
+        datasize=xsize[i]*ysize[i]*dt.itemsize
+        if datasize>len(s1):
+            # assume we are dealing with a BOOL matrix
+            datas[names[i]]=np.fromstring(s1[-xsize[i]*ysize[i]:],dtype=np.uint8)
+        else:
+            datas[names[i]]=np.fromstring(s1[-xsize[i]*ysize[i]*dt.itemsize:],dtype=dt)
+        #conversion: Matlab saves the array in Fortran-style ordering (columns first).
+        # Python however loads in C-style: rows first. We need to take care:
+        #   1) reshape from linear to (ysize,xsize) and not (xsize,ysize)
+        #   2) transpose (swaps columns and rows)
+        # After these operations, we only have to rotate this counter-clockwise by 90
+        # degrees because bdf2_write rotates by +270 degrees before saving.
+        datas[names[i]]=np.rot90(datas[names[i]].reshape((ysize[i],xsize[i]),order='F'),1)
+    
+    return datas
+
+def writebhfv2(filename, bdf):
+    f=open(filename,'wt')
+    f.write('#C xdim = %d\n'%bdf['xdim'])
+    f.write('#C ydim = %d\n'%bdf['ydim'])
+    f.write('#C type = %s\n'%bdf['type'])
+    for k in [x for x in bdf.keys() if isinstance(bdf[x],dict)]:
+        f.write('-------------------- %s field --------------------\n'%k)
+        for l in bdf[k].keys():
+            f.write("#%s %s = %s\n"%(k,l,bdf[k][l]))
+    if 'HIS' in bdf.keys():
+        f.write('-------------------- History --------------------\n')
+        for h in bdf['HIS']:
+            f.write("#HIS %s\n" %h)
+    f.close()
+
+def writebdfv2(filename, bdf):
+    basename,bdfext=os.path.splitext(filename)
+    writebhfv2(basename+'.bhf',bdf)
+    f=open(basename+'.bdf','wb')
+    keys=['RAWDATA','RAWERROR','CORRDATA','CORRERROR','NANDATA']
+    keys.extend([x for x in bdf.keys() if isinstance(bdf[x],np.ndarray) and x not in keys])
+    for k in keys:
+        if k not in bdf.keys():
+            continue
+        f.write('#%s[%d:%d]\n'%(k,bdf['xdim'],bdf['ydim']))
+        f.write(np.rot90(bdf[k],3).astype('float32').tostring(order='F'))
+    f.close()
 
 def rebinmask(mask, binx, biny, enlarge=False):
     """Re-bin (shrink or enlarge) mask matrix.

@@ -99,8 +99,135 @@ class SASMaskException(Exception):
 class SASAverageException(Exception):
     pass
 
-class SASHeader(dict):
-    """A class for holding measurement meta-data."""
+class General_new_from():
+    @classmethod
+    def _new_from_general(cls, args, kwargs, readfunction_name, defaults={},
+                          argnames=['fsn','filename_format','dirs']):
+        """General helper for new_from_*() class methods.
+        
+        Inputs:
+            args, kwargs: the arguments given to the caller function.
+            argnames: the names of the arguments of the caller function. Do not
+                touch these, as one can break things seriously (yes, badly
+                written code, I admit).
+            defaults: default value for each argument (dict)
+            readfunction_name: the read function which has to be called (will
+                be called with a filename)
+        """
+        if len(args)==1 and isinstance(args[0],basestring) and not kwargs:
+            #filename supplied as a positional argument
+            filenames=[args[0]]; scalar=True
+        elif 'filename' in kwargs and not args:
+            # filename supplied as a keyword argument
+            filenames=[kwargs['filename']]; scalar=True
+        else:
+            # fsn, dirs etc. are supported as positional and keyword arguments.
+            # we have to decode them and get a dictionary of keyword arguments.
+            for i,argname in zip(itertools.count(0),argnames):
+                # check if the ith positional argument is given. It is, put it
+                # in the kwargs dict with the appropriate name.
+                if len(args)>i:
+                    if argname in kwargs:
+                        raise ValueError('Argument %s defined twice!'%argname)
+                    else:
+                        kwargs[argname]=args[i]
+            
+            # get default values.
+            for i, argname in zip(itertools.count(0),argnames):
+                if argname in kwargs:
+                    continue
+                if argname not in defaults:
+                    raise ValueError('Argument %s is not defined!'%argname)
+                else:
+                    kwargs[argname]=defaults[argname]
+            
+            # normalize the FSN argument.
+            filenames=[]
+            if np.isscalar(kwargs['fsn']):
+                kwargs['fsn']=[kwargs['fsn']]
+                scalar=True
+            else:
+                scalar=False
+            # find the filenames.
+            for f in kwargs['fsn']:
+                try:
+                    fn=kwargs['filename_format']%f
+                    filenames.append(misc.findfileindirs(fn,dirs=kwargs['dirs']))
+                except IOError:
+                    if scalar:
+                        raise
+                    continue
+        # Now we have a filenames list. Try to load each file in this list.
+        instances=[]
+        for fn in filenames:
+            inst=cls()
+            getattr(inst,readfunction_name)(fn) # this should not raise an exception, since the file exists. Hopefully it is readable too.
+            instances.append(inst)
+        if scalar:
+            return instances[0]
+        else:
+            return instances
+    
+
+class SASHeader(dict, General_new_from):
+    """A class for holding measurement meta-data, such as sample-detector
+    distance, photon energy, wavelength, beam position etc.
+    
+    This is a subclass of the Python dictionary class. It supports therefore
+    dict-style indexing (header['BeamPosX']), but has several extensions:
+    
+    1) The main intent of this class is to offer a uniform interface for common
+    header data (beam position, etc.), while keeping the original logic of
+    various instruments. To accomplish that, we have key aliasing under the
+    hood: the dict _key_aliases can define alias names for each key, e.g. EDF
+    files contain the beam position as Center_1 and Center_2. Aliasing ensures
+    that these can be accessed under the general fieldnames BeamPosX and
+    BeamPosY. Either is read or modified, the underlying field gets read or
+    modified.
+    
+    2) safe default values are supplied for undefined fields, e.g. default FSN
+    is zero, default Title is "untitled" etc. See __missing__() for details
+    
+    3) summing and averaging of multiple headers is supported, compatibility is
+    taken care of. See fields _fields_to_sum, _fields_to_average,
+    _fields_to_collect and __add__, __iadd__, isequiv, summarize() methods.
+    
+    4) Loading/saving: if you want to load a header file, use the new_from_*()
+    class methods. If you want to extend (update) an instance with another file, 
+    use the read_from_*() instance methods. Saving is supported as generalized
+    B1 logfiles (text) and as attributes of a HDF5 group or dataset.
+    
+    Reader routines can be called only with a single filename (or corresponding
+    data dict loaded elsewhere). New_from_*() methods have two possibilities of
+    invocation:
+    
+    >>> header = new_from_xyz(filename_or_dict_object)
+    
+    or 
+    
+    >>> header = new_from_xyz(fsn, fileformat=<default_name>, dirs=['.'])
+    
+    where fsn is either a scalar number or a sequence of scalar numbers (the
+    so-called file sequence number) and fileformat is a C-style format string
+    into which the fsn(s) is/are interpolated, e.g. 'org_%05d.header' for B1
+    original header files. This argument ALWAYS has a default value. dirs is a
+    list of folders to look for the file in. From the first two arguments,
+    a full filename will be constructed and fed to sastool.misc.findfileindirs
+    along with dirs. If fsn is a scalar, all exceptions raised by that function
+    are propagated to the caller. If fsn is a sequence, exceptions are eaten
+    and a sequence of only the successfully loaded headers will be returned. 
+    
+    5) History: operations on the dataset can (and should) update the history.
+    
+    Examples:
+    
+    Load a B1 original header file:
+    >>> h=SASHeader.new_from_B1_org('path/to/datafile/org_00015.header')
+    
+    Load an EDF file:
+    >>> h=SASHeader.new_from_ESRF_ID02('path/to/datafile/sc3269_0_0015ccd')
+    
+    """
     # the following define fields treated specially when adding one or more
     # headers together.
     # _fields_to_sum: these fields are to be added. The corresponding 'Error'
@@ -181,40 +308,89 @@ class SASHeader(dict):
                      ('Sample rotation around y axis', 'RotYsample', None, float),
                      ('History', 'History', _linearize_history, _delinearize_history),
                     ]
+    # information on HDF5 reading: not all Python datatypes have their HDF5
+    # equivalents. These help to convert them to/from HDF5.
+    # depending on the type: list of (type, converter_function) tuples
     _HDF5_read_postprocess_type = [(np.generic, lambda x:x.tolist()), ]
+    # depending on the key name: dictionary of 'key':converter_function pairs
     _HDF5_read_postprocess_name = {'FSNs':lambda x:x.tolist(), 'History':_delinearize_history}
-    _key_aliases = {}
+    # dictionary of key aliases. Note that multi-level aliases are not allowed!
+    # This is a 
+    _key_aliases = None
+    _protectedfields_to_copy=['_protectedfields_to_copy','_key_aliases',
+                              '_HDF5_read_postprocess_type','_logfile_data',
+                              '_fields_to_sum','_fields_to_average',
+                              '_fields_to_collect','_equiv_tests']
+    
+    # -- Housekeeping methods: __init__, iterators, __missing__ etc. ----------
+    
     def __init__(self, *args, **kwargs):
-        return super(SASHeader, self).__init__(*args, **kwargs)
-    def _default_factory(self, key):
+        """This constructor behaves identically to that of the superclass. If
+        the first positional argument is a SASHeader, this copies over the
+        protected parameters whose names are found in _protectedfields_to_copy.
+        """
+        self._key_aliases={}
+        super(SASHeader, self).__init__(self,*args, **kwargs)
+        if args and isinstance(args[0],SASHeader):
+            # copy over protected attributes
+            for fn in args[0]._protectedfields_to_copy:
+                attr=getattr(args[0],fn)
+                if hasattr(attr,'copy'):
+                    # if the attribute has a copy method, use that. E.g. dicts.
+                    setattr(self,fn,attr.copy())
+                elif isinstance(attr,collections.Sequence):
+                    # if the attribute is a sequence, use the [:] construct.
+                    setattr(self,fn,attr[:])
+                else:
+                    try:
+                        # try to use a copy constructor
+                        setattr(self,fn,attr.type(attr))
+                    except:
+                        # set it as is and hope for the best.
+                        setattr(self,fn,attr)
+    def copy(self, *args, **kwargs):
+        """Make a copy of this header structure"""
+        d = super(SASHeader, self).copy(*args, **kwargs)
+        return SASHeader(d)
+    def __missing__(self,key):
+        """Create default values for missing fields"""
         if key in ['FSNs']:
-            return []
+            val=[]
         elif key.endswith('Error'):
-            return 0
+            val=0
         elif key in ['maskid']:
-            return None
+            val=None
         elif key.startswith('FSN'):
-            return 0
+            val=0
+        elif key=='Title':
+            val='<untitled>'
+        elif key in ['Dist','Energy','EnergyCalibrated','BeamPosX','BeamPosY','PixelSize']:
+            val=np.NAN
         else:
             raise KeyError(key)
-    def __missing__(self,key):
         val=self._default_factory(key)
         super(SASHeader,self).__setitem__(key,val)
         return val
     def __unicode__(self):
+        """Print a short summary of this header"""
         return "FSN %s; %s; %s mm; %s eV" % (self['FSN'],self['Title'],self['Dist'],self['Energy'])
     __str__ = __unicode__
+    def __repr__(self):
+        return "<SASHeader: "+unicode(self)+'>'
     def __getitem__(self, key):
+        """ respond to header[key] requests, implements key aliasing."""
         if key in self._key_aliases:
             return super(SASHeader,self).__getitem__(self._key_aliases[key])
         else:
             return super(SASHeader,self).__getitem__(key)
     def __setitem__(self, key, value):
+        """ respond to header[key]=value requests, implements key aliasing."""
         if key in self._key_aliases:
             return self.__setitem__(self._key_aliases[key], value)
         else:
             return super(SASHeader,self).__setitem__(key, value)
     def __delitem__(self, key):
+        """ respond to del header[key] requests, implements key aliasing."""
         if key in self:
             return super(SASHeader,self).__delitem__(key)
         elif key in self._key_aliases:
@@ -222,28 +398,64 @@ class SASHeader(dict):
         else:
             raise KeyError(key)
     def __contains__(self, key):
+        """ respond to 'key' in header requests, implements key aliasing."""
         if key in self._key_aliases:
             return super(SASHeader,self).__contains__(self._key_aliases[key])
         else:
             return super(SASHeader,self).__contains__(key)
     def __iter__(self):
+        """ Return an iterator. This is used e.g. in for k in header constructs.
+        """
         return self.iterkeys()
     def keys(self):
-        return super(SASHeader,self).keys()+self._key_aliases.keys()
+        """ Return the keys present. Alias names are also listed."""
+        return [k for k in self.iterkeys()]
     def values(self):
-        return super(SASHeader,self).values()+[self[self._key_aliases[x]] for x in self._key_aliases]
+        """ Return values. Aliases are listed more than one times."""
+        return [v for v in self.itervalues()]
     def items(self):
-        return zip(keys,values)
+        """ Return (key,value) pairs. Aliases are listed more than one times.
+        """
+        return [i for i in self.iteritems()]
     def iterkeys(self):
+        """ Iterator version of keys()."""
         return itertools.chain(super(SASHeader,self).iterkeys(),self._key_aliases.iterkeys())
     def itervalues(self):
+        """ Iterator version of values()."""
         return itertools.chain(super(SASHeader,self).itervalues(),
                  itertools.imap(lambda x:self[self._key_aliases[x]],self._key_aliases.iterkeys() ))
     def iteritems(self):
+        """ Iterator version of items()."""
         return itertools.izip(self.iterkeys(),self.itervalues())
-    def keys(self):
-        return 
+    
+    # -------------------- Reader methods (read_from*)
+    
+    def read_from_PAXE(self, filename_or_paxe):
+        """Read header data from a PAXE (Saclay, France or Budapest, Hungary)
+        measurement file.
+        
+        Inputs:
+            filename_or_paxe: the file name (usually XE????.DAT) or a dict
+                loaded by readPAXE().
+                
+        Outputs: the updated header structure. Fields not present in the file
+            are kept unchanged.
+        """
+        if isinstance(filename_or_paxe,basestring):
+            filename_or_paxe=twodim.readPAXE(filename_or_paxe)[0]
+        self.update(filename_or_paxe)
+        self._key_aliases['EnergyCalibrated']='Energy'
+        return self
     def read_from_ESRF_ID02(self, filename_or_edf):
+        """Read header data from an ESRF ID02 EDF file.
+        
+        Inputs:
+            filename_or_edf: the full name of the file or an edf structure read
+                by readehf()
+                
+        Outputs: the updated header structure. Fields not present in the file
+            are kept unchanged.
+        """
         if isinstance(filename_or_edf,basestring):
             filename_or_edf=twodim.readehf(filename_or_edf)
         self.update(filename_or_edf)
@@ -274,6 +486,7 @@ class SASHeader(dict):
             self.add_history(self[k],self['HMStartTime'])
         self.add_history('Loaded EDF header from file '+filename_or_edf['FileName'])
         return self
+    
     def read_from_B1_org(self, filename):
         #Planck's constant times speed of light: incorrect
         # constant in the old program on hasjusi1, which was
@@ -339,6 +552,7 @@ class SASHeader(dict):
         self['Origin'] = 'B1 original header'
         self.add_history('Original header loaded: ' + filename)
         return self
+    
     def read_from_B1_log(self, filename):
         """Read B1 logfile (*.log)
         
@@ -371,12 +585,12 @@ class SASHeader(dict):
         fid.close()
         self.add_history('B1 logfile loaded: ' + filename)
         return self;
+    
     def write_B1_log(self, filename):
-        """Write the param structure into a logfile. See writelogfile() for an explanation.
+        """Write this header structure into a B1 logfile.
         
         Inputs:
             filename: name of the file.
-            param: param structure (dictionary).
             
         Notes:
             exceptions pass through to the caller.
@@ -409,17 +623,13 @@ class SASHeader(dict):
             elif isinstance(fieldnames, tuple):
                 #more than one field names in a tuple. In this case, formatter can
                 # be a tuple of callables...
-                print "Tuple"
                 if all([(fn not in allkeys) for fn in fieldnames]):
                     #if all the fields have been processed:
-                    print "Bailout"
                     continue
                 if isinstance(formatter, tuple) and len(formatter) == len(fieldnames):
-                    print "Formatteristuple"
                     formatted = ' '.join([ft(self[fn]) for ft, fn in zip(formatter, fieldnames)])
                 #...or a single callable...
                 elif not isinstance(formatter, tuple):
-                    print "Formatterisnottuple"
                     formatted = formatter([self[fn] for fn in fieldnames])
                 #...otherwise raise an exception.
                 else:
@@ -440,43 +650,114 @@ of the same length as the field names in logfile_data.')
         for k in allkeys:
             f.write(k + ':\t' + unicode(self[k]) + '\n')
         f.close()
+    
+    # ------------------------ History manipulation ---------------------------
+    
     def add_history(self, text, time=None):
-        """Add a new entry to the history."""
+        """Add a new entry to the history.
+        
+        Inputs:
+            text: history text
+            time: time of the event. If None, the current time will be used.
+        """
         if time is None:
             time=datetime.datetime.now()
         if 'History' not in self:
             self['History'] = []
-        self['History'].append(((time - datetime.datetime.fromtimestamp(0,time.tzinfo)).total_seconds(), text))
+        deltat=time-datetime.datetime.fromtimestamp(0,time.tzinfo)
+        deltat_seconds=deltat.seconds+deltat.days*24*3600+deltat.microseconds*1e-6
+        self['History'].append((deltat_seconds, text))
+        
+    def get_history(self):
+        """Return the history in a human-readable format"""
+        return '\n'.join([str(h[0])+': '+h[1] for h in self['History']])
+    
+    #--------------------------- new_from_*() loader methods ------------------
+    
     @classmethod
-    def new_from_ESRF_ID02(cls,filename):
-        inst = cls()
-        inst.read_from_ESRF_ID02(filename)
-        return inst
+    def new_from_ESRF_ID02(cls,*args, **kwargs):
+        """Load ESRF ID02 headers.
+        
+        Reading just one file with full path:
+        >>> new_from_ESRF_ID02(filename) # returns a SASHeader 
+        
+        Reading one file but searching in directories (fsn is scalar):
+        >>> new_from_ESRF_ID02(fsn, filename_format, dirs) #returns a SASHeader
+        
+        Reading more files in several directories (fsn is a sequence):
+        >>> new_from_ESRF_ID02(fsn, filename_format, dirs) #returns a list of
+        ...                                                #SASHeaders
+        """
+        return cls._new_from_general(args,kwargs,'read_from_ESRF_ID02',
+                                     {'filename_format':'sc3269_0_%04dccd','dirs':['.']})
+        
     @classmethod
-    def new_from_B1_org(cls, filename):
-        """Load a header from an org_?????.header file, beamline B1, HASYLAB"""
-        inst = cls() # create a new instance
-        inst.read_from_B1_org(filename)
-        return inst
+    def new_from_B1_org(cls, *args,**kwargs):
+        """Load a header from an org_?????.header file, beamline B1, HASYLAB.
+        
+        Reading just one file with full path:
+        >>> new_from_B1_org(filename) # returns a SASHeader 
+        
+        Reading one file but searching in directories (fsn is scalar):
+        >>> new_from_B1_org(fsn, filename_format, dirs) #returns a SASHeader
+        
+        Reading more files in several directories (fsn is a sequence):
+        >>> new_from_B1_org(fsn, filename_format, dirs) #returns a list of
+        ...                                             #SASHeaders
+        """
+        return cls._new_from_general(args,kwargs,'read_from_B1_org',
+                                     {'filename_format':'org_%05d.header','dirs':['.']})
+        
     @classmethod
-    def new_from_B1_log(cls, filename):
-        """Load a logfile, beamline B1, HASYLAB"""
-        inst = cls()
-        inst.read_from_B1_log(filename)
-        return inst
-    def copy(self, *args, **kwargs):
-        """Make a copy of this header structure"""
-        d = super(SASHeader, self).copy(*args, **kwargs)
-        return SASHeader(d)
+    def new_from_B1_log(cls, *args, **kwargs):
+        """Load a logfile, beamline B1, HASYLAB
+        
+        Reading just one file with full path:
+        >>> new_from_B1_log(filename) # returns a SASHeader 
+        
+        Reading one file but searching in directories (fsn is scalar):
+        >>> new_from_B1_log(fsn, filename_format, dirs) #returns a SASHeader
+        
+        Reading more files in several directories (fsn is a sequence):
+        >>> new_from_B1_log(fsn, filename_format, dirs) #returns a list of
+        ...                                             #SASHeaders
+        """
+        return cls._new_from_general(args,kwargs,'read_from_B1_log',
+                                     {'filename_format':'intnorm%d.log','dirs':['.']})
+        
+    @classmethod
+    def new_from_PAXE(cls, *args, **kwargs):
+        """Load a PAXE file (BNC, Yellow Submarine)
+        
+        Reading just one file with full path:
+        >>> new_from_PAXE(filename) # returns a SASHeader 
+        
+        Reading one file but searching in directories (fsn is scalar):
+        >>> new_from_PAXE(fsn, filename_format, dirs) #returns a SASHeader
+        
+        Reading more files in several directories (fsn is a sequence):
+        >>> new_from_PAXE(fsn, filename_format, dirs) #returns a list of
+        ...                                             #SASHeaders
+        
+        """
+        return cls._new_from_general(args,kwargs,'read_from_PAXE',
+                                     {'filename_format':'XE%04d.DAT','dirs':['.']})
+        
+    # --------------------- Summarizing, averaging and equivalence -------------
+    
     def __iadd__(self, other):
-        """Add in-place. The actual work is done by the SASHeader.summarize() classmethod."""
+        """Add in-place. The actual work is done by the SASHeader.summarize()
+        classmethod."""
         obj = SASHeader.summarize(self, other)
         for k in obj.keys():
             self[k] = obj[k]
         return self
+    
     def __add__(self, other):
-        """Add two headers. The actual work is done by the SASHeader.summarize() classmethod."""
+        """Add two headers. The actual work is done by the SASHeader.summarize()
+        classmethod."""
         return SASHeader.summarize(self, other)
+    
     @classmethod
     def summarize(cls, *args):
         """Summarize several headers. Calling convention:
@@ -520,13 +801,20 @@ of the same length as the field names in logfile_data.')
             obj[k] = [a for a in args if k in a.keys()][0][k]
         obj.add_history('Summed from: ' + ' and '.join([unicode(a) for a in args]))
         return obj
+    
     def isequiv(self, other):
         """Test if the two headers are equivalent. The information found in
         SASHeader._equiv_tests is used to decide equivalence.
         """
         return all([self._equiv_tests[k](self[k], other[k]) for k in self._equiv_tests] +
                    [other._equiv_tests[k](self[k], other[k]) for k in other._equiv_tests])
+    
+    # ---------------------------- HDF5 I/O ----------------------------------
+    
     def write_to_hdf5(self, hdf_entity):
+        """Write the parameter structure to a HDF entity (group or dataset) as
+        attributes. hdf_entity should be an instance of h5py.highlevel.Dataset
+        or h5py.highlevel.Group or h5py.highlevel.File."""
         try:
             self.add_history('Written to HDF:' + hdf_entity.file.filename + hdf_entity.name)
             for k in self.keys():
@@ -546,6 +834,10 @@ of the same length as the field names in logfile_data.')
             del self['History'][-1]
 
     def read_from_hdf5(self, hdf_entity):
+        """Read the parameter structure from the attributes of a HDF entity 
+        (group or dataset). hdf_entity should be an instance of
+        h5py.highlevel.Dataset or h5py.highlevel.Group or h5py.highlevel.File.
+        """
         for k in hdf_entity.attrs.keys():
             attr = hdf_entity.attrs[k]
             if k in self._HDF5_read_postprocess_name:
@@ -558,9 +850,10 @@ of the same length as the field names in logfile_data.')
                     self[k] = attr
         self.add_history('Header read from HDF:' + hdf_entity.file.filename + hdf_entity.name)
 
-class SASExposure(object):
+class SASExposure(object,General_new_from):
     """A class for holding SAS exposure data, i.e. intensity, error, metadata, mask"""
-    matrices=collections.OrderedDict([('Image','Detector Image'),
+    matrix_names=['Image','Intensity','Error']
+    matrices=dict([('Image','Detector Image'),
                                       ('Intensity','Corrected intensity'),
                                       ('Error','Error of intensity')])
     def __init__(self):
@@ -568,7 +861,7 @@ class SASExposure(object):
         self.Intensity=None
         self.Error=None
         self.Image=None
-        self.header=None
+        self.header=SASHeader()
         self.mask=None
     def check_for_mask(self):
         if self.mask is None:
@@ -588,6 +881,18 @@ class SASExposure(object):
 
     @classmethod
     def new_from_ESRF_ID02(cls,*args,**kwargs):
+        """Load ESRF ID02 data files.
+        
+        Reading just one file with full path:
+        >>> new_from_ESRF_ID02(filename) # returns a SASExposure 
+        
+        Reading one file but searching in directories (fsn is scalar):
+        >>> new_from_ESRF_ID02(fsn, filename_format, dirs) #returns a SASExposure
+        
+        Reading more files in several directories (fsn is a sequence):
+        >>> new_from_ESRF_ID02(fsn, filename_format, dirs) #returns a list of
+        ...                                                #SASExposures
+        """
         obj=cls()
         obj.read_from_ESRF_ID02(*args,**kwargs)
         return obj
@@ -600,6 +905,16 @@ class SASExposure(object):
     def new_from_B1_int2dnorm(cls, *args, **kwargs):
         obj = cls()
         obj.read_from_B1_int2dnorm(*args, **kwargs)
+        return obj
+    @classmethod
+    def new_from_PAXE(cls, *args, **kwargs):
+        obj=cls()
+        obj.read_from_PAXE(*args,**kwargs)
+        return obj
+    @classmethod
+    def new_from_BDF(cls, *args, **kwargs):
+        obj=cls()
+        obj.read_from_BDF(*args,**kwargs)
         return obj
     @classmethod
     def new_from_hdf5(cls, hdf_or_filename):
@@ -616,7 +931,7 @@ class SASExposure(object):
             # adding masks later, thus only one copy of each mask will exist in
             # the memory 
             masknames=set([r.header['maskid'] for r in ret])
-            masks={mn:SASMask.new_from_hdf5(hpg,mn) for mn in masknames}
+            masks=dict([(mn,SASMask.new_from_hdf5(hpg,mn)) for mn in masknames])
             for r in ret:
                 r.set_mask(masks[r.header['maskid']])
         return ret
@@ -729,6 +1044,13 @@ class SASExposure(object):
             self.mask=SASMask.new_from_hdf5(hdf_group.parent,self.header['maskid'])
 
     def read_from_PAXE(self, fsn, fileformat='XE%04d.DAT', dirs=['.']):
+        paxe=twodim.readPAXE(misc.findfileindirs(fileformat%fsn,dirs=dirs))
+        self.header=SASHeader()
+        self.header.read_from_PAXE(paxe[0])
+        self.Image=paxe[1]
+        return self
+    
+    def read_from_BDF(self, fsn, fileformat, dirs=['.']):
         raise NotImplementedError
 ### ------------------- Interface routines ------------------------------------
     def set_mask(self, mask):
@@ -744,7 +1066,7 @@ class SASExposure(object):
         if hasattr(self,name) and (getattr(self,name) is not None):
             return name
         if othernames is None:
-            othernames=self.matrices
+            othernames=self.matrix_names
         
         for k in othernames:
             try:
@@ -1006,7 +1328,7 @@ class SASExposure(object):
         my_kwargs=['zscale','crosshair','drawmask','qrange_on_axis','matrix',
                    'axis','invalid_color','mask_opacity']
         kwargs_default.update(kwargs)
-        kwargs_for_imshow={k:kwargs_default[k] for k in kwargs_default if k not in my_kwargs}
+        kwargs_for_imshow=dict([(k,kwargs_default[k]) for k in kwargs_default if k not in my_kwargs])
         if isinstance(kwargs_default['zscale'],basestring):
             if kwargs_default['zscale'].upper().startswith('LOG10'):
                 kwargs_default['zscale']=np.log10
@@ -1056,21 +1378,37 @@ class SASExposure(object):
             kwargs_default['axis'].plot([xmin,xmax],[bcx]*2,'w-')
             kwargs_default['axis'].plot([bcy]*2,[ymin,ymax],'w-')
             kwargs_default['axis'].axis(ax)
+        kwargs_default['axis'].set_axis_bgcolor(kwargs_default['invalid_color'])
         kwargs_default['axis'].figure.canvas.draw()
         return ret
-
-    def imshow(self, *args, **kwargs):
-        plt.imshow(np.log10(self.Intensity), *args, **kwargs)
 
 ###  ------------------------ Beam center finding -----------------------------
 
     def update_beampos(self,bc,source=None):
+        """Update the beam position in the header.
+        
+        Inputs:
+            bc: beam position coordinates (row, col; starting from 0).
+            source: name of the beam finding algorithm.
+        """
         self.header['BeamPosX'],self.header['BeamPosY']=bc
         if not source:
             self.header.add_history('Beam position updated to:'+str(tuple(bc)))
         else:
             self.header.add_history('Beam found by *%s*: %s'%(source,str(tuple(bc))))
     def find_beam_semitransparent(self, bs_area, update=True):
+        """Find the beam position from the area under the semitransparent
+        beamstop.
+        
+        Inputs:
+            bs_area: sequence of the coordinates of the beam-stop area rect.:
+                [row_min, row_max, column_min, column_max]
+            update: if the new value should be written in the header (default).
+                If False, the newly found beam position is only returned.
+        
+        Outputs:
+            the beam position (row,col).
+        """
         bs_area=[min(bs_area[2:]),max(bs_area[2:]),min(bs_area[:2]),max(bs_area[:2])]
         bc=utils2d.centering.findbeam_semitransparent(self.get_matrix(), bs_area)
         if update:
@@ -1078,6 +1416,20 @@ class SASExposure(object):
         return bc
     def find_beam_slices(self, pixmin=0, pixmax=np.inf, sector_width=np.pi/9.,
                          update=True, callback=None):
+        """Find the beam position by matching diagonal sectors.
+        
+        Inputs:
+            pixmin, pixmax: lower and upper thresholds in the distance from the
+                origin in the radial averaging [in pixel units]
+            sector_width: width of sectors in radian.
+            update: if the new value should be written in the header (default).
+                If False, the newly found beam position is only returned.
+            callback: a function (accepting no arguments) to be called in each
+                iteration of the fitting procedure.
+        
+        Outputs:
+            the beam position (row,col).
+        """
         self.check_for_mask()
         bc=utils2d.centering.findbeam_slices(self.get_matrix(),
                                              (self.header['BeamPosX'],
@@ -1090,6 +1442,16 @@ class SASExposure(object):
             self.update_beampos(bc, source='slices')
         return bc
     def find_beam_gravity(self, update=True):
+        """Find the beam position by finding the center of gravity in each row
+        and column.
+        
+        Inputs:
+            update: if the new value should be written in the header (default).
+                If False, the newly found beam position is only returned.
+        
+        Outputs:
+            the beam position (row,col).
+        """
         self.check_for_mask()
         bc=utils2d.centering.findbeam_gravity(self.get_matrix(),self.mask.mask)
         if update:
@@ -1098,6 +1460,21 @@ class SASExposure(object):
     
     def find_beam_azimuthal_fold(self, Ntheta=50, dmin=0, dmax=np.inf,
                                  update=True, callback=None):
+        """Find the beam position by matching an azimuthal scattering curve
+        and its counterpart shifted by pi radians.
+        
+        Inputs:
+            Ntheta: number of bins in the azimuthal scattering curve
+            dmin, dmax: lower and upper thresholds in the distance from the
+                origin in the radial averaging [in pixel units]
+            update: if the new value should be written in the header (default).
+                If False, the newly found beam position is only returned.
+            callback: a function (accepting no arguments) to be called in each
+                iteration of the fitting procedure.
+        
+        Outputs:
+            the beam position (row,col).
+        """
         self.check_for_mask()
         bc=utils2d.centering.findbeam_azimuthal_fold(self.get_matrix(),
                                                      (self.header['BeamPosX'],
@@ -1110,6 +1487,25 @@ class SASExposure(object):
         return bc
     
     def find_beam_radialpeak(self, pixmin, pixmax, drive_by='amplitude', extent=10, update=True, callback=None):
+        """Find the beam position by optimizing a peak in the radial scattering
+        curve.
+        
+        Inputs:
+            pixmin, pixmax: lower and upper thresholds in the distance from the
+                origin in the radial averaging [in pixel units]. Should be a
+                narrow interval, zoomed onto one peak.
+            drive_by: 'amplitude' if the amplitude of the peak has to be maximized
+                or 'hwhm' if the hwhm should be minimized.
+            extent: expected distance of the true beam position from the current
+                one. Just the magnitude counts.
+            update: if the new value should be written in the header (default).
+                If False, the newly found beam position is only returned.
+            callback: a function (accepting no arguments) to be called in each
+                iteration of the fitting procedure.
+        
+        Outputs:
+            the beam position (row,col).
+        """
         self.check_for_mask()
         bc=utils2d.centering.findbeam_radialpeak(self.get_matrix(),
                                                  (self.header['BeamPosX'],
@@ -1124,6 +1520,22 @@ class SASExposure(object):
 ### ----------------------- Writing routines ----------------------------------
 
     def write_to_hdf5(self, hdf_or_filename, **kwargs):
+        """Save exposure to a HDF5 file or group.
+        
+        Inputs:
+            hdf_or_filename: a file name (string) or an instance of 
+                h5py.highlevel.File (equivalent to a HDF5 root group) or
+                h5py.highlevel.Group.
+            other keyword arguments are passed on as keyword arguments to the
+                h5py.highlevel.Group.create_dataset() method.
+                
+        A HDF5 group will be created with the name FSN<fsn> and the available
+        matrices (Image, Intensity, Error) will be saved. Header data is saved
+        as attributes to the HDF5 group.
+        
+        If a mask is associated to this exposure, it is saved as well as a
+        sibling group of FSN<fsn> with the name <maskid>.
+        """
         if 'compression' not in kwargs:
             kwargs['compression'] = 'gzip'
         with _HDF_parse_group(hdf_or_filename) as hpg:
@@ -1131,13 +1543,19 @@ class SASExposure(object):
             if groupname in hpg.keys():
                 del hpg[groupname]
             hpg.create_group(groupname)
-            for k in ['Intensity','Error']:
+            for k in ['Intensity','Error','Image']:
                 hpg[groupname].create_dataset(k,data=self.__getattribute__(k),**kwargs)
             self.header.write_to_hdf5(hpg[groupname])
             if self.mask is not None:
                 self.mask.write_to_hdf5(hpg)
             
 class SASMask(object):
+    """Class to represent mask matrices.
+    
+    Each mask matrix should have a mask ID (a string starting with 'mask'),
+    which should be unique. If a single pixel changes, a new ID should be
+    created.
+    """
     maskid = None
     _mask=None
     def __init__(self, maskmatrix=None):

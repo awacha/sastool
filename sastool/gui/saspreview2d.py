@@ -847,7 +847,7 @@ radial intensity curve."
             dmax=float(self.sector_dmax_entry.get_text())
         else:
             raise ValueError(what)
-        for d in set(np.arange(dmin,dmax,10)).union({dmin,dmax}):
+        for d in set(np.arange(dmin,dmax,10)).union(set([dmin,dmax])):
             t=np.linspace(0,2*np.pi,d*np.pi*2)
             x=self.matrix_source.get_data().header['BeamPosY']+d*np.cos(t)
             y=self.matrix_source.get_data().header['BeamPosX']+d*np.sin(t)
@@ -1060,5 +1060,11 @@ def SAS2DGUI_run():
         del widget
     w.connect('delete-event',f)
     w.show()
-    
-    
+
+def _sas2dgui_main_program():    
+    a=sastool.gui.saspreview2d.SAS2DGUI()
+    def delete_handler(*args,**kwargs):
+      gtk.main_quit()
+    a.connect('delete-event',delete_handler)
+    a.show_all()
+    gtk.main()

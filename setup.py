@@ -1,8 +1,8 @@
 #!/usb/bin/env python
 
-from distutils.core import setup
-from distutils.extension import Extension
-from Cython.Distutils import build_ext
+from setuptools import setup, Extension
+from setuptools.extension import Extension
+from Cython.Build import cythonize
 from distutils.sysconfig import get_python_lib, get_python_inc
 import os
 
@@ -60,7 +60,10 @@ setup(name='sastool', version=VERSION, author='Andras Wacha',
       description='Python macros for (A)SAXS data processing, fitting, plotting etc.',
       packages=['sastool','sastool.io','sastool.dataset','sastool.utils2d',
                 'sastool.fitting','sastool.gui','sastool.sim'],
-      scripts=['bin/sas2dgui.py'],
-      cmdclass = {'build_ext': build_ext},
-      ext_modules = ext_modules,
+      #cmdclass = {'build_ext': build_ext},
+      ext_modules = cythonize(ext_modules),
+      install_requires = ['numpy>=1.0.0','scipy>=0.7.0','matplotlib>=0.99.1',
+                          'h5py>=1.2','Cython>=0.15'],
+      entry_points={'gui_scripts':['sas2dutil = sastool.gui.sas2dgui:_sas2dgui_main_program'],
+                    }
       )

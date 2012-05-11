@@ -34,6 +34,9 @@ changes, until the first major release (expected maybe in the second half of
 VERSION="0.0.1"
 __all__=['io','misc','utils2d','dataset','fitting','sim']
 
+import matplotlib
+matplotlib.use('GTKAgg',warn=False)
+
 from . import misc
 from . import utils2d
 from . import io
