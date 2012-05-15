@@ -446,6 +446,7 @@ class SASHeader(dict, General_new_from):
         self.update(filename_or_paxe)
         self._key_aliases['EnergyCalibrated']='Energy'
         return self
+    
     def read_from_ESRF_ID02(self, filename_or_edf):
         """Read header data from an ESRF ID02 EDF file.
         
@@ -851,7 +852,22 @@ of the same length as the field names in logfile_data.')
         self.add_history('Header read from HDF:' + hdf_entity.file.filename + hdf_entity.name)
 
 class SASExposure(object,General_new_from):
-    """A class for holding SAS exposure data, i.e. intensity, error, metadata, mask"""
+    """A class for holding SAS exposure data, i.e. intensity, error, metadata
+    and mask.
+    
+    A SASExposure has the following special attributes:
+    
+    Intensity: (corrected) scattered intensity matrix (np.ndarray).
+    Error: error of (corrected) scattered intensity (np.ndarray).
+    Image: raw scattering image (np.ndarray).
+    header: metadata dictionary (SASHeader instance).
+    mask: mask matrix in the form of a SASMask instance. 
+    
+    any of the above attributes can be missing, a value of None signifies
+    this situation.
+
+    
+    """
     matrix_names=['Image','Intensity','Error']
     matrices=dict([('Image','Detector Image'),
                                       ('Intensity','Corrected intensity'),
@@ -1057,9 +1073,11 @@ class SASExposure(object,General_new_from):
         self.mask = SASMask(mask)
         self.header['maskid']=self.mask.maskid
         self.header.add_history('Mask %s associated to exposure.'%self.mask.maskid)
+
     def get_matrix(self,name='Intensity',othernames=None):
         name=self.get_matrix_name(name,othernames)
         return getattr(self,name)
+
     def get_matrix_name(self,name='Intensity',othernames=None):
         if name in self.matrices.values():
             name=[k for k in self.matrices if self.matrices[k]==name][0]
@@ -1075,7 +1093,6 @@ class SASExposure(object,General_new_from):
             except AttributeError:
                 pass
         raise AttributeError('No matrix in this instance of'+str(type(self)))
-
 
 ### ------------------- Routines for radial integration -----------------------
 
