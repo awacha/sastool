@@ -1131,6 +1131,17 @@ class SASExposure(object,General_new_from):
 
     @classmethod
     def common_qrange(cls,*exps):
+        """Find a common q-range for several exposures
+        
+        Usage:
+        
+        >>> SASExposure.common_qrange(exp1, exp2, exp3, ...)
+        
+        where exp1, exp2, exp3... are instances of the SASExposure class.
+        
+        Returns:
+            the estimated common q-range in a np.ndarray (ndim=1).
+        """
         if not all([isinstance(e,cls) for e in exps]):
             raise ValueError('All arguments should be SASExposure instances.')
         qranges=[e.get_qrange() for e in exps]
@@ -1603,6 +1614,7 @@ class SASMask(object):
         return self._mask
     mask=property(_getmask,_setmask,doc='Mask matrix')
     def copy_into(self,into):
+        """Helper function for deep copy."""
         if not isinstance(into,type(self)):
             raise ValueError('Incompatible class!')
         if self.mask is not None:
@@ -1611,12 +1623,13 @@ class SASMask(object):
             into.mask = None
         into.maskid = self.maskid
     def read_from_edf(self,filename):
+        """Read a mask from an EDF file."""
         edf=twodim.readedf(filename)
         self.maskid=os.path.splitext(os.path.split(edf['FileName'])[1])[0]
         self.mask=(np.absolute(edf['data']-edf['Dummy'])>edf['DDummy']).reshape(edf['data'].shape)
         return self
     def read_from_mat(self,filename,fieldname=None):
-        """Try to load a maskfile (Matlab(R) matrix file or numpy npz)
+        """Try to load a maskfile (Matlab(R) matrix file or numpy npz/npy)
         
         Inputs:
             filename: the input file name
@@ -1645,6 +1658,8 @@ class SASMask(object):
         self.maskid=fieldname
         self.mask=f[fieldname].astype(np.uint8)
     def write_to_mat(self,filename):
+        """Save this mask to a Matlab(R) .mat or a numpy .npy or .npz file.
+        """
         if filename.lower().endswith('.mat'):
             scipy.io.savemat(filename,{self.maskid:self.mask})
         elif filename.lower().endswith('.npz'):
@@ -1654,11 +1669,29 @@ class SASMask(object):
         else:
             raise ValueError('File name %s not understood (should end with .mat or .npz).'%filename)
     def write_to_hdf5(self,hdf_entity):
+        """Write this mask as a HDF5 dataset.
+        
+        Input:
+            hdf_entity: either a HDF5 filename or an open file (instance of
+                h5py.highlevel.File) or a HDF5 group (instance of
+                h5py.highlevel.Group). A new dataset will be created with the
+                name equal to the maskid.
+        """
         with _HDF_parse_group(hdf_entity) as hpg:
             if self.maskid in hpg.keys():
                 del hpg[self.maskid]
             hpg.create_dataset(self.maskid,data=self.mask,compression='gzip')
     def read_from_hdf5(self,hdf_entity,maskid=None):
+        """Read mask from a HDF5 entity.
+        
+        Inputs:
+            hdf_entity: either a HDF5 filename or an open h5py.highlevel.File
+                instance or a h5py.highlevel.Group instance.
+            maskid: the name of the mask to be loaded from the HDF5 entity.
+                If None and the entity contains only one dataset, it will be
+                loaded. If None and the entity contains more datasets, a
+                ValueError is raised.
+        """
         with _HDF_parse_group(hdf_entity) as hpg:
             if len(hpg.keys())==0:
                 raise ValueError('No datasets in the HDF5 group!')
@@ -1679,6 +1712,7 @@ and maskid argument was omitted.')
         obj.read_from_hdf5(hdf_entity,maskid)
         return obj
     def rebin(self,xbin,ybin,enlarge=False):
+        """Re-bin the mask."""
         obj=type(self)()
         obj.mask=twodim.rebinmask(self.mask.astype(np.uint8),int(xbin),int(ybin),enlarge)
         obj.maskid=self.maskid+'bin%dx%d_%s'%(xbin,ybin,['shrink','enlarge'][enlarge])
