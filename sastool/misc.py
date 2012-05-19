@@ -27,8 +27,32 @@ def normalize_listargument(arg):
         return list(arg)
     return [arg]
 
-def findfileindirs(filename,dirs=[],use_pythonpath=True,use_searchpath=True,notfound_is_fatal=True,notfound_val=None):
-    """Find file in multiple directories."""
+def findfileindirs(filename, dirs=None, use_pythonpath=True,use_searchpath=True,notfound_is_fatal=True,notfound_val=None):
+    """Find file in multiple directories.
+    
+    Inputs:
+        filename: the file name to be searched for.
+        dirs: list of folders or None
+        use_pythonpath: use the Python module search path
+        use_searchpath: use the sastool search path.
+        notfound_is_fatal: if an exception is to be raised if the file cannot be
+            found. 
+        notfound_val: the value which should be returned if the file is not
+            found (only relevant if notfound_is_fatal is False)
+    
+    Outputs: the full path of the file.
+    
+    Notes:
+        if filename is an absolute path by itself, folders in 'dir' won't be
+            checked, only the existence of the file will be verified.
+    """
+    if os.path.isabs(filename):
+        if os.path.exists(filename):
+            return filename
+        elif notfound_is_fatal:
+            raise IOError('File '+filename+' not found.')
+        else:
+            return notfound_val
     if dirs is None:
         dirs=[]
     dirs=normalize_listargument(dirs)

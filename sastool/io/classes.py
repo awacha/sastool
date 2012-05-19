@@ -1583,18 +1583,33 @@ class SASMask(object):
     Each mask matrix should have a mask ID (a string starting with 'mask'),
     which should be unique. If a single pixel changes, a new ID should be
     created.
+    
+    This class can be instantiated by several ways:
+    
+    >>> mask=SASMask(<2d numpy array>)
+    
+    >>> mask=SASMask(<filename>, [<dirs>])
+    supported file formats: .mat, .npz, .npy, .edf
+    
+    >>> mask=SASMask(<other SASMask instance>)
+    
+    Under the hood:
+        the mask matrix is kept with dtype==np.uint8. The elements should only
+        be 0-s (masked) or 1-s (unmasked), otherwise unexpected events may
+        occur. The constructor and the member functions take care to preserve
+        this consistency.
     """
     maskid = None
     _mask=None
-    def __init__(self, maskmatrix=None):
+    def __init__(self, maskmatrix=None,dirs='.'):
         super(SASMask,self).__init__()
         if maskmatrix is not None:
             if isinstance(maskmatrix,basestring) and \
                 maskmatrix.lower()[-4:] in ['.mat','.npz','.npy']:
-                self.read_from_mat(maskmatrix)
+                self.read_from_mat(misc.findfileindirs(maskmatrix,dirs))
             elif isinstance(maskmatrix,basestring) and \
                 maskmatrix.lower()[-4:] in ['.edf']:
-                self.read_from_edf(maskmatrix)
+                self.read_from_edf(misc.findfileindirs(maskmatrix,dirs))
             elif isinstance(maskmatrix,np.ndarray):
                 self.mask=maskmatrix.astype(np.uint8)
                 self.maskid='mask'+misc.random_str(6)
@@ -1603,16 +1618,20 @@ class SASMask(object):
             else:
                 raise NotImplementedError
         else:
-            self.maskid='mask'+misc.random_str(6)
+            raise ValueError('Empty SASMasks cannot be instantiated.')
+            
     def __unicode__(self):
         return u'SASMask('+self.maskid+')'
     __str__=__unicode__
     __repr__=__unicode__
     def _setmask(self, maskmatrix):
-        self._mask=maskmatrix.astype(np.uint8)
+        self._mask=(maskmatrix!=0).astype(np.uint8)
     def _getmask(self):
         return self._mask
     mask=property(_getmask,_setmask,doc='Mask matrix')
+    def _getshape(self):
+        return self._mask.shape
+    shape=property(_getshape,doc='Shortcut to the shape of the mask matrix')
     def copy_into(self,into):
         """Helper function for deep copy."""
         if not isinstance(into,type(self)):
@@ -1717,3 +1736,100 @@ and maskid argument was omitted.')
         obj.mask=twodim.rebinmask(self.mask.astype(np.uint8),int(xbin),int(ybin),enlarge)
         obj.maskid=self.maskid+'bin%dx%d_%s'%(xbin,ybin,['shrink','enlarge'][enlarge])
         return obj
+    def invert(self):
+        """Inverts the whole mask in-place"""
+        self.mask=1-self.mask
+        return self
+    def edit_rectangle(self,x0,y0,x1,y1,whattodo='mask'):
+        """Edit a rectangular part of the mask.
+        
+        Inputs:
+            x0,y0,x1,y1: corners of the rectangle (x: row, y: column index).
+            whattodo: 'mask', 'unmask' or 'invert' if the selected area should
+                be masked, unmasked or inverted. 'mask' is the default.
+        """
+        col,row=np.meshgrid(np.arange(self.mask.shape[1]),
+                            np.arange(self.mask.shape[0]))
+        idx=(row>=min(x0,x1))&(row<=max(x0,x1))&(col<=max(y0,y1))&(col>=min(y0,y1))
+        if whattodo.lower()=='mask':
+            self.mask[idx]=0
+        elif whattodo.lower()=='unmask':
+            self.mask[idx]=1
+        elif whattodo.lower()=='invert':
+            self.mask[idx]=1-self.mask[idx]
+        else:
+            raise ValueError('Invalid value for argument \'whattodo\': '+whattodo)
+        return self
+    def edit_circle(self,x0,y0,r,whattodo='mask'):
+        """Edit a circular part of the mask.
+        
+        Inputs:
+            x0,y0: center of the circle (x0: row, y0: column coordinate)
+            r: radius of the circle
+            whattodo: 'mask', 'unmask' or 'invert' if the selected area should
+                be masked, unmasked or inverted. 'mask' is the default.
+        """
+        col,row=np.meshgrid(np.arange(self.mask.shape[1]),
+                            np.arange(self.mask.shape[0]))
+        idx=(((row-x0)**2+(col-y0)**2)<=r**2)
+        if whattodo.lower()=='mask':
+            self.mask[idx]=0
+        elif whattodo.lower()=='unmask':
+            self.mask[idx]=1
+        elif whattodo.lower()=='invert':
+            self.mask[idx]=1-self.mask[idx]
+        else:
+            raise ValueError('Invalid value for argument \'whattodo\': '+whattodo)
+        return self
+    def edit_from_matrix(self, matrix, valmin=-np.inf, valmax=np.inf,
+                         masknonfinite=True, whattodo='mask'):
+        """Edit a part of the mask where the values of a given matrix of the
+        same shape are between given thresholds
+        
+        Inputs:
+            matrix: a matrix of the same shape as the mask.
+            valmin, valmax: lower and upper threshold of the values in 'matrix'
+            masknonfinite: if non-finite elements in the matrix should be masked
+            whattodo: 'mask', 'unmask' or 'invert' if the selected area should
+                be masked, unmasked or inverted. 'mask' is the default.
+        """
+        if matrix.shape!=self.mask.shape:
+            raise ValueError('Incompatible shape for the matrix!')
+        idx=(matrix>=valmin)&(matrix<=valmax)
+        self.mask[-np.isfinite(matrix)]=0
+        if whattodo.lower()=='mask':
+            self.mask[idx]=0
+        elif whattodo.lower()=='unmask':
+            self.mask[idx]=1
+        elif whattodo.lower()=='invert':
+            self.mask[idx]=1-self.mask[idx]
+        else:
+            raise ValueError('Invalid value for argument \'whattodo\': '+whattodo)
+        return self
+    def edit_borders(self, left=0, right=0, top=0, bottom=0, whattodo='mask'): 
+        """Edit borders of the mask.
+        
+        Inputs:
+            left, right, top, bottom: width at the given direction to cut
+                (directions correspond to those if the mask matrix is plotted
+                by matplotlib.imshow(mask,origin='upper').
+            whattodo: 'mask', 'unmask' or 'invert' if the selected area should
+                be masked, unmasked or inverted. 'mask' is the default.
+        """
+        col,row=np.meshgrid(np.arange(self.mask.shape[1]),
+                            np.arange(self.mask.shape[0]))
+        idx=(col<left)|(col>self.shape[1]-1-right)|(row<top)|(row>self.shape[0]-1-bottom)
+        if whattodo.lower()=='mask':
+            self.mask[idx]=0
+        elif whattodo.lower()=='unmask':
+            self.mask[idx]=1
+        elif whattodo.lower()=='invert':
+            self.mask[idx]=1-self.mask[idx]
+        else:
+            raise ValueError('Invalid value for argument \'whattodo\': '+whattodo)
+        return self
+    def spy(self,*args,**kwargs):
+        """Plot the mask matrix with matplotlib.pyplot.spy()
+        """
+        plt.spy(self.mask,*args,**kwargs)
+        
