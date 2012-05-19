@@ -6,7 +6,7 @@ from Cython.Build import cythonize
 from distutils.sysconfig import get_python_lib, get_python_inc
 import os
 
-VERSION='0.0.1'
+VERSION='0.0.2'
 
 #Cython autobuilding needs the numpy headers. On Windows hosts, this trick is
 # needed. On Linux, the headers are already in standard places.
@@ -63,7 +63,8 @@ setup(name='sastool', version=VERSION, author='Andras Wacha',
       #cmdclass = {'build_ext': build_ext},
       ext_modules = cythonize(ext_modules),
       install_requires = ['numpy>=1.0.0','scipy>=0.7.0','matplotlib>=0.99.1',
-                          'h5py>=1.2','Cython>=0.15'],
-      entry_points={'gui_scripts':['sas2dutil = sastool.gui.sas2dgui:_sas2dgui_main_program'],
+                          'h5py>=1.2','xlrd','xlwt'],
+      setup_requires = ['Cython>=0.15'],
+      entry_points={'gui_scripts':['sas2dutil = sastool:_sas2dgui_main_program'],
                     }
       )

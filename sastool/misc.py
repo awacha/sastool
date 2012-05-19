@@ -7,6 +7,7 @@ import time
 import matplotlib.pyplot as plt
 import matplotlib
 import random
+import collections
 
 import fitting.easylsq
 
@@ -26,7 +27,7 @@ def normalize_listargument(arg):
         return list(arg)
     return [arg]
 
-def findfileindirs(filename,dirs=[],use_pythonpath=True,notfound_is_fatal=True,notfound_val=None):
+def findfileindirs(filename,dirs=[],use_pythonpath=True,use_searchpath=True,notfound_is_fatal=True,notfound_val=None):
     """Find file in multiple directories."""
     if dirs is None:
         dirs=[]
@@ -35,6 +36,9 @@ def findfileindirs(filename,dirs=[],use_pythonpath=True,notfound_is_fatal=True,n
         dirs=['.']
     if use_pythonpath:
         dirs.extend(sys.path)
+    if use_searchpath:
+        global sastool_search_path
+        dirs.extend(sastool_search_path)
     #expand ~ and ~user constructs
     dirs=[os.path.expanduser(d) for d in dirs]
     for d in dirs:
@@ -150,9 +154,11 @@ class Pauser(object):
 _pauser=Pauser()
 pause=_pauser.pause
 
-_randstrbase='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
-def random_str(Nchars=6):
-    return ''.join([_randstrbase[random.randint(0,len(_randstrbase)-1)] for i in xrange(Nchars)])
+def random_str(Nchars=6,randstrbase='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'):
+    """Return a random string of <Nchars> characters. Characters are sampled
+    uniformly from <randstrbase>.
+    """
+    return ''.join([randstrbase[random.randint(0,len(randstrbase)-1)] for i in xrange(Nchars)])
 
 def findpeak(x,y,dy=None,position=None,hwhm=None,baseline=None,amplitude=None):
     """Find a (positive) peak in the dataset.
@@ -179,20 +185,45 @@ def findpeak(x,y,dy=None,position=None,hwhm=None,baseline=None,amplitude=None):
     return p[1],dp[1],abs(p[2]),dp[2],p[3],dp[3],p[0],dp[0]
 
 def get_search_path():
+    """Return the search path."""
     global sastool_search_path
     return sastool_search_path
 
-def append_search_path(folder):
+def append_search_path(*folders):
+    """Append folders to the search path."""
     global sastool_search_path
-    sastool_search_path.append(os.path.abspath(folder))
+    if len(folders)==1 and isinstance(folders[0],collections.Sequence):
+        #allow for append_search_path(['dir1','dir2',...]) - like operation.
+        folders=folders[0]
+    sastool_search_path.extend([os.path.abspath(f) for f in folders])
 
 def remove_from_search_path(folder):
+    """Remove <folder> from the search path. Raise a ValueError if the entry is
+    not on the search path.""" 
     global sastool_search_path
     abspath=os.path.abspath(folder)
     sastool_search_path.remove(abspath)
     
 def set_search_path(pathlist):
+    """Set the sastool file search path to <pathlist>."""
     global sastool_search_path
     sastool_search_path=pathlist
     
+def find_subdirs(startdir='.',recursion_depth=np.inf):
+    """Find all subdirectory of a directory.
+    
+    Inputs:
+        startdir: directory to start with. Defaults to the current folder.
+        recursion_depth: number of levels to traverse. Default is infinite.
         
+    Output: a list of absolute names of subfolders.
+    
+    Examples:
+        >>> find_subdirs('dir',0)  # returns just ['dir']
+        
+        >>> find_subdirs('dir',1)  # returns all direct (first-level) subdirs
+                                   # of 'dir'.
+    """
+    folder_slashes=os.path.abspath(startdir).count(os.sep)
+    return [x[0] for x in os.walk(startdir) 
+        if os.path.abspath(x[0]).count(os.sep)-folder_slashes<=recursion_depth]

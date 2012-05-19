@@ -1061,10 +1061,3 @@ def SAS2DGUI_run():
     w.connect('delete-event',f)
     w.show()
 
-def _sas2dgui_main_program():    
-    a=sastool.gui.saspreview2d.SAS2DGUI()
-    def delete_handler(*args,**kwargs):
-      gtk.main_quit()
-    a.connect('delete-event',delete_handler)
-    a.show_all()
-    gtk.main()
