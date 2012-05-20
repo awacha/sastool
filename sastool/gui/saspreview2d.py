@@ -201,6 +201,7 @@ class SAS2DPlotter(gtk.VBox):
         self.colourscale.append_text('Linear')
         self.colourscale.append_text('Nat. logarithmic')
         self.colourscale.append_text('Log10')
+        self.colourscale.append_text('Square root')
         self.colourscale.set_active(0)
         table.attach(self.colourscale,1,2,0,1)
         self.colourscale.connect('changed',self.replot)
@@ -254,6 +255,14 @@ class SAS2DPlotter(gtk.VBox):
         self.plotmask_cb.connect('toggled',self.replot)
         table.attach(self.plotmask_cb,0,2,5,6)
         
+        self.qrange_axis_cb=gtk.CheckButton('q-scale on axes')
+        self.qrange_axis_cb.connect('toggled',self.replot)
+        table.attach(self.qrange_axis_cb,0,2,6,7)
+        
+        self.crosshair_cb=gtk.CheckButton('beam crosshair')
+        self.crosshair_cb.connect('toggled',self.replot)
+        table.attach(self.crosshair_cb,0,2,7,8)
+        
         hb=gtk.HButtonBox()
         self.pack_start(hb,False,False)
         b=gtk.Button('Replot')
@@ -279,8 +288,10 @@ class SAS2DPlotter(gtk.VBox):
             self.data=None
         if not self.fig.axes:
             return
+        #find an available matrix.
         self.update_matrixtype(data)
         mat=data.get_matrix(self.matrixtype.get_active_text())
+        # update minimum and maximum intensities
         if self.minint_cb.get_active():
             minint=float(self.minint_entry.get_text())
         else:
@@ -293,31 +304,37 @@ class SAS2DPlotter(gtk.VBox):
             self.maxint_entry.set_text(str(np.nanmax(mat)))
         if minint>=maxint:
             raise ValueError('Min. value is larger than max. value')
-        mat[mat<minint]=np.nanmin(mat[mat>=minint])
-        mat[mat>maxint]=np.nanmax(mat[mat<=maxint])
+        
+        #retrieve user's choice of zscaling
         if self.colourscale.get_active_text()=='Log10':
-            mat=np.log10(mat)
+            zscale=np.log10
         elif self.colourscale.get_active_text()=='Nat. logarithmic':
-            mat=np.log(mat)
+            zscale=np.log
         elif self.colourscale.get_active_text()=='Linear':
-            mat=mat
+            zscale='linear'
+        elif self.colourscale.get_active_text()=='Square root':
+            zscale=np.sqrt
         else:
             raise NotImplementedError(self.colourscale.get_active_text())
-        self.fig.axes[0].cla()
+        
+        #retrieve desired colormap
         self.cmap=eval('matplotlib.cm.%s'%self.colourmapname.get_active_text())
-        self.fig.axes[0].imshow(mat,cmap=self.cmap,
-                                interpolation='nearest')
-        if self.plotmask_cb.get_active() and data.mask is not None:
-            self.fig.axes[0].imshow(data.mask.mask,cmap=_colormap_for_mask,interpolation='nearest')
-        else:
-            self.plotmask_cb.get_active()
+        
+        self.fig.axes[0].cla()
+        img,mat=data.plot2d(axis=self.fig.axes[0], interpolation='nearest', 
+                         minvalue=minint,maxvalue=maxint,zscale=zscale,
+                         cmap=self.cmap, crosshair=self.crosshair_cb.get_active(),
+                         qrange_on_axis=self.qrange_axis_cb.get_active(),
+                         drawmask=self.plotmask_cb.get_active() and data.mask is not None,
+                         matrix=data.get_matrix_name(self.matrixtype.get_active_text()),
+                         return_matrix=True)
         self.fig.axes[0].set_title(str(data.header))
         self.fig.axes[0].set_axis_bgcolor('black')
         
         if len(self.fig.axes)>1:
-            self.fig.colorbar(self.fig.axes[0].images[0],cax=self.fig.axes[1])
+            self.fig.colorbar(img,cax=self.fig.axes[1])
         else:
-            self.fig.colorbar(self.fig.axes[0].images[0])
+            self.fig.colorbar(img)
         
         self.fig.canvas.draw()
         self.data=data
@@ -332,7 +349,9 @@ class SAS2DPlotter(gtk.VBox):
         self.fig.add_subplot(111)
         self.fig.axes[0].set_axis_bgcolor('white')
         self.fig.canvas.draw()
-
+    def get_plotted_matrix(self):
+        return self.mat
+    
 class SAS2DMasker(gtk.VBox):
     mask=None
     def __init__(self,matrix_source=None):
@@ -424,7 +443,12 @@ class SAS2DMasker(gtk.VBox):
     def savemask(self,widget):
         pass
     def editmask(self,widget):
-        mm=maskmaker.MaskMaker(matrix=self.matrix_source.get_matrix(),mask=self.mask.mask.copy())
+        if self.mask is None:
+            mask_to_maskmaker=None
+        else:
+            mask_to_maskmaker=self.mask.mask.copy()
+        mm=maskmaker.MaskMaker(matrix=self.matrix_source.plotter.get_plotted_matrix(),
+                               mask=mask_to_maskmaker)
         if mm.run()==gtk.RESPONSE_OK:
             mask=classes.SASMask(mm.get_mask())
             if re.match('^.*_\d+$',self.mask.maskid) is None:

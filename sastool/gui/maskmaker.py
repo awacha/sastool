@@ -230,7 +230,8 @@ class MaskMaker(gtk.Dialog):
         if redraw:
             self.fig.clf()
         im = self.fig.gca().imshow(self._matrix, interpolation = 'nearest')
-        self.fig.gca().imshow(self._mask, cmap=_colormap_for_mask, interpolation = 'nearest')
+        if self._mask.sum()!=self._mask.size:
+            self.fig.gca().imshow(self._mask, cmap=_colormap_for_mask, interpolation = 'nearest')
         if redraw:
             self.fig.colorbar(im)
         self.canvas.draw()
@@ -427,10 +428,8 @@ class MaskMaker(gtk.Dialog):
                 col, row = np.meshgrid(range(self._mask.shape[1]),
                                     range(self._mask.shape[0]))
                 points = np.vstack((col.flatten(), row.flatten())).T
-                Nrows, Ncols = self._mask.shape
                 points_inside = matplotlib.nxutils.points_inside_poly(points, self._mouseclick_last)
-                self._selection = np.zeros((Nrows, Ncols), np.bool8)
-                self._selection[points_inside.astype('bool').reshape((Nrows, Ncols))] = 1
+                self._selection=points_inside.astype('bool').reshape(self._mask.shape)
         self.statusline.setup(None)
         self.set_select_mode(False)
         return True

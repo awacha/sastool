@@ -20,6 +20,7 @@ import scipy.io
 import os
 import warnings
 import itertools
+import matplotlib.nxutils  #this contains pnpoly
 
 from .. import dataset
 from .. import utils2d
@@ -1338,7 +1339,12 @@ class SASExposure(object,General_new_from):
         invalid_color ['black']: the color for invalid (NaN or infinite) pixels
         mask_opacity [0.8]: the opacity of the overlaid mask (1 is fully opaque,
             0 is fully transparent)
-        
+        minvalue: minimal value. All matrix elements below this will be replaced
+            by this. Defaults to -infinity.
+        maxvalue: maximal value. All matrix elements above this will be replaced
+            by this. Defaults to +infinity.
+        return_matrix: if the transformed, just-plotted matrix is to be
+            returned. False by default.
         All other keywords are forwarded to plt.imshow()
         
         Returns: the image instance returned by imshow()
@@ -1352,10 +1358,16 @@ class SASExposure(object,General_new_from):
                         'invalid_color':'black',
                         'mask_opacity':0.6,
                         'interpolation':'nearest',
-                        'origin':'upper'}
+                        'origin':'upper',
+                        'minvalue':-np.inf,
+                        'maxvalue':np.inf,
+                        'return_matrix':False}
         my_kwargs=['zscale','crosshair','drawmask','qrange_on_axis','matrix',
-                   'axis','invalid_color','mask_opacity']
+                   'axis','invalid_color','mask_opacity','minvalue','maxvalue',
+                   'return_matrix']
         kwargs_default.update(kwargs)
+        return_matrix=kwargs_default['return_matrix'] # save this as this will be removed when kwars_default is fed into imshow()
+        
         kwargs_for_imshow=dict([(k,kwargs_default[k]) for k in kwargs_default if k not in my_kwargs])
         if isinstance(kwargs_default['zscale'],basestring):
             if kwargs_default['zscale'].upper().startswith('LOG10'):
@@ -1368,7 +1380,10 @@ class SASExposure(object,General_new_from):
                 kwargs_default['zscale']=np.log
             else:
                 raise ValueError('Invalid value for zscale: %s'%kwargs_default['zscale'])
-        mat=kwargs_default['zscale'](self.get_matrix(kwargs_default['matrix']))
+        mat=self.get_matrix(kwargs_default['matrix']).copy()
+        mat[mat<kwargs_default['minvalue']]=kwargs_default['minvalue']
+        mat[mat>kwargs_default['maxvalue']]=kwargs_default['maxvalue']
+        mat=kwargs_default['zscale'](mat)
 
         if kwargs_default['drawmask']:
             self.check_for_mask() # die if no mask is present
@@ -1394,13 +1409,18 @@ class SASExposure(object,General_new_from):
             kwargs_default['axis']=plt.gca()
         ret=kwargs_default['axis'].imshow(mat,**kwargs_for_imshow)
         if kwargs_default['drawmask']:
-            #Mask matrix should be plotted with plt.imshow(maskmatrix, cmap=_colormap_for_mask)
-            _colormap_for_mask=matplotlib.colors.ListedColormap(['white','white'],'_sastool_%s'%misc.random_str(10))
-            _colormap_for_mask._init()
-            _colormap_for_mask._lut[:,-1]=0
-            _colormap_for_mask._lut[0,-1]=kwargs_default['mask_opacity']
-            kwargs_for_imshow['cmap']=_colormap_for_mask
-            kwargs_default['axis'].imshow(self.mask.mask,**kwargs_for_imshow)
+            #workaround: because of the colour-scaling we do here, full one and
+            #   full zero masks look the SAME, i.e. all the image is shaded.
+            #   Thus if we have a fully unmasked matrix, skip this section.
+            #   This also conserves memory.
+            if self.mask.mask.sum()!=self.mask.mask.size:
+                #Mask matrix should be plotted with plt.imshow(maskmatrix, cmap=_colormap_for_mask)
+                _colormap_for_mask=matplotlib.colors.ListedColormap(['white','white'],'_sastool_%s'%misc.random_str(10))
+                _colormap_for_mask._init()
+                _colormap_for_mask._lut[:,-1]=0
+                _colormap_for_mask._lut[0,-1]=kwargs_default['mask_opacity']
+                kwargs_for_imshow['cmap']=_colormap_for_mask
+                kwargs_default['axis'].imshow(self.mask.mask,**kwargs_for_imshow)
         if kwargs_default['crosshair']:
             ax=kwargs_default['axis'].axis()
             kwargs_default['axis'].plot([xmin,xmax],[bcx]*2,'w-')
@@ -1408,7 +1428,10 @@ class SASExposure(object,General_new_from):
             kwargs_default['axis'].axis(ax)
         kwargs_default['axis'].set_axis_bgcolor(kwargs_default['invalid_color'])
         kwargs_default['axis'].figure.canvas.draw()
-        return ret
+        if return_matrix:
+            return ret,mat
+        else:
+            return ret
 
 ###  ------------------------ Beam center finding -----------------------------
 
@@ -1760,6 +1783,32 @@ and maskid argument was omitted.')
         else:
             raise ValueError('Invalid value for argument \'whattodo\': '+whattodo)
         return self
+    def edit_polygon(self,x,y,whattodo='mask'):
+        """Edit points inside a polygon.
+        
+        Inputs:
+            x,y: list of corners of the polygon (x: row, y: column index).
+            whattodo: 'mask', 'unmask' or 'invert' if the selected area should
+                be masked, unmasked or inverted. 'mask' is the default.
+        """
+        
+        col,row=np.meshgrid(np.arange(self.mask.shape[1]),
+                            np.arange(self.mask.shape[0]))
+        points = np.vstack((col.flatten(), row.flatten())).T
+        Nrows, Ncols = self.shape
+        points_inside = matplotlib.nxutils.points_inside_poly(points, np.vstack((y,x)).T)
+        idx=points_inside.astype('bool').reshape(self.shape)
+        if whattodo.lower()=='mask':
+            self.mask[idx]=0
+        elif whattodo.lower()=='unmask':
+            self.mask[idx]=1
+        elif whattodo.lower()=='invert':
+            self.mask[idx]=1-self.mask[idx]
+        else:
+            raise ValueError('Invalid value for argument \'whattodo\': '+whattodo)
+        return self
+
+    
     def edit_circle(self,x0,y0,r,whattodo='mask'):
         """Edit a circular part of the mask.
         
