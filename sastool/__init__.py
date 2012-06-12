@@ -31,7 +31,8 @@ changes, until the first major release (expected maybe in the second half of
 2012). Please be patient (or help me... ;-))
 """
 
-VERSION="0.0.1"
+from _version import __version__
+
 __all__=['io','misc','utils2d','dataset','fitting','sim']
 
 import matplotlib

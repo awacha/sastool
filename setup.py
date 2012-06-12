@@ -6,7 +6,7 @@ from Cython.Build import cythonize
 from distutils.sysconfig import get_python_lib, get_python_inc
 import os
 
-VERSION='0.0.2'
+VERSIONFILE='sastool/_version.py'
 
 #Cython autobuilding needs the numpy headers. On Windows hosts, this trick is
 # needed. On Linux, the headers are already in standard places.
@@ -15,32 +15,20 @@ incdirs=list(set([get_python_lib(0,0), get_python_lib(0,1), get_python_lib(1,0),
 npy_incdirs=[os.path.join(x,'numpy/core/include') for x in incdirs]
 incdirs.extend(npy_incdirs)
 
-#Update the version string in the main __init__.py file.
 try:
-    f=open('sastool/__init__.py','rt')
-    lines=f.readlines()
-    f.close()
-    verline=[l for l in lines if l.strip().startswith('VERSION')][0]
-    verline=verline.split('=')[1].strip()[1:-1]
-    if verline==VERSION:
-        raise RuntimeError # to quit this try block
-    f1=open('src/__init__.py','w+t')
-    for l in lines:
-        if l.strip().startswith('VERSION'):
-            l='VERSION="%s"\n' % VERSION
-        f1.write(l)
-    f1.close() 
-    print ""
-    print "+---------------------------------------%s------------+" % ('-'*len(VERSION))
-    print "| UPDATED VERSION IN src/__init__.py to %s !!!!!!!!!! |" % VERSION
-    print "+---------------------------------------%s------------+" % ('-'*len(VERSION))
-    print ""
+    VERSION=None
+    with open(VERSIONFILE,'rt') as f:
+        for l in f:
+            l=l.strip()
+            if l.startswith('__version__'):
+                VERSION=l.split('=')[1].replace('"','').replace("'",'').strip()
+                break
+    if VERSION is None:
+        f=open(VERSIONFILE,'wt')
+        f.write('__version__="0.0.1"')
+        f.close()
 except IOError:
-    print "Cannot update VERSION in src/__init__.py"
-except RuntimeError: 
-    #this is raised when the version string is already up-to-date
-    pass
-
+    raise IOError('Cannot read/write file "sastool/_version.py".')
 
 #Extension modules written in Cython
 ext_modules = [Extension("sastool.io._io", ["sastool/io/_io.pyx"],
@@ -57,14 +45,16 @@ ext_modules = [Extension("sastool.io._io", ["sastool/io/_io.pyx"],
 
 setup(name='sastool', version=VERSION, author='Andras Wacha',
       author_email='awacha@gmail.com', url='http://github.com/awacha/sastool',
-      description='Python macros for (A)SAXS data processing, fitting, plotting etc.',
+      description='Python macros for [A]SA(X|N)S data processing, fitting, plotting etc.',
       packages=['sastool','sastool.io','sastool.dataset','sastool.utils2d',
                 'sastool.fitting','sastool.gui','sastool.sim'],
       #cmdclass = {'build_ext': build_ext},
       ext_modules = cythonize(ext_modules),
-      install_requires = ['numpy>=1.0.0','scipy>=0.7.0','matplotlib>=0.99.1',
+      install_requires = ['numpy>=1.0.0','scipy>=0.7.0','matplotlib',
                           'h5py>=1.2','xlrd','xlwt'],
       setup_requires = ['Cython>=0.15'],
       entry_points={'gui_scripts':['sas2dutil = sastool:_sas2dgui_main_program'],
-                    }
+                    },
+      keywords = "saxs sans sas small-angle scattering x-ray neutron",
+      license = ""
       )
