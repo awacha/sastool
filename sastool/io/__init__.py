@@ -1,20 +1,28 @@
-''' io
-
+'''
+---------------------
 Input-output routines
+---------------------
 
-This sub-package of sastool consists of two general types:
+This sub-package of `sastool` consists of several modules:
 
--- basic IO routines --
-twodim: basic routines for two-dimensional data
+- `twodim`: basic routines for reading/writing two-dimensional data
+- `header`: basic input/output routines for header data
+- `onedim`: basic input/output routines for one-dimensional data
+- `classes`: unified higher-level interface for exposures, headers and masks. Classes
+  defined here are exposed to the top-level of `io`.
+- `statistics`: operations on files for statistical purposes (mainly for producing listings
+  of exposures)
 
--- beamline/instrument-dependent routines --
-b1: HASYLAB beamline B1
-asa: Hecus ASA card (MBraun PSD50 detector)
-... more to come (7T-MPW-SAXS at BESSYII, Germany; ID02 at ESRF, France...)
+There are other modules, which will be removed in a future release:
 
+- `asa`: Hecus ASA card (MBraun PSD50 detector)
+- `b1`: HASYLAB beamline B1
+    
 '''
 
-__all__=['b1','twodim','asa','onedim','edf','yellowsubmarine','classes']
+__docformat__ = 'restructuredtext'
+
+__all__=['twodim','header','onedim','classes','statistics']
 
 import twodim
 import b1

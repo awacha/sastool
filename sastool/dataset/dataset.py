@@ -487,7 +487,6 @@ MatrixAttrMixin or its subclasses')
         x = self.getXmat()
         y = self.getYmat()
         return np.sqrt(x**2+y**2)
-
         
             
 class PlotAndTransform(object):

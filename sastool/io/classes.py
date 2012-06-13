@@ -22,6 +22,7 @@ import warnings
 import itertools
 import matplotlib.nxutils  #this contains pnpoly
 
+import header
 from .. import dataset
 from .. import utils2d
 from .. import misc
@@ -168,7 +169,6 @@ class General_new_from():
             return instances[0]
         else:
             return instances
-    
 
 class SASHeader(dict, General_new_from):
     """A class for holding measurement meta-data, such as sample-detector
@@ -490,68 +490,8 @@ class SASHeader(dict, General_new_from):
         return self
     
     def read_from_B1_org(self, filename):
-        #Planck's constant times speed of light: incorrect
-        # constant in the old program on hasjusi1, which was
-        # taken over by the measurement program, to keep
-        # compatibility with that.
-        jusifaHC = 12396.4
-        if filename.upper().endswith('.GZ'):
-            fid = gzip.GzipFile(filename, 'r')
-        else:
-            fid = open(filename, 'rt')
-        lines = fid.readlines()
-        fid.close()
-        self['FSN'] = int(lines[0].strip())
-        self['Hour'] = int(lines[17].strip())
-        self['Minutes'] = int(lines[18].strip())
-        self['Month'] = int(lines[19].strip())
-        self['Day'] = int(lines[20].strip())
-        self['Year'] = int(lines[21].strip()) + 2000
-        self['FSNref1'] = int(lines[23].strip())
-        self['FSNdc'] = int(lines[24].strip())
-        self['FSNsensitivity'] = int(lines[25].strip())
-        self['FSNempty'] = int(lines[26].strip())
-        self['FSNref2'] = int(lines[27].strip())
-        self['Monitor'] = float(lines[31].strip())
-        self['Anode'] = float(lines[32].strip())
-        self['MeasTime'] = float(lines[33].strip())
-        self['Temperature'] = float(lines[34].strip())
-        self['BeamPosX'] = float(lines[36].strip())
-        self['BeamPosY'] = float(lines[37].strip())
-        self['Transm'] = float(lines[41].strip())
-        self['Wavelength'] = float(lines[43].strip())
-        self['Energy'] = jusifaHC / self['Wavelength']
-        self['Dist'] = float(lines[46].strip())
-        self['XPixel'] = 1 / float(lines[49].strip())
-        self['YPixel'] = 1 / float(lines[50].strip())
-        self['Title'] = lines[53].strip().replace(' ', '_').replace('-', '_')
-        self['MonitorDORIS'] = float(lines[56].strip())  # aka. DORIS counter
-        self['Owner'] = lines[57].strip()
-        self['RotXSample'] = float(lines[59].strip())
-        self['RotYSample'] = float(lines[60].strip())
-        self['PosSample'] = float(lines[61].strip())
-        self['DetPosX'] = float(lines[62].strip())
-        self['DetPosY'] = float(lines[63].strip())
-        self['MonitorPIEZO'] = float(lines[64].strip())  # aka. PIEZO counter
-        self['BeamsizeX'] = float(lines[66].strip())
-        self['BeamsizeY'] = float(lines[67].strip())
-        self['PosRef'] = float(lines[70].strip())
-        self['Monochromator1Rot'] = float(lines[77].strip())
-        self['Monochromator2Rot'] = float(lines[78].strip())
-        self['Heidenhain1'] = float(lines[79].strip())
-        self['Heidenhain2'] = float(lines[80].strip())
-        self['Current1'] = float(lines[81].strip())
-        self['Current2'] = float(lines[82].strip())
-        self['Detector'] = 'Unknown'
-        self['PixelSize'] = (self['XPixel'] + self['YPixel']) / 2.0
+        self.update(header.readB1header(filename))
         
-        self['AnodeError'] = math.sqrt(self['Anode'])
-        self['TransmError'] = 0
-        self['MonitorError'] = math.sqrt(self['Monitor'])
-        self['MonitorPIEZOError'] = math.sqrt(self['MonitorPIEZO'])
-        self['MonitorDORISError'] = math.sqrt(self['MonitorDORIS'])
-        self['Date'] = datetime.datetime(self['Year'], self['Month'], self['Day'], self['Hour'], self['Minutes'])
-        self['Origin'] = 'B1 original header'
         self.add_history('Original header loaded: ' + filename)
         return self
     
