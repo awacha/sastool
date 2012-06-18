@@ -210,6 +210,91 @@ class SASHeader(dict):
                               '_fields_to_collect', '_equiv_tests']
 
     # -- Housekeeping methods: __init__, iterators, __missing__ etc. ----------
+    @staticmethod
+    def _set_default_kwargs_for_readers(kwargs):
+        if 'dirs' not in kwargs:
+            kwargs['dirs'] = None
+        if 'experiment_type' not in kwargs:
+            kwargs['experiment_type'] = None
+        if 'error_on_not_found' not in kwargs:
+            kwargs['error_on_not_found'] = True
+        return kwargs
+
+    def __new__(cls, *args, **kwargs):
+        """Load one or more header structure. This function serves as a general
+        entry point. It handles the calls
+        ::
+        
+            >>> SASHeader(...)
+        
+        The ways of calling are:
+        
+        0) ``SASHeader()``: empty constructor
+        
+        1) ``SASHeader(<instance-of-SASHeader>)``: copy constructor
+        
+        2) ``SASHeader(<instance-of-dict>)``: casting constructor.
+        
+        3) ``SASHeader(<filename>, **kwargs)``: direct loading of a file
+        
+        4) ``SASHeader(<fileformat>, <fsn>, **kwargs)``: loading possibly more
+        files.
+        """
+        kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
+
+        if len(args) < 2:
+            obj = super(SASHeader, cls).__new__(cls)
+            return obj #this will call obj.__init__(*args, **kwargs) implicitly
+        elif len(args) == 2:
+            fsns = args[1]
+            fileformat = args[0]
+            if isinstance(fsns, collections.Sequence):
+                objlist = []
+                for f in fsns:
+                    obj = super(SASHeader, cls).__new__(cls)
+                    try:
+                        obj.__init__(fileformat % f, *kwargs)
+                    except IOError as ioerr:
+                        if kwargs['error_on_not_found']:
+                            raise
+                        else:
+                            obj = None
+                    #all other exceptions pass through
+                    objlist.append(obj)
+                return objlist
+            else:
+                obj = super(SASHeader, cls).__new__(cls)
+                return obj #this will call obj.__init__(*args, **kwargs) implicitly
+        else:
+            raise ValueError('Invalid number of positional arguments!')
+    @staticmethod
+    def _autoguess_experiment_type(filename_or_name):
+        if isinstance(fileformat_or_name, basestring):
+            fileformat_or_name = os.path.split(fileformat_or_name)[1].upper()
+            if fileformat_or_name.endswith('.EDF') or \
+                fileformat_or_name.endswith('CCD'):
+                return 'read_from_ESRF_ID02'
+            elif fileformat_or_name.startswith('ORG'):
+                return 'read_from_B1_org'
+            elif fileformat_or_name.startswith('INTNORM'):
+                return 'read_from_B1_log'
+            elif fileformat_or_name.endswith('.H5') or \
+                fileformat_or_name.endswith('.HDF5') or \
+                fileformat_or_name.endswith('.HDF'):
+                return 'read_from_hdf5'
+            elif fileformat_or_name.endswith('.BDF') or \
+                fileformat_or_name.endswith('.BHF'):
+                return 'read_from_BDF'
+            elif fileformat_or_name.startswith('XE') and \
+                (fileformat_or_name.endswith('.DAT') or \
+                 fileformat_or_name.endswith('.32')):
+                return 'read_from_PAXE'
+        elif isinstance(fileformat_or_name, h5py.highlevel.Group):
+            return 'read_from_HDF5'
+        elif isinstance(fileformat_or_name, dict):
+            #TODO
+        else:
+            raise ValueError('Unknown measurement file format')
 
     def __init__(self, *args, **kwargs):
         """This constructor behaves identically to that of the superclass. If
@@ -217,21 +302,40 @@ class SASHeader(dict):
         protected parameters whose names are found in _protectedfields_to_copy.
         """
         self._key_aliases = {}
-        super(SASHeader, self).__init__(self, *args, **kwargs)
-        if args and isinstance(args[0], SASHeader):
-            # copy over protected attributes
-            for fn in args[0]._protectedfields_to_copy: #IGNORE:W0212
-                attr = getattr(args[0], fn)
-                if hasattr(attr, 'copy'):
-                    # if the attribute has a copy method, use that. E.g. dicts.
-                    setattr(self, fn, attr.copy())
-                elif isinstance(attr, collections.Sequence):
-                    # if the attribute is a sequence, use the [:] construct.
-                    setattr(self, fn, attr[:])
+        if len(args) == 1:
+            # expect a single argument, an instance of `dict`. Copy over all
+            # its keys
+            if isinstance(args[0], dict):
+                super(SASHeader, self).__init__(self, *args, **kwargs)
+                #if this is an instance of `SASHeader` as well, do some fine-tuning
+                if isinstance(args[0], SASHeader):
+                    # copy over protected attributes
+                    for fn in args[0]._protectedfields_to_copy: #IGNORE:W0212
+                        attr = getattr(args[0], fn)
+                        if hasattr(attr, 'copy'):
+                            # if the attribute has a copy method, use that. E.g. dicts.
+                            setattr(self, fn, attr.copy())
+                        elif isinstance(attr, collections.Sequence):
+                            # if the attribute is a sequence, use the [:] construct.
+                            setattr(self, fn, attr[:])
+                        else:
+                            #call the constructor to copy. Note that this can raise an
+                            # exception, which is forwarded to the upper level.
+                            setattr(self, fn, attr.type(attr))
+            elif isinstance(args[0], basestring): # we have to open a file
+                if kwargs['experiment_type'] is None:
+                    #auto-guess from filename
+                    loadername = SASHeader._autoguess_experiment_type(args[0])
                 else:
-                    #call the constructor to copy. Note that this can raise an
-                    # exception, which is forwarded to the upper level.
-                    setattr(self, fn, attr.type(attr))
+                    loadername = 'read_from_%s' % kwargs['experiment_type']
+                try:
+                    getattr(self, loadername).__call__(filename, **kwargs)
+                except AttributeError as ae:
+                    raise AttributeError(str(ae) + '; possibly bad experiment type given')
+                #other exceptions such as IOError on read failure are propagated.
+            # copy over protected attributes
+
+        elif len(args) == 2:
     def copy(self, *args, **kwargs):
         """Make a copy of this header structure"""
         d = super(SASHeader, self).copy(*args, **kwargs)

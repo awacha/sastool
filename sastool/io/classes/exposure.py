@@ -71,39 +71,48 @@ class SASExposure(object):
             return 'read_from_HDF5'
         else:
             raise ValueError('Unknown measurement file format')
+    @staticmethod
+    def _set_default_kwargs_for_readers(kwargs):
+        if 'dirs' not in kwargs:
+            kwargs['dirs'] = None
+        if 'load_mask' not in kwargs:
+            kwargs['load_mask'] = True
+        if 'estimate_errors' not in kwargs:
+            kwargs['estimate_errors'] = True
+        if 'maskfile' not in kwargs:
+            kwargs['maskfile'] = None
+        if 'experiment_type' not in kwargs:
+            kwargs['experiment_type'] = None
+        if 'error_on_not_found' not in kwargs:
+            kwargs['error_on_not_found'] = True
+        return kwargs
 
     def __init__(self, *args, **kwargs):
         """Initialize the already constructed instance. This is hardly ever
         called directly since `__new__()` is implemented. See there for the
         usual cases of object construction.
         """
-        print "SASExposure.__init__() starting"
-        if 'experiment_type' not in kwargs:
-            kwargs['experiment_type'] = None
-        if 'error_on_not_found' not in kwargs:
-            kwargs['error_on_not_found'] = True
-        if 'maskfile' not in kwargs:
-            kwargs['maskfile'] = None
-        if 'dirs' not in kwargs:
-            kwargs['dirs'] = None
+        kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
 
         if not args: #no positional arguments:
-            print "Init empty"
             super(SASExposure, self).__init__()
             self.Intensity = None
             self.Error = None
             self.Image = None
             self.header = SASHeader()
-            self.mask = SASMask()
+            self.mask = None
         elif len(args) == 1 and isinstance(args[0], SASExposure):
-            print "Init copy"
             self.Intensity = args[0].Intensity.copy()
             self.Error = args[0].Error.copy()
             self.Image = args[0].Image.copy()
             self.header = SASHeader(args[0].header)
             self.mask = SASMask(args[0].mask)
         elif (len(args) <= 2): #scheme 2) or 3) with single FSN
-            print "Init scheme 2 or 3 with single FSN"
+            self.Intensity = None
+            self.Error = None
+            self.Image = None
+            self.header = SASHeader()
+            self.mask = None
             if len(args) == 1:
                 filename = args[0]
             else:
@@ -114,12 +123,12 @@ class SASExposure(object):
             else:
                 loadername = 'read_from_%s' % kwargs['experiment_type']
             try:
-                getattr(self, loadername).__call__(self, filename, **kwargs)
+                getattr(self, loadername).__call__(filename, **kwargs)
             except AttributeError as ae:
                 raise AttributeError(str(ae) + '; possibly bad experiment type given')
             #other exceptions such as IOError on read failure are propagated.
-            if kwargs['maskname'] is not None:
-                self.set_mask(SASMask(kwargs['maskname'], dirs = kwargs['dirs']))
+            if kwargs['maskfile'] is not None:
+                self.set_mask(SASMask(kwargs['maskfile'], dirs = kwargs['dirs']))
         else:
             raise ValueError('Too many positional arguments!')
     def __new__(cls, *args, **kwargs):
@@ -177,43 +186,19 @@ class SASExposure(object):
                 search path. Defaults to `None`
             `load_mask`: if a mask has to be loaded.
         """
-        print "SASExposure.__new__()"
-        if 'experiment_type' not in kwargs:
-            kwargs['experiment_type'] = None
-        if 'error_on_not_found' not in kwargs:
-            kwargs['error_on_not_found'] = True
-        if 'maskfile' not in kwargs:
-            kwargs['maskfile'] = None
-        if 'dirs' not in kwargs:
-            kwargs['dirs'] = None
-
-        if len(args) == 0:
-            print "New empty"
+        kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
+        if len(args) < 2: #scheme 0) 1) and 2) can be handled in the same way 
             obj = super(SASExposure, cls).__new__(cls)
-            return obj
-        elif (len(args) == 1 and isinstance(args[0], cls)):  # scheme 1)
-            print "New copy"
-            obj = super(SASExposure, cls).__new__(cls)
-            return obj # will call __init__(*args, **kwargs) implicitely
-        # we have processed the only valid case of scheme 1).
-
-        elif len(args) == 1: # scheme 2)
-            # scheme 2)
-            print "New scheme 2"
-            obj = super(SASExposure, cls).__new__(cls)
-            return obj
+            return obj # this will call obj.__init__(*args, **kwargs) implicitly
         elif len(args) == 2: # scheme 3)
-            print "New scheme3 "
             fsns = args[1]
             fileformat = args[0]
             if isinstance(fsns, collections.Sequence):
                 #multi-FSN
-                print "multifsn"
                 objlist = []
                 for f in fsns:
                     obj = super(SASExposure, cls).__new__(cls)
                     try:
-                        print "Calling SASExposure.__init__, scheme 3)->2)"
                         obj.__init__(fileformat % f, **kwargs)
                     except IOError as ioerr:
                         del obj
@@ -225,25 +210,29 @@ class SASExposure(object):
                 return objlist
             else:
                 #single-FSN
-                print "singlefsn"
                 obj = super(SASExposure, cls).__new__(cls)
                 return obj #delegate the job to the __init__ method
         else:
             raise ValueError('Invalid number of positional arguments.')
-    def check_for_mask(self):
+    def check_for_mask(self, isfatal = True):
         if self.mask is None:
-            raise SASExposureException('mask not defined') #IGNORE:W0710
-    def check_for_q(self):
+            if isfatal:
+                raise SASExposureException('mask not defined') #IGNORE:W0710
+            else:
+                return False
+        return True
+    def check_for_q(self, isfatal = True):
         "Check if needed header elements are present for calculating q values for pixels. If not, raise a SASAverageException."
         missing = [x for x in  ['BeamPosX', 'BeamPosY', 'Dist', 'EnergyCalibrated', 'PixelSize'] if x not in self.header]
         if missing:
-            raise SASExposureException('Fields missing from header: ' + str(missing)) #IGNORE:W0710
+            if isfatal:
+                raise SASExposureException('Fields missing from header: ' + str(missing)) #IGNORE:W0710
+            else:
+                return missing
     def __del__(self):
-        del self.Intensity
-        del self.Error
-        del self.Image
-        del self.header
-        del self.mask
+        for x in ['Intensity', 'Error', 'Image', 'header', 'mask']:
+            if hasattr(self, x):
+                delattr(self, x)
 
 ### -------------- Loading routines (new_from_xyz) ------------------------
 
@@ -269,15 +258,6 @@ class SASExposure(object):
 
 ### -------------- reading routines--------------------------
 
-    @staticmethod
-    def _set_default_kwargs_for_readers(kwargs):
-        if 'dirs' not in kwargs:
-            kwargs['dirs'] = None
-        if 'load_mask' not in kwargs:
-            kwargs['load_mask'] = True
-        if 'estimate_errors' not in kwargs:
-            kwargs['estimate_errors'] = True
-        return kwargs
 
     def read_from_ESRF_ID02(self, filename, **kwargs):
         """Read an EDF file (ESRF beamline ID02 SAXS pattern)
@@ -293,7 +273,8 @@ class SASExposure(object):
         kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
         filename = misc.findfileindirs(filename, kwargs['dirs'])
         edf = twodim.readedf(filename)
-        self.header = SASHeader.new_from_ESRF_ID02(edf)
+        self.header = SASHeader()           #TODO: when SASHeader.__new__ is ready, implement it here.
+        self.header.read_from_ESRF_ID02(edf)
         self.Intensity = edf['data'].astype(np.double)
         if kwargs['load_mask']:
             mask = SASMask(misc.findfileindirs(self.header['MaskFileName'], kwargs['dirs']))
@@ -338,25 +319,27 @@ class SASExposure(object):
         """
         kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
         #try to load header file
-        header_extns = ['.header', '.DAT', '.dat', '.DAT.gz', '.dat.gz']
-        data_extns = ['.cbf', '.tif', '.tiff', '.DAT', '.DAT.gz', '.dat', '.dat.gz']
+        header_extns_default = ['.header', '.DAT', '.dat', '.DAT.gz', '.dat.gz']
+        data_extns_default = ['.cbf', '.tif', '.tiff', '.DAT', '.DAT.gz', '.dat', '.dat.gz']
 
-        header_extn = [x for x in header_extns if filename.upper().endswith(x.upper())]
-        data_extn = [x for x in data_extns if filename.upper().endswith(x.upper())]
+        header_extn = [x for x in header_extns_default if filename.upper().endswith(x.upper())]
+        data_extn = [x for x in data_extns_default if filename.upper().endswith(x.upper())]
 
-        #prepend the already found extension (if any) to the list of possible
-        # file extensions, both for header and data.
-        header_extns = header_extn.extend(header_extns)
-        data_extns = data_extn.extend(data_extns)
 
         # if an extension is found, remove it to get the basename.
         if header_extn + data_extn: # is not empty
-            basename = os.path.splitext(filename)
+            basename = os.path.splitext(filename)[0]
         else:
             basename = filename
+
+        #prepend the already found extension (if any) to the list of possible
+        # file extensions, both for header and data.
+        header_extn.extend(header_extns_default)
+        data_extn.extend(data_extns_default)
+
         headername = ''
 
-        for extn in header_extns:
+        for extn in header_extn:
             try:
                 headername = misc.findfileindirs(basename + extn, kwargs['dirs'])
             except IOError:
@@ -364,7 +347,7 @@ class SASExposure(object):
         if not headername:
             raise IOError('Could not find header file')
         dataname = ''
-        for extn in data_extns:
+        for extn in data_extn:
             try:
                 dataname = misc.findfileindirs(basename + extn, kwargs['dirs'])
             except IOError:
@@ -393,14 +376,15 @@ class SASExposure(object):
 
         data_extns = ['.npy', '.mat']
         data_extn = [x for x in data_extns if filename.upper().endswith(x.upper())]
+
         if data_extn: # is not empty
-            basename = os.path.splitext(filename)
+            basename = os.path.splitext(filename)[0]
         else:
             basename = filename
-        data_extns = data_extn.extend(data_extns)
+        data_extn.extend(data_extns)
 
         dataname = None
-        for extn in data_extns:
+        for extn in data_extn:
             try:
                 dataname = misc.findfileindirs(basename + extn, kwargs['dirs'])
             except IOError:
@@ -412,7 +396,7 @@ class SASExposure(object):
             raise ValueError('Filename %s does not have the format %s, \
 therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         else:
-            fsn = int(m.groups(1))
+            fsn = int(m.group(1))
 
         headername = misc.findfileindirs(kwargs['logfileformat'] % fsn + kwargs['logfileextn'], kwargs['dirs'])
         self.header = SASHeader.new_from_B1_log(headername)
@@ -704,8 +688,10 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             shape, e.g. np.log, np.sqrt etc.
         crosshair [True]: if a cross-hair marking the beam position is to be
             plotted.
-        drawmask [True]: if the mask is to be plotted.
-        qrange_on_axis [True]: if the q-range is to be set to the axis.
+        drawmask [True]: if the mask is to be plotted. If no mask is attached
+            to this SASExposure object, it defaults to False.
+        qrange_on_axis [True]: if the q-range is to be set to the axis. If no
+            mask is attached to this SASExposure instance, defaults to False
         matrix ['Intensity']: the matrix which is to be plotted. If this is not
             present, another one will be chosen quietly
         axis [None]: the axis into which the image should be plotted. If None,
@@ -760,7 +746,9 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         mat = kwargs_default['zscale'](mat)
 
         if kwargs_default['drawmask']:
-            self.check_for_mask() # die if no mask is present
+            kwargs_default['drawmask'] = self.check_for_mask(False)
+        if kwargs_default['qrange_on_axis']:
+            kwargs_default['qrange_on_axis'] = not bool(self.check_for_q(False))
 
         if kwargs_default['qrange_on_axis']:
             self.check_for_q()
