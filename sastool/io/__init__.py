@@ -22,14 +22,13 @@ There are other modules, which will be removed in a future release:
 
 __docformat__ = 'restructuredtext'
 
-__all__=['twodim','header','onedim','classes','statistics']
+__all__ = ['twodim', 'header', 'onedim', 'classes', 'statistics']
 
+import classes
 import twodim
 import b1
 import asa
-import edf
 import onedim
-import yellowsubmarine
-import classes
+import statistics
 
 from classes import SASHeader, SASExposure, SASMask
