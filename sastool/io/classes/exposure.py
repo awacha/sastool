@@ -30,9 +30,8 @@ class SASExposure(object):
     
     A SASExposure has the following special attributes:
     
-    Intensity: (corrected) scattered intensity matrix (np.ndarray).
-    Error: error of (corrected) scattered intensity (np.ndarray).
-    Image: raw scattering image (np.ndarray).
+    Intensity: scattered intensity matrix (np.ndarray).
+    Error: error of scattered intensity (np.ndarray).
     header: metadata dictionary (SASHeader instance).
     mask: mask matrix in the form of a SASMask instance. 
     
@@ -41,9 +40,8 @@ class SASExposure(object):
 
     
     """
-    matrix_names = ['Image', 'Intensity', 'Error']
-    matrices = dict([('Image', 'Detector Image'),
-                                      ('Intensity', 'Corrected intensity'),
+    matrix_names = ['Intensity', 'Error']
+    matrices = dict([('Intensity', 'Scattered intensity'),
                                       ('Error', 'Error of intensity')])
     @staticmethod
     def _autoguess_experiment_type(fileformat_or_name):
@@ -59,7 +57,7 @@ class SASExposure(object):
             elif fileformat_or_name.endswith('.H5') or \
                 fileformat_or_name.endswith('.HDF5') or \
                 fileformat_or_name.endswith('.HDF'):
-                return 'read_from_hdf5'
+                return 'read_from_HDF5'
             elif fileformat_or_name.endswith('.BDF') or \
                 fileformat_or_name.endswith('.BHF'):
                 return 'read_from_BDF'
@@ -98,19 +96,16 @@ class SASExposure(object):
             super(SASExposure, self).__init__()
             self.Intensity = None
             self.Error = None
-            self.Image = None
             self.header = SASHeader()
             self.mask = None
         elif len(args) == 1 and isinstance(args[0], SASExposure):
             self.Intensity = args[0].Intensity.copy()
             self.Error = args[0].Error.copy()
-            self.Image = args[0].Image.copy()
             self.header = SASHeader(args[0].header)
             self.mask = SASMask(args[0].mask)
         elif (len(args) <= 2): #scheme 2) or 3) with single FSN
             self.Intensity = None
             self.Error = None
-            self.Image = None
             self.header = SASHeader()
             self.mask = None
             if len(args) == 1:
@@ -223,14 +218,18 @@ class SASExposure(object):
         return True
     def check_for_q(self, isfatal = True):
         "Check if needed header elements are present for calculating q values for pixels. If not, raise a SASAverageException."
-        missing = [x for x in  ['BeamPosX', 'BeamPosY', 'Dist', 'EnergyCalibrated', 'PixelSize'] if x not in self.header]
+        #Note, that we check for 'Dist' and 'Energy' instead of 'DistCalibrated'
+        # and 'EnergyCalibrated', because if the latter are missing, they
+        # default to the values of the uncalibrated ones.
+        missing = [x for x in  ['BeamPosX', 'BeamPosY', 'Dist', 'Energy', 'PixelSize'] if x not in self.header]
+
         if missing:
             if isfatal:
                 raise SASExposureException('Fields missing from header: ' + str(missing)) #IGNORE:W0710
             else:
                 return missing
     def __del__(self):
-        for x in ['Intensity', 'Error', 'Image', 'header', 'mask']:
+        for x in ['Intensity', 'Error', 'header', 'mask']:
             if hasattr(self, x):
                 delattr(self, x)
 
@@ -273,8 +272,7 @@ class SASExposure(object):
         kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
         filename = misc.findfileindirs(filename, kwargs['dirs'])
         edf = twodim.readedf(filename)
-        self.header = SASHeader()           #TODO: when SASHeader.__new__ is ready, implement it here.
-        self.header.read_from_ESRF_ID02(edf)
+        self.header = SASHeader(edf)
         self.Intensity = edf['data'].astype(np.double)
         if kwargs['load_mask']:
             mask = SASMask(misc.findfileindirs(self.header['MaskFileName'], kwargs['dirs']))
@@ -356,13 +354,17 @@ class SASExposure(object):
             raise IOError('Could not find 2d org file') #skip this file
         self.header = SASHeader.new_from_B1_org(headername)
         if dataname.lower().endswith('.cbf'):
-            self.Image = twodim.readcbf(dataname)
+            self.Intensity = twodim.readcbf(dataname)
         elif dataname.upper().endswith('.DAT') or dataname.upper().endswith('.DAT.GZ'):
-            self.Image = twodim.readjusifaorg(dataname).reshape(256, 256)
+            self.Intensity = twodim.readjusifaorg(dataname).reshape(256, 256)
         elif dataname.upper().endswith('.TIF') or dataname.upper().endswith('.TIFF'):
-            self.Image = twodim.readtif(dataname)
+            self.Intensity = twodim.readtif(dataname)
         else:
             raise NotImplementedError(dataname)
+        if kwargs['estimate_errors']:
+            self.Error = np.sqrt(self.Intensity)
+        else:
+            self.Error = None
         return self
 
     def read_from_B1_int2dnorm(self, filename, **kwargs):
@@ -419,7 +421,11 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         paxe = twodim.readPAXE(misc.findfileindirs(filename, dirs = kwargs['dirs']))
         self.header = SASHeader()
         self.header.read_from_PAXE(paxe[0])
-        self.Image = paxe[1]
+        self.Intensity = paxe[1]
+        if kwargs['estimate_errors']:
+            self.Error = np.sqrt(self.Intensity)
+        else:
+            self.Error = None
         return self
 
     def read_from_BDF(self, filename, **kwargs):
@@ -471,7 +477,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         """
         self.check_for_mask()
         qrange = utils2d.integrate.autoqscale(self.header['EnergyCalibrated'],
-                                            self.header['Dist'],
+                                            self.header['DistCalibrated'],
                                             self.header['PixelSize'],
                                             self.header['PixelSize'],
                                             self.header['BeamPosX'],
@@ -531,7 +537,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         if not pixel:
             res = utils2d.integrate.radint(mat, err,
                                                self.header['EnergyCalibrated'],
-                                               self.header['Dist'],
+                                               self.header['DistCalibrated'],
                                                self.header['PixelSize'],
                                                self.header['BeamPosX'],
                                                self.header['BeamPosY'],
@@ -589,7 +595,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         if not pixel:
             res = utils2d.integrate.radint(mat, err,
                                                self.header['EnergyCalibrated'],
-                                               self.header['Dist'],
+                                               self.header['DistCalibrated'],
                                                self.header['PixelSize'],
                                                self.header['BeamPosX'],
                                                self.header['BeamPosY'],
@@ -646,7 +652,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         if not pixel:
             res = utils2d.integrate.azimint(mat, err,
                                                self.header['EnergyCalibrated'],
-                                               self.header['Dist'],
+                                               self.header['DistCalibrated'],
                                                self.header['PixelSize'],
                                                self.header['BeamPosX'],
                                                self.header['BeamPosY'],
@@ -752,10 +758,10 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
 
         if kwargs_default['qrange_on_axis']:
             self.check_for_q()
-            xmin = 4 * np.pi * np.sin(0.5 * np.arctan((0 - self.header['BeamPosY']) * self.header['PixelSize'] / self.header['Dist'])) * self.header['EnergyCalibrated'] / 12398.419
-            xmax = 4 * np.pi * np.sin(0.5 * np.arctan((mat.shape[1] - self.header['BeamPosY']) * self.header['PixelSize'] / self.header['Dist'])) * self.header['EnergyCalibrated'] / 12398.419
-            ymin = 4 * np.pi * np.sin(0.5 * np.arctan((0 - self.header['BeamPosX']) * self.header['PixelSize'] / self.header['Dist'])) * self.header['EnergyCalibrated'] / 12398.419
-            ymax = 4 * np.pi * np.sin(0.5 * np.arctan((mat.shape[0] - self.header['BeamPosX']) * self.header['PixelSize'] / self.header['Dist'])) * self.header['EnergyCalibrated'] / 12398.419
+            xmin = 4 * np.pi * np.sin(0.5 * np.arctan((0 - self.header['BeamPosY']) * self.header['PixelSize'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / 12398.419
+            xmax = 4 * np.pi * np.sin(0.5 * np.arctan((mat.shape[1] - self.header['BeamPosY']) * self.header['PixelSize'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / 12398.419
+            ymin = 4 * np.pi * np.sin(0.5 * np.arctan((0 - self.header['BeamPosX']) * self.header['PixelSize'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / 12398.419
+            ymax = 4 * np.pi * np.sin(0.5 * np.arctan((mat.shape[0] - self.header['BeamPosX']) * self.header['PixelSize'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / 12398.419
             if kwargs_for_imshow['origin'].upper() == 'UPPER':
                 kwargs_for_imshow['extent'] = [xmin, xmax, ymax, ymin]
             else:
@@ -943,7 +949,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 h5py.highlevel.Group.create_dataset() method.
                 
         A HDF5 group will be created with the name FSN<fsn> and the available
-        matrices (Image, Intensity, Error) will be saved. Header data is saved
+        matrices (Intensity, Error) will be saved. Header data is saved
         as attributes to the HDF5 group.
         
         If a mask is associated to this exposure, it is saved as well as a
@@ -956,8 +962,10 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             if groupname in hpg.keys():
                 del hpg[groupname]
             hpg.create_group(groupname)
-            for k in ['Intensity', 'Error', 'Image']:
-                hpg[groupname].create_dataset(k, data = self.__getattribute__(k), **kwargs)
+            for k in self.matrix_names:
+                if k is None:
+                    continue
+                hpg[groupname].create_dataset(k, data = getattr(self, k), **kwargs)
             self.header.write_to_hdf5(hpg[groupname])
             if self.mask is not None:
                 self.mask.write_to_hdf5(hpg)

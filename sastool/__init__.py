@@ -38,8 +38,7 @@ __docformat__ = "restructuredtext en"
 
 from _version import __version__
 
-__all__=['io','misc','utils2d','dataset','fitting','sim']
-
+__all__ = ['io', 'misc', 'utils2d', 'dataset', 'fitting', 'sim']
 
 import warnings
 import matplotlib
@@ -49,8 +48,8 @@ try:
     # if we can import gtk and gtk can be initialized, we use that backend of 
     # matplotlib
     import gtk
-    if gtk.init_check():
-        matplotlib.use('GTKAgg',warn=False)
+    gtk.init_check() # returns None if OK, raises an exception (RuntimeError) if not.
+    matplotlib.use('GTKAgg', warn = False)
 except ImportError:
     # if gtk could not be imported, we still can use matplotlib but with a different backend
     warnings.warn('could not import gtk, GUI utilities won\'t work.')
@@ -70,10 +69,9 @@ import sim
 def _sas2dgui_main_program():
     """Entry point for the `sas2dutil` GUI script."""
     import gui
-    import gtk    
-    a=gui.saspreview2d.SAS2DGUI()
-    def delete_handler(*args,**kwargs):
-      gtk.main_quit()
-    a.connect('delete-event',delete_handler)
+    a = gui.saspreview2d.SAS2DGUI()
+    def delete_handler(*args, **kwargs):
+        gtk.main_quit()
+    a.connect('delete-event', delete_handler)
     a.show_all()
     gtk.main()

@@ -12,49 +12,12 @@ import os
 import datetime
 import math
 import numbers
+import re
+import h5py
 
 from .. import header
 from ... import misc
 
-def _linearize_bool(b):
-    return ['n', 'y'][bool(b)]
-
-
-def _delinearize_bool(b):
-    if isinstance(b, basestring):
-        b = b.lower()
-        if b.startswith('y') or b == 'true':
-            return True
-        elif b.startswith('n') or b == 'false':
-            return False
-        else:
-            raise ValueError(b)
-    else:
-        return bool(b)
-
-
-def _linearize_list(l, pre_converter = lambda a:a, post_converter = lambda a:a):
-    return post_converter(' '.join([unicode(pre_converter(x)) for x in l]))
-
-
-def _delinearize_list(l, pre_converter = lambda a:a, post_converter = list):
-    return post_converter([misc.parse_number(x) for x in \
-                           pre_converter(l).replace(',', ' ').replace(';', ' ').split()])
-
-
-def _linearize_history(history):
-    history_text = [str(x[0]) + ': ' + x[1] for x in history]
-    history_text = [a.replace(';', ';;') for a in history_text]
-    return '; '.join(history_text)
-
-def _delinearize_history(history_oneliner):
-    history_oneliner = history_oneliner.replace(';;',
-                                                '<*doublesemicolon*>')
-    history_list = [a.strip().replace('<*doublesemicolon*>', ';') \
-                    for a in history_oneliner.split(';')]
-    history = [a.split(':', 1) for a in history_list]
-    history = [(float(a[0]), a[1].strip()) for a in history]
-    return history
 
 class SASHeader(dict):
     """A class for holding measurement meta-data, such as sample-detector
@@ -114,16 +77,68 @@ class SASHeader(dict):
     Load an EDF file:
     >>> h=SASHeader.new_from_ESRF_ID02('path/to/datafile/sc3269_0_0015ccd')
     
+    Supported keys (these are obligatory. Part of them have safe default
+    values):
+    :FSN:     File sequence number (integer)
+    :FSNs:    List of file sequence numbers (defaults to an empty list)
+    :Title:   Sample name
+    :Dist:    Sample-to-detector distance in mm
+    :DistCalibrated: Calibrated sample-to-detector distance in mm
+    :Thickness:      Sample thickness (cm)
+    :ThicknessError: Absolute error of sample thickness (cm)
+    :Transm:         Sample transmission (e^{-mu*d})
+    :TransmError:    Error of sample transmission
+    :PosSample:      Sample position
+    :Temperature:    Sample temperature
+    :MeasTime:       Measurement time
+    :FSNref1:        File sequence number for absolute intensity reference
+    :Thicknessref1:  Thickness of the absolute intensity reference (cm)
+    :Thicknessref1Error: Error of the thickness of the absolute intensity reference (cm)
+    :Energy:         Nominal (apparent) photon energy (in case of neutrons, the
+            "equivalent" photon energy h*c/lambda)
+    :EnergyCalibrated: The calibrated photon energy
+    :BeamPosX:       Position of the beam on the detector: row index (indexing
+        starts from 0).
+    :BeamPosY:       Position of the beam on the detector: column index
+        (indexing starts from 0)
+    :BeamsizeX:      Size of the beam at the sample, row direction (mm)
+    :BeamsizeY:      Size of the beam at the sample, column direction (mm)
+    :XPixel:         Pixel size of the detector, row direction (mm)
+    :YPixel:         Pixel size of the detector, column direction (mm)
+    :PixelSize:      Average pixel size of the detector: 0.5*(XPixel+YPixel)
+    :Monitor:        Monitor counts
+    :MonitorError:   Error of the monitor counts
+    
+    Some keys are treated specially:
+    
+    keys ending with ``Calibrated``
+        If this key is not found, it is created with the value of the
+        corresponding key without the ``Calibrated`` suffix. E.g. if
+        ``EnergyCalibrated`` does not exist, it is created automatically and
+        its value will be that of ``Energy``.
+        
+    keys ending with ``Error``
+        if this key is not present, it is created with 0 value. Upon averaging
+        multiple headers, these and the corresponding un-suffixed keys are
+        treated specially. Namely, those found in SASHeader._fields_to_sum will
+        be added (and the corresponding Error key will be calculated through
+        Gaussian error-propagation), those found in SASHeader._fields_to_average
+        will be averaged (weighted by the corresponding Error keys). I.e. the
+        former are assumed to be *independent measurements of different
+        quantities*, the latter are assumed to be *independent measurements of
+        the same quantity*. 
+    
     """
     # the following define fields treated specially when adding one or more
     # headers together.
     # _fields_to_sum: these fields are to be added. The corresponding 'Error'
-    # fields are used for error propagation
-    _fields_to_sum = ['MeasTime', 'Anode', 'Monitor', 'MonitorDORIS',
-                      'MonitorPIEZO']
+    # fields are used for error propagation. Field names can be strings or
+    # compiled regular expression patterns.
+    _fields_to_sum = ['MeasTime', 'Anode', re.compile('Monitor\w*')]
     # _fields_to_average: these fields will be averaged. Error propagation is
     # done.
-    _fields_to_average = ['Transm', 'Temperature', 'BeamPosX', 'BeamPosY']
+    _fields_to_average = ['Transm', 'Temperature', 'BeamPosX', 'BeamPosY',
+                          'Thickness', 'Thicknessref1']
     # _fields_to_collect: these will be collected.
     _fields_to_collect = {'FSN': 'FSNs'}
     # Testing equivalence
@@ -132,80 +147,17 @@ class SASHeader(dict):
                     'Temperature': lambda a, b: (abs(a - b) < 0.5),
                     'Title': lambda a, b: (a == b),
                    }
-
-    # information on how to store the param structure. Each sub-list
-    # corresponds to a line in the param structure and should be of the form
-    # [<linestart>,<field name(s)>,<formatter function>,<reader function>]
-    #
-    # Required are the first and second.
-    #
-    # linestart: the beginning of the line in the file, up to the colon.
-    #
-    # field name(s): field name can be a string or a tuple of strings.
-    #
-    # formatter function: can be (1) a function accepting a single argument
-    #     (the value of the field) or (2) a tuple of functions or (3) None. In
-    #     the latter case and when omitted, unicode() will be used.
-    #
-    # reader function: can be (1) a function accepting a string and returning
-    #     as many values as the number of field names is. Or if omitted,
-    #     unicode() will be used.
-    #
-    _logfile_data = [('FSN', 'FSN', None, int),
-                     ('FSNs', 'FSNs', _linearize_list, _delinearize_list),
-                     ('Sample name', 'Title'),
-                     ('Sample title', 'Title'),
-                     ('Sample-to-detector distance (mm)', 'Dist', None, float),
-                     ('Sample thickness (cm)', 'Thickness', None, float),
-                     ('Sample transmission', 'Transm', None, float),
-                     ('Sample position (mm)', 'PosSample', None, float),
-                     ('Temperature', 'Temperature', None, float),
-                     ('Measurement time (sec)', 'MeasTime', None, float),
-                     ('Scattering on 2D detector (photons/sec)',
-                      'ScatteringFlux', None, float),
-                     ('Dark current subtracted (cps)', 'dclevel', None, float),
-                     ('Dark current FSN', 'FSNdc', None, int),
-                     ('Empty beam FSN', 'FSNempty', None, int),
-                     ('Injection between Empty beam and sample measurements?',
-                      'InjectionEB', _linearize_bool, _delinearize_bool),
-                     ('Glassy carbon FSN', 'FSNref1', None, int),
-                     ('Glassy carbon thickness (cm)', 'Thicknessref1', None,
-                      float),
-                     ('Injection between Glassy carbon and sample measurements?',
-                      'InjectionGC', _linearize_bool, _delinearize_bool),
-                     ('Energy (eV)', 'Energy', None, float),
-                     ('Calibrated energy (eV)', 'EnergyCalibrated', None, float),
-                     ('Calibrated energy', 'EnergyCalibrated', None, float),
-                     ('Beam x y for integration', ('BeamPosX', 'BeamPosY'),
-                      functools.partial(_linearize_list, pre_converter = lambda a:a + 1),
-                      functools.partial(_delinearize_list,
-                                        post_converter = lambda a:tuple([x - 1 for x in a]))),
-                     ('Normalisation factor (to absolute units)', 'NormFactor',
-                      None, float),
-                     ('Relative error of normalisation factor (percentage)',
-                      'NormFactorRelativeError', None, float),
-                     ('Beam size X Y (mm)', ('BeamsizeX', 'BeamsizeY'), _linearize_list,
-                      functools.partial(_delinearize_list, post_converter = tuple)),
-                     ('Pixel size of 2D detector (mm)', 'PixelSize', None, float),
-                     ('Primary intensity at monitor (counts/sec)', 'Monitor', None,
-                      float),
-                     ('Primary intensity calculated from GC (photons/sec/mm^2)',
-                      'PrimaryIntensity', None, float),
-                     ('Sample rotation around x axis', 'RotXsample', None, float),
-                     ('Sample rotation around y axis', 'RotYsample', None, float),
-                     ('History', 'History', _linearize_history, _delinearize_history),
-                    ]
     # information on HDF5 reading: not all Python datatypes have their HDF5
     # equivalents. These help to convert them to/from HDF5.
     # depending on the type: list of (type, converter_function) tuples
     _HDF5_read_postprocess_type = [(np.generic, lambda x:x.tolist()), ]
     # depending on the key name: dictionary of 'key':converter_function pairs
-    _HDF5_read_postprocess_name = {'FSNs':lambda x:x.tolist(), 'History':_delinearize_history}
+    _HDF5_read_postprocess_name = {'FSNs':lambda x:x.tolist(), 'History':header._delinearize_history}
     # dictionary of key aliases. Note that multi-level aliases are not allowed!
     # This is a 
     _key_aliases = None
     _protectedfields_to_copy = ['_protectedfields_to_copy', '_key_aliases',
-                              '_HDF5_read_postprocess_type', '_logfile_data',
+                              '_HDF5_read_postprocess_type',
                               '_fields_to_sum', '_fields_to_average',
                               '_fields_to_collect', '_equiv_tests']
 
@@ -253,10 +205,10 @@ class SASHeader(dict):
                 for f in fsns:
                     obj = super(SASHeader, cls).__new__(cls)
                     try:
-                        obj.__init__(fileformat % f, *kwargs)
+                        obj.__init__(fileformat % f, **kwargs)
                     except IOError as ioerr:
                         if kwargs['error_on_not_found']:
-                            raise
+                            raise ioerr
                         else:
                             obj = None
                     #all other exceptions pass through
@@ -268,31 +220,46 @@ class SASHeader(dict):
         else:
             raise ValueError('Invalid number of positional arguments!')
     @staticmethod
-    def _autoguess_experiment_type(filename_or_name):
-        if isinstance(fileformat_or_name, basestring):
-            fileformat_or_name = os.path.split(fileformat_or_name)[1].upper()
-            if fileformat_or_name.endswith('.EDF') or \
-                fileformat_or_name.endswith('CCD'):
+    def _autoguess_experiment_type(file_or_dict):
+        if isinstance(file_or_dict, basestring):
+            file_or_dict = os.path.split(file_or_dict)[1].upper()
+            if file_or_dict.endswith('.EDF') or \
+                file_or_dict.endswith('CCD'):
                 return 'read_from_ESRF_ID02'
-            elif fileformat_or_name.startswith('ORG'):
+            elif file_or_dict.startswith('ORG'):
                 return 'read_from_B1_org'
-            elif fileformat_or_name.startswith('INTNORM'):
-                return 'read_from_B1_log'
-            elif fileformat_or_name.endswith('.H5') or \
-                fileformat_or_name.endswith('.HDF5') or \
-                fileformat_or_name.endswith('.HDF'):
+            elif file_or_dict.startswith('INTNORM'):
+                return 'read_from_B1_int2dnorm'
+            elif file_or_dict.endswith('.H5') or \
+                file_or_dict.endswith('.HDF5') or \
+                file_or_dict.endswith('.HDF'):
                 return 'read_from_hdf5'
-            elif fileformat_or_name.endswith('.BDF') or \
-                fileformat_or_name.endswith('.BHF'):
+            elif file_or_dict.endswith('.BDF') or \
+                file_or_dict.endswith('.BHF'):
                 return 'read_from_BDF'
-            elif fileformat_or_name.startswith('XE') and \
-                (fileformat_or_name.endswith('.DAT') or \
-                 fileformat_or_name.endswith('.32')):
+            elif file_or_dict.startswith('XE') and \
+                (file_or_dict.endswith('.DAT') or \
+                 file_or_dict.endswith('.32')):
                 return 'read_from_PAXE'
-        elif isinstance(fileformat_or_name, h5py.highlevel.Group):
+        elif isinstance(file_or_dict, h5py.highlevel.Group):
             return 'read_from_HDF5'
-        elif isinstance(fileformat_or_name, dict):
-            #TODO
+        elif isinstance(file_or_dict, dict):
+            if '__Origin__' not in file_or_dict:
+                raise ValueError('Cannot determine measurement file format from this dict: no \'__Origin__\' field.')
+            elif file_or_dict['__Origin__'] == 'B1 original header':
+                return 'read_from_B1_org'
+            elif file_or_dict['__Origin__'] == 'B1 log':
+                return 'read_from_B1_int2dnorm'
+            elif file_or_dict['__Origin__'] == 'EDF ID02':
+                return 'read_from_ESRF_ID02'
+            elif file_or_dict['__Origin__'] == 'PAXE':
+                return 'read_from_PAXE'
+            elif file_or_dict['__Origin__'] == 'BDFv1':
+                return 'read_from_BDF'
+            elif file_or_dict['__Origin__'] == 'BDFv2':
+                return 'read_from_BDFv2'
+            else:
+                raise ValueError('Unknown header dictionary')
         else:
             raise ValueError('Unknown measurement file format')
 
@@ -302,40 +269,61 @@ class SASHeader(dict):
         protected parameters whose names are found in _protectedfields_to_copy.
         """
         self._key_aliases = {}
+        kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
         if len(args) == 1:
             # expect a single argument, an instance of `dict`. Copy over all
             # its keys
-            if isinstance(args[0], dict):
-                super(SASHeader, self).__init__(self, *args, **kwargs)
-                #if this is an instance of `SASHeader` as well, do some fine-tuning
-                if isinstance(args[0], SASHeader):
-                    # copy over protected attributes
-                    for fn in args[0]._protectedfields_to_copy: #IGNORE:W0212
-                        attr = getattr(args[0], fn)
-                        if hasattr(attr, 'copy'):
-                            # if the attribute has a copy method, use that. E.g. dicts.
-                            setattr(self, fn, attr.copy())
-                        elif isinstance(attr, collections.Sequence):
-                            # if the attribute is a sequence, use the [:] construct.
-                            setattr(self, fn, attr[:])
-                        else:
-                            #call the constructor to copy. Note that this can raise an
-                            # exception, which is forwarded to the upper level.
-                            setattr(self, fn, attr.type(attr))
-            elif isinstance(args[0], basestring): # we have to open a file
+
+            if isinstance(args[0], SASHeader):
+                super(SASHeader, self).__init__(self, args[0])
+                # copy over protected attributes
+                for fn in args[0]._protectedfields_to_copy: #IGNORE:W0212
+                    attr = getattr(args[0], fn)
+                    if hasattr(attr, 'copy'):
+                        # if the attribute has a copy method, use that. E.g. dicts.
+                        setattr(self, fn, attr.copy())
+                    elif isinstance(attr, collections.Sequence):
+                        # if the attribute is a sequence, use the [:] construct.
+                        setattr(self, fn, attr[:])
+                    else:
+                        #call the constructor to copy. Note that this can raise an
+                        # exception, which is forwarded to the upper level.
+                        setattr(self, fn, attr.type(attr))
+            elif isinstance(args[0], basestring) or isinstance(args[0], dict):
+                # we have to call a read_from_*() method
                 if kwargs['experiment_type'] is None:
                     #auto-guess from filename
-                    loadername = SASHeader._autoguess_experiment_type(args[0])
+                    try:
+                        loadername = SASHeader._autoguess_experiment_type(args[0])
+                    except ValueError:
+                        #no special dict, just copy the data and set __Origin__
+                        # to 'unknown'
+                        super(SASHeader, self).__init__(self, args[0])
+                        self['__Origin__'] = 'unknown'
+                        return
                 else:
                     loadername = 'read_from_%s' % kwargs['experiment_type']
                 try:
-                    getattr(self, loadername).__call__(filename, **kwargs)
+                    getattr(self, loadername).__call__(args[0], **kwargs)
                 except AttributeError as ae:
                     raise AttributeError(str(ae) + '; possibly bad experiment type given')
                 #other exceptions such as IOError on read failure are propagated.
-            # copy over protected attributes
-
         elif len(args) == 2:
+            # file format and fsn is given, fsn should be a scalar number
+            fileformat = args[0]
+            fsn = args[1]
+            if not isinstance(args[1], numbers.Number):
+                raise ValueError('Invalid fsn: should be a scalar number')
+            if kwargs['experiment_type'] is None:
+                #auto-guess from filename
+                loadername = SASHeader._autoguess_experiment_type(fileformat % fsn)
+            else:
+                loadername = 'read_from_%s' % kwargs['experiment_type']
+            try:
+                getattr(self, loadername).__call__(fileformat % fsn, **kwargs)
+            except AttributeError as ae:
+                raise AttributeError(str(ae) + '; possibly bad experiment type given')
+            #other exceptions such as IOError on read failure are propagated.
     def copy(self, *args, **kwargs):
         """Make a copy of this header structure"""
         d = super(SASHeader, self).copy(*args, **kwargs)
@@ -346,13 +334,17 @@ class SASHeader(dict):
             val = []
         elif key.endswith('Error'):
             val = 0
+        elif key.startswith('Monitor'):
+            val = 0
         elif key in ['maskid']:
             val = None
         elif key.startswith('FSN'):
             val = 0
         elif key == 'Title':
             val = '<untitled>'
-        elif key in ['Dist', 'Energy', 'EnergyCalibrated', 'BeamPosX', 'BeamPosY', 'PixelSize']:
+        elif key.endswith('Calibrated'):
+            val = self[key[:-len('Calibrated')]]
+        elif key in ['Dist', 'Energy', 'BeamPosX', 'BeamPosY', 'PixelSize']:
             val = np.NAN
         else:
             raise KeyError(key)
@@ -417,7 +409,7 @@ class SASHeader(dict):
 
     # -------------------- Reader methods (read_from*)
 
-    def read_from_PAXE(self, filename_or_paxe):
+    def read_from_PAXE(self, filename_or_paxe, **kwargs):
         """Read header data from a PAXE (Saclay, France or Budapest, Hungary)
         measurement file.
         
@@ -428,13 +420,18 @@ class SASHeader(dict):
         Outputs: the updated header structure. Fields not present in the file
             are kept unchanged.
         """
+        kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
         if isinstance(filename_or_paxe, basestring):
-            filename_or_paxe = header.readPAXE(filename_or_paxe)[0]
-        self.update(filename_or_paxe)
-        self._key_aliases['EnergyCalibrated'] = 'Energy'
+            paxe = header.readPAXE(misc.findfileindirs(filename_or_paxe, kwargs['dirs']))
+        else:
+            paxe = filename_or_paxe
+
+        self.update(paxe)
+        if isinstance(filename_or_paxe, basestring):
+            self.add_history('Loaded from PAXE file ' + filename_or_paxe)
         return self
 
-    def read_from_ESRF_ID02(self, filename_or_edf):
+    def read_from_ESRF_ID02(self, filename_or_edf, **kwargs):
         """Read header data from an ESRF ID02 EDF file.
         
         Inputs:
@@ -444,8 +441,9 @@ class SASHeader(dict):
         Outputs: the updated header structure. Fields not present in the file
             are kept unchanged.
         """
+        kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
         if isinstance(filename_or_edf, basestring):
-            filename_or_edf = header.readehf(filename_or_edf)
+            filename_or_edf = header.readehf(misc.findfileindirs(filename_or_edf, kwargs['dirs']))
         self.update(filename_or_edf)
         self._key_aliases['FSN'] = 'HMRunNumber'
         self._key_aliases['BeamPosX'] = 'Center_2'
@@ -455,12 +453,6 @@ class SASHeader(dict):
         self._key_aliases['Detector'] = 'DetectorInfo'
         self._key_aliases['Date'] = 'HMStartTime'
         self._key_aliases['Wavelength'] = 'WaveLength'
-        self._key_aliases['EnergyCalibrated'] = 'Energy'
-        self['Hour'] = self['HMStartTime'].hour
-        self['Minutes'] = self['HMStartTime'].minute
-        self['Month'] = self['HMStartTime'].month
-        self['Day'] = self['HMStartTime'].day
-        self['Year'] = self['HMStartTime'].year
         self['Transm'] = self['Intensity1'] / self['Intensity0']
         self['Energy'] = 12398.419 / (self['WaveLength'] * 1e10)
         self['Dist'] = self['SampleDistance'] * 1000
@@ -468,117 +460,41 @@ class SASHeader(dict):
         self['YPixel'] = (self['PSize_2'] * 1000)
         self['PixelSize'] = 0.5 * (self['XPixel'] + self['YPixel'])
         self['Title'] = self['TitleBody']
-        self['Origin'] = 'ESRF_ID02'
         self['maskid'] = os.path.splitext(self['MaskFileName'])[0]
         for k in sorted([k for k in self if k.startswith('History')]):
             self.add_history(self[k], self['HMStartTime'])
         self.add_history('Loaded EDF header from file ' + filename_or_edf['FileName'])
         return self
 
-    def read_from_B1_org(self, filename):
-        self.update(header.readB1header(filename))
-
-        self.add_history('Original header loaded: ' + filename)
+    def read_from_B1_org(self, filename, **kwargs):
+        kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
+        if isinstance(filename, basestring):
+            hed = header.readB1header(misc.findfileindirs(filename, kwargs['dirs']))
+        else:
+            hed = filename
+        self.update(hed)
+        if isinstance(filename, basestring):
+            self.add_history('Original header loaded: ' + filename)
         return self
 
-    def read_from_B1_log(self, filename):
-        """Read B1 logfile (*.log)
-        
-        Inputs:
-            filename: the file name
-                
-        Output: the fields of this header are updated, old fields are kept
-            unchanged. The header instance is returned as well.
-        """
-        fid = open(filename, 'r') #try to open. If this fails, an exception is raised
-        for l in fid:
-            try:
-                ld = [ld for ld in self._logfile_data if l.split(':')[0].strip() == ld[0]][0]
-            except IndexError:
-                #line is not recognized.
-                continue
-            if len(ld) < 4:
-                reader = unicode
-            else:
-                reader = ld[3]
-            vals = reader(l.split(':')[1].strip())
-            if isinstance(ld[1], tuple):
-                #more than one field names. The reader function should return a 
-                # tuple here, a value for each field.
-                if len(vals) != len(ld[1]):
-                    raise ValueError('Cannot read %d values from line %s in file!' % (len(ld[1]), l))
-                self.update(dict(zip(ld[1], vals)))
-            else:
-                self[ld[1]] = vals
-        fid.close()
-        self.add_history('B1 logfile loaded: ' + filename)
-        return self
+    def read_from_B1_int2dnorm(self, filename, **kwargs):
+        kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
+        if isinstance(filename, basestring):
+            hed = header.readB1logfile(misc.findfileindirs(filename, kwargs['dirs']))
+        else:
+            hed = filename
+        self.update(hed)
+        if isinstance(filename, basestring):
+            self.add_history('B1 logfile loaded: ' + filename)
+
+    def read_from_BDFv1(self, filename, **kwargs):
+        pass
+
+    def read_from_BDFv2(self, filename, **kwargs):
+        pass
 
     def write_B1_log(self, filename):
-        """Write this header structure into a B1 logfile.
-        
-        Inputs:
-            filename: name of the file.
-            
-        Notes:
-            exceptions pass through to the caller.
-        """
-        allkeys = self.keys()
-        f = open(filename, 'wt')
-        for ld in self._logfile_data: #process each line
-            linebegin = ld[0]
-            fieldnames = ld[1]
-            #set the default formatter if it is not given
-            if len(ld) < 3:
-                formatter = unicode
-            elif ld[2] is None:
-                formatter = unicode
-            else:
-                formatter = ld[2]
-            #this will contain the formatted values.
-            formatted = ''
-            print fieldnames
-            if isinstance(fieldnames, basestring):
-                #scalar field name, just one field. Formatter should be a callable.
-                if fieldnames not in allkeys:
-                    #this field has already been processed
-                    continue
-                try:
-                    formatted = formatter(self[fieldnames])
-                except KeyError:
-                    #field not found in param structure
-                    continue
-            elif isinstance(fieldnames, tuple):
-                #more than one field names in a tuple. In this case, formatter can
-                # be a tuple of callables...
-                if all([(fn not in allkeys) for fn in fieldnames]):
-                    #if all the fields have been processed:
-                    continue
-                if isinstance(formatter, tuple) and len(formatter) == len(fieldnames):
-                    formatted = ' '.join([ft(self[fn]) for ft, fn in zip(formatter, fieldnames)])
-                #...or a single callable...
-                elif not isinstance(formatter, tuple):
-                    formatted = formatter([self[fn] for fn in fieldnames])
-                #...otherwise raise an exception.
-                else:
-                    raise SyntaxError('Programming error: formatter should be a scalar or a tuple\
-of the same length as the field names in logfile_data.')
-            else: #fieldnames is neither a string, nor a tuple.
-                raise SyntaxError('Invalid syntax (programming error) in logfile_data in writeparamfile().')
-            #try to get the values
-            f.write(linebegin + ':\t' + formatted + '\n')
-            if isinstance(fieldnames, tuple):
-                for fn in fieldnames: #remove the params treated.
-                    if fn in allkeys:
-                        allkeys.remove(fn)
-            else:
-                if fieldnames in allkeys:
-                    allkeys.remove(fieldnames)
-        #write untreated params
-        for k in allkeys:
-            f.write(k + ':\t' + unicode(self[k]) + '\n')
-        f.close()
-
+        header.writeB1logfile(filename, self)
     # ------------------------ History manipulation ---------------------------
 
     def add_history(self, text, time = None):
@@ -820,7 +736,7 @@ of the same length as the field names in logfile_data.')
             self.add_history('Written to HDF:' + hdf_entity.file.filename + hdf_entity.name)
             for k in self.keys():
                 if k == 'History':
-                    hdf_entity.attrs[k] = _linearize_history(self[k]).encode('utf-8')
+                    hdf_entity.attrs[k] = header._linearize_history(self[k]).encode('utf-8')
                 elif isinstance(self[k], bool):
                     hdf_entity.attrs[k] = int(self[k])
                 elif isinstance(self[k], numbers.Number):
@@ -829,6 +745,8 @@ of the same length as the field names in logfile_data.')
                     hdf_entity.attrs[k] = self[k].encode('utf-8')
                 elif isinstance(self[k], collections.Sequence):
                     hdf_entity.attrs[k] = self[k]
+                elif isinstance(self[k], datetime.datetime):
+                    hdf_entity.attrs[k] = str(self[k])
                 else:
                     raise ValueError('Invalid field type: ' + str(k) + ', ', repr(type(self[k])))
         finally:
