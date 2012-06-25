@@ -8,8 +8,12 @@ import matplotlib.pyplot as plt
 import matplotlib
 import random
 import collections
+import re
+
 
 import fitting.easylsq
+
+HC = 12398.419 #Planck's constant times speed of light, in eV*Angstrom units
 
 global sastool_search_path
 
@@ -30,6 +34,10 @@ def normalize_listargument(arg):
     if isinstance(arg, list) or isinstance(arg, tuple) or isinstance(arg, dict) or isinstance(arg, set):
         return list(arg)
     return [arg]
+
+def re_from_Cformatstring_numbers(s):
+    """Make a regular expression from the C-style format string."""
+    return "^" + re.sub('%\+?\d*l?[diou]', '\d+', s) + "$"
 
 def findfileindirs(filename, dirs = None, use_pythonpath = True, use_searchpath = True, notfound_is_fatal = True, notfound_val = None):
     """Find file in multiple directories.
@@ -299,6 +307,6 @@ def find_subdirs(startdir = '.', recursion_depth = np.inf):
         >>> find_subdirs('dir',1)  # returns all direct (first-level) subdirs
                                    # of 'dir'.
     """
-    folder_slashes = os.path.abspath(startdir).count(os.sep)
+    folder_slashes = os.path.abspath(os.path.expanduser(startdir)).count(os.sep)
     return [x[0] for x in os.walk(startdir)
         if os.path.abspath(x[0]).count(os.sep) - folder_slashes <= recursion_depth]

@@ -83,6 +83,12 @@ class SASExposure(object):
             kwargs['experiment_type'] = None
         if 'error_on_not_found' not in kwargs:
             kwargs['error_on_not_found'] = True
+        if 'HDF5_Groupnameformat' not in kwargs:
+            kwargs['HDF5_Groupnameformat'] = 'FSN%d'
+        if 'HDF5_Intensityname' not in kwargs:
+            kwargs['HDF5_Intensityname'] = 'Intensity'
+        if 'HDF5_Errorname' not in kwargs:
+            kwargs['HDF5_Errorname'] = 'Error'
         return kwargs
 
     def __init__(self, *args, **kwargs):
@@ -103,14 +109,21 @@ class SASExposure(object):
             self.Error = args[0].Error.copy()
             self.header = SASHeader(args[0].header)
             self.mask = SASMask(args[0].mask)
-        elif (len(args) <= 2): #scheme 2) or 3) with single FSN
+        elif (len(args) <= 2): #scheme 2) or 3) or 4) with single FSN or direct file load
             self.Intensity = None
             self.Error = None
             self.header = SASHeader()
             self.mask = None
             if len(args) == 1:
                 filename = args[0]
-            else:
+            elif isinstance(args[0], h5py.highlevel.Group):
+                if len(args) > 1:
+                    # interpolate FSN
+                    filename = args[0][kwargs['HDF5_Groupnameformat'] % args[1]]
+                else:
+                    # use this HDF5 group as is.
+                    filename = args[0]
+            else:   #TODO: loading HDF5 with a scalar FSN and file supplied comes here, which is an error.
                 filename = args[0] % args[1]
             if kwargs['experiment_type'] is None:
                 #auto-guess from filename
@@ -145,7 +158,7 @@ class SASExposure(object):
             shallow!
         
         2) ``SASExposure(filename, **kwargs)``: load a file
-            **One positional argument**, not an instance of `SASExposure`
+            **One positional argument**, a string
             `filename`:  string
                 file name to load (with path if needed)
         
@@ -159,16 +172,32 @@ class SASExposure(object):
                 file sequence number. If a scalar, the corresponding file will
                 be loaded. If a sequence of numbers, each file will be opened
                 and a list of SASExposure instances will be returned.
-            
-        For signatures 2) and 3) the following optional keyword arguments are
-        supported:
+        
+        4) ``SASExposure(hdf_group, [fsn,] **kwargs)``: load exposures from a HDF5 file
+            produced by `sastool`. **One positional argument**, a hdf5 filename
+            or a hdf5 group (instance of ``h5py.highlevel.Group``). Supported
+            keyword arguments:
+            `HDF5_Groupnameformat`: a regular expression pattern compatible with
+                the `re` module to match and parse group names. Should contain a
+                parsed regular expression group for the FSN. For example the
+                default value is ``r"FSN(\d+)"``. Typically the pattern should 
+                contain a construct like ``(\d+)`` to match file sequence numbers.
+            `HDF5_Intensityname`: the name of the dataset in each group which
+                corresponds to the scattered intensity. Defaults to
+                ``'Intensity'``.
+            `HDF5_Errorname`: the name of the dataset in each group which
+                corresponds to the error of the scattered intensity. Defaults
+                to ``Error``.
+        
+        For signatures 2), 3) and 4) the following optional keyword arguments
+        are supported:
         
             `experiment_type`: string
                 the origin of the file, which determines its format. It is
                 normally auto-guessed, but in case that fails, one can forcibly
                 define it here. See read_from_xxxx() method names for available
                 values.
-            `error_on_not_found`: `bool`, **only for calling scheme 3)**
+            `error_on_not_found`: `bool`, **only for calling scheme 3) and 4)**
                 if an `IOError` is to be raised if the file is not found or not
                 readable. Defaults to `True`.
             `maskfile`: string
@@ -179,34 +208,72 @@ class SASExposure(object):
                 `sastool.misc.findfileindirs()` for this purpose). Can be set
                 to `None`, which means the current folder and the `sastool`
                 search path. Defaults to `None`
-            `load_mask`: if a mask has to be loaded.
+            `load_mask`: if a mask has to be loaded. Defaults to ``True``
         """
         kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
         if len(args) < 2: #scheme 0) 1) and 2) can be handled in the same way 
-            obj = super(SASExposure, cls).__new__(cls)
-            return obj # this will call obj.__init__(*args, **kwargs) implicitly
-        elif len(args) == 2: # scheme 3)
-            fsns = args[1]
-            fileformat = args[0]
-            if isinstance(fsns, collections.Sequence):
-                #multi-FSN
+            if isinstance(args[0], h5py.highlevel.Group) or \
+              (isinstance(args[0], basestring) and any([args[0].upper().endswith(k) for k in ['.HDF5', '.HDF', '.H5']])) or \
+              kwargs['experiment_type'] == 'HDF5':
+                pattern = misc.re_from_Cformatstring_numbers(kwargs['HDF5_Groupnameformat'])
                 objlist = []
-                for f in fsns:
-                    obj = super(SASExposure, cls).__new__(cls)
-                    try:
-                        obj.__init__(fileformat % f, **kwargs)
-                    except IOError as ioerr:
-                        del obj
-                        if kwargs['error_on_not_found']:
-                            raise ioerr
-                        else:
-                            obj = None
-                    objlist.append(obj)
+                with _HDF_parse_group(args[0]) as hdf_group:
+                    for k in hdf_group.keys():
+                        if re.match(pattern, k) is not None:
+                            obj = super(SASExposure, cls).__new__(cls)
+                            try:
+                                obj.__init__(hdf_group[k], **kwargs)
+                                objlist.append(obj)
+                            except:
+                                if kwargs['error_on_not_found']:
+                                    raise
+                                else:
+                                    objlist.append(None)
                 return objlist
             else:
-                #single-FSN
                 obj = super(SASExposure, cls).__new__(cls)
-                return obj #delegate the job to the __init__ method
+                return obj # this will call obj.__init__(*args, **kwargs) implicitly
+        elif len(args) == 2: # scheme 3) or scheme 4)
+            if isinstance(args[0], basestring) or isinstance(args[0], h5py.highlevel.Group):
+                fsns = args[1]
+                fileformat = args[0]
+                if isinstance(fsns, collections.Sequence):
+                    #multi-FSN
+                    objlist = []
+                    if any([fileformat.upper().endswith(k) for k in ['.HDF5', '.HDF', '.H5']]):
+                        kwargs['experiment_type'] = 'HDF5'
+                        hdf = h5py.highlevel.File(fileformat) # open the file
+                    elif isinstance(fileformat, h5py.highlevel.Group):
+                        hdf = fileformat
+                    else:
+                        hdf = None
+                    for f in fsns:
+                        obj = super(SASExposure, cls).__new__(cls)
+                        try:
+                            if hdf is not None:
+                                obj.__init__(hdf[kwargs['HDF5_Groupnameformat'] % f], **kwargs)
+                            else:
+                                obj.__init__(fileformat % f, **kwargs)
+                        except IOError:
+                            del obj
+                            if kwargs['error_on_not_found']:
+                                if hdf is not None and not isinstance(fileformat, h5py.highlevel.Group):
+                                    #we opened, we have to close it.
+                                    hdf.close()
+                                    hdf = None
+                                raise
+                            else:
+                                obj = None
+                        objlist.append(obj)
+                    if hdf is not None and not isinstance(fileformat, h5py.highlevel.Group):
+                        #we opened, we have to close it.
+                        hdf.close()
+                        hdf = None
+                    return objlist
+                else:
+                    #single-FSN
+                    obj = super(SASExposure, cls).__new__(cls)
+                    return obj #delegate the job to the __init__ method
         else:
             raise ValueError('Invalid number of positional arguments.')
     def check_for_mask(self, isfatal = True):
@@ -352,7 +419,7 @@ class SASExposure(object):
                 continue
         if not dataname:
             raise IOError('Could not find 2d org file') #skip this file
-        self.header = SASHeader.new_from_B1_org(headername)
+        self.header = SASHeader(headername)
         if dataname.lower().endswith('.cbf'):
             self.Intensity = twodim.readcbf(dataname)
         elif dataname.upper().endswith('.DAT') or dataname.upper().endswith('.DAT.GZ'):
@@ -401,7 +468,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             fsn = int(m.group(1))
 
         headername = misc.findfileindirs(kwargs['logfileformat'] % fsn + kwargs['logfileextn'], kwargs['dirs'])
-        self.header = SASHeader.new_from_B1_log(headername)
+        self.header = SASHeader(headername)
         self.Intensity, self.Error = twodim.readint2dnorm(dataname)
         self.header.add_history('Intensity and Error matrices loaded from ' + dataname)
         return self
@@ -409,8 +476,12 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
     def read_from_HDF5(self, filename_or_group, **kwargs):
         kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
         with _HDF_parse_group(filename_or_group) as hdf_group:
-            for k in hdf_group.keys():
-                self.__setattr__(k, hdf_group[k].value)
+            if kwargs['HDF5_Intensityname'] in hdf_group.keys():
+                self.Intensity = hdf_group[kwargs['HDF5_Intensityname']].value
+            else:
+                raise IOError('No Intensity dataset in HDF5 group ' + hdf_group.filename + ':' + hdf_group.name)
+            if kwargs['HDF5_Errorname'] in hdf_group.keys():
+                self.Error = hdf_group[kwargs['HDF5_Errorname']].value
             self.header = SASHeader()
             self.header.read_from_hdf5(hdf_group)
             if self.header['maskid'] is not None and kwargs['load_mask']:
@@ -419,8 +490,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
     def read_from_PAXE(self, filename, **kwargs):
         kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
         paxe = twodim.readPAXE(misc.findfileindirs(filename, dirs = kwargs['dirs']))
-        self.header = SASHeader()
-        self.header.read_from_PAXE(paxe[0])
+        self.header = SASHeader(paxe[0])
         self.Intensity = paxe[1]
         if kwargs['estimate_errors']:
             self.Error = np.sqrt(self.Intensity)

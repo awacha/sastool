@@ -275,7 +275,7 @@ class SASHeader(dict):
             # its keys
 
             if isinstance(args[0], SASHeader):
-                super(SASHeader, self).__init__(self, args[0])
+                super(SASHeader, self).__init__(args[0])
                 # copy over protected attributes
                 for fn in args[0]._protectedfields_to_copy: #IGNORE:W0212
                     attr = getattr(args[0], fn)
@@ -298,7 +298,7 @@ class SASHeader(dict):
                     except ValueError:
                         #no special dict, just copy the data and set __Origin__
                         # to 'unknown'
-                        super(SASHeader, self).__init__(self, args[0])
+                        super(SASHeader, self).__init__(args[0])
                         self['__Origin__'] = 'unknown'
                         return
                 else:
@@ -516,151 +516,8 @@ class SASHeader(dict):
         """Return the history in a human-readable format"""
         return '\n'.join([str(h[0]) + ': ' + h[1] for h in self['History']])
 
-    #--------------------------- new_from_*() loader methods ------------------
-    @classmethod
-    def _new_from_general(cls, args, kwargs, readfunction_name, defaults = None,
-                          argnames = None):
-        """General helper for new_from_*() class methods.
-        
-        Inputs:
-            args, kwargs: the arguments given to the caller function.
-            argnames: the names of the arguments of the caller function. Do not
-                touch these, as one can break things seriously (yes, badly
-                written code, I admit). Defaults to ['fsn', 'filename_format',
-                'dirs'].
-            defaults: default value for each argument (dict). If None, it will
-                be empty.
-            readfunction_name: the read function which has to be called (will
-                be called with a filename)
-        """
-        if defaults is None:
-            defaults = {}
-        if argnames is None:
-            argnames = ['fsn', 'filename_format', 'dirs']
-        if len(args) == 1 and isinstance(args[0], basestring) and not kwargs:
-            #filename supplied as a positional argument
-            filenames = [args[0]]; scalar = True
-        elif 'filename' in kwargs and not args:
-            # filename supplied as a keyword argument
-            filenames = [kwargs['filename']]; scalar = True
-        else:
-            # fsn, dirs etc. are supported as positional and keyword arguments.
-            # we have to decode them and get a dictionary of keyword arguments.
-            for i, argname in zip(itertools.count(0), argnames):
-                # check if the ith positional argument is given. It is, put it
-                # in the kwargs dict with the appropriate name.
-                if len(args) > i:
-                    if argname in kwargs:
-                        raise ValueError('Argument %s defined twice!' % argname)
-                    else:
-                        kwargs[argname] = args[i]
 
-            # get default values.
-            for i, argname in zip(itertools.count(0), argnames):
-                if argname in kwargs:
-                    continue
-                if argname not in defaults:
-                    raise ValueError('Argument %s is not defined!' % argname)
-                else:
-                    kwargs[argname] = defaults[argname]
-
-            # normalize the FSN argument.
-            filenames = []
-            if np.isscalar(kwargs['fsn']):
-                kwargs['fsn'] = [kwargs['fsn']]
-                scalar = True
-            else:
-                scalar = False
-            # find the filenames.
-            for f in kwargs['fsn']:
-                try:
-                    fn = kwargs['filename_format'] % f
-                    filenames.append(misc.findfileindirs(fn, dirs = kwargs['dirs']))
-                except IOError:
-                    if scalar:
-                        raise
-                    continue
-        # Now we have a filenames list. Try to load each file in this list.
-        instances = []
-        for fn in filenames:
-            inst = cls()
-            getattr(inst, readfunction_name)(fn) # this should not raise an exception, since the file exists. Hopefully it is readable too.
-            instances.append(inst)
-        if scalar:
-            return instances[0]
-        else:
-            return instances
-
-    @classmethod
-    def new_from_ESRF_ID02(cls, *args, **kwargs):
-        """Load ESRF ID02 headers.
-        
-        Reading just one file with full path:
-        >>> new_from_ESRF_ID02(filename) # returns a SASHeader 
-        
-        Reading one file but searching in directories (fsn is scalar):
-        >>> new_from_ESRF_ID02(fsn, filename_format, dirs) #returns a SASHeader
-        
-        Reading more files in several directories (fsn is a sequence):
-        >>> new_from_ESRF_ID02(fsn, filename_format, dirs) #returns a list of
-        ...                                                #SASHeaders
-        """
-        return cls._new_from_general(args, kwargs, 'read_from_ESRF_ID02',
-                                     {'filename_format':'sc3269_0_%04dccd', 'dirs':['.']})
-
-    @classmethod
-    def new_from_B1_org(cls, *args, **kwargs):
-        """Load a header from an org_?????.header file, beamline B1, HASYLAB.
-        
-        Reading just one file with full path:
-        >>> new_from_B1_org(filename) # returns a SASHeader 
-        
-        Reading one file but searching in directories (fsn is scalar):
-        >>> new_from_B1_org(fsn, filename_format, dirs) #returns a SASHeader
-        
-        Reading more files in several directories (fsn is a sequence):
-        >>> new_from_B1_org(fsn, filename_format, dirs) #returns a list of
-        ...                                             #SASHeaders
-        """
-        return cls._new_from_general(args, kwargs, 'read_from_B1_org',
-                                     {'filename_format':'org_%05d.header', 'dirs':['.']})
-
-    @classmethod
-    def new_from_B1_log(cls, *args, **kwargs):
-        """Load a logfile, beamline B1, HASYLAB
-        
-        Reading just one file with full path:
-        >>> new_from_B1_log(filename) # returns a SASHeader 
-        
-        Reading one file but searching in directories (fsn is scalar):
-        >>> new_from_B1_log(fsn, filename_format, dirs) #returns a SASHeader
-        
-        Reading more files in several directories (fsn is a sequence):
-        >>> new_from_B1_log(fsn, filename_format, dirs) #returns a list of
-        ...                                             #SASHeaders
-        """
-        return cls._new_from_general(args, kwargs, 'read_from_B1_log',
-                                     {'filename_format':'intnorm%d.log', 'dirs':['.']})
-
-    @classmethod
-    def new_from_PAXE(cls, *args, **kwargs):
-        """Load a PAXE file (BNC, Yellow Submarine)
-        
-        Reading just one file with full path:
-        >>> new_from_PAXE(filename) # returns a SASHeader 
-        
-        Reading one file but searching in directories (fsn is scalar):
-        >>> new_from_PAXE(fsn, filename_format, dirs) #returns a SASHeader
-        
-        Reading more files in several directories (fsn is a sequence):
-        >>> new_from_PAXE(fsn, filename_format, dirs) #returns a list of
-        ...                                             #SASHeaders
-        
-        """
-        return cls._new_from_general(args, kwargs, 'read_from_PAXE',
-                                     {'filename_format':'XE%04d.DAT', 'dirs':['.']})
-
-    # --------------------- Summarizing, averaging and equivalence -------------
+# --------------------- Summarizing, averaging and equivalence -------------
 
     def __iadd__(self, other):
         """Add in-place. The actual work is done by the SASHeader.summarize()
