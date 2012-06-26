@@ -20,13 +20,14 @@ class SASMaskException(misc.SASException):
 
 
 class _HDF_parse_group(object):
-    def __init__(self, hdf_argument):
+    def __init__(self, hdf_argument, dirs = None):
         self.hdf_argument = hdf_argument
         self.hdf_file = None
         self.hdf_group = None
+        self.dirs = None
     def __enter__(self):
         if isinstance(self.hdf_argument, basestring):
-            self.hdf_file = h5py.highlevel.File(self.hdf_argument)
+            self.hdf_file = h5py.highlevel.File(misc.findfileindirs(self.hdf_argument, self.dirs))
             self.hdf_group = self.hdf_file
         elif isinstance(self.hdf_argument, h5py.highlevel.File):
             self.hdf_file = self.hdf_argument

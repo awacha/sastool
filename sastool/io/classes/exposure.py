@@ -23,6 +23,10 @@ from .. import twodim
 from ... import utils2d
 from ... import dataset
 
+import scipy.constants
+#Planck constant times speed of light in eV*Angstroem units
+HC = scipy.constants.codata.value('Planck constant in eV s') * \
+    scipy.constants.codata.value('speed of light in vacuum') * 1e10
 
 class SASExposure(object):
     """A class for holding SAS exposure data, i.e. intensity, error, metadata
@@ -114,27 +118,37 @@ class SASExposure(object):
             self.Error = None
             self.header = SASHeader()
             self.mask = None
-            if len(args) == 1:
+            if len(args) == 1 and isinstance(args[0], basestring):
                 filename = args[0]
-            elif isinstance(args[0], h5py.highlevel.Group):
-                if len(args) > 1:
-                    # interpolate FSN
-                    filename = args[0][kwargs['HDF5_Groupnameformat'] % args[1]]
-                else:
-                    # use this HDF5 group as is.
-                    filename = args[0]
-            else:   #TODO: loading HDF5 with a scalar FSN and file supplied comes here, which is an error.
-                filename = args[0] % args[1]
+            elif isinstance(args[0], h5py.highlevel.Group) and len(args) > 1:
+                # interpolate FSN
+                filename = args[0][kwargs['HDF5_Groupnameformat'] % args[1]]
+            elif isinstance(args[0], basestring):
+                #and len(args) >1, which is true because the case in which is 
+                # false has already been treated.
+
+                try:
+                    filename = args[0] % args[1]
+                except TypeError:
+                    # if args[0] is not a printf-style format string, try to
+                    #load it as a HDF5 file
+                    with h5py.highlevel.File(args[0]) as hdf_file:
+                        self.read_from_HDF5(hdf_file[kwargs['HDF5_Groupnameformat'] % args[1]], **kwargs)
+                        filename = None
+            else:
+                # use this HDF5 group as is.
+                filename = args[0]
             if kwargs['experiment_type'] is None:
                 #auto-guess from filename
                 loadername = SASExposure._autoguess_experiment_type(args[0])
             else:
                 loadername = 'read_from_%s' % kwargs['experiment_type']
-            try:
-                getattr(self, loadername).__call__(filename, **kwargs)
-            except AttributeError as ae:
-                raise AttributeError(str(ae) + '; possibly bad experiment type given')
-            #other exceptions such as IOError on read failure are propagated.
+            if filename is not None:
+                try:
+                    getattr(self, loadername).__call__(filename, **kwargs)
+                except AttributeError as ae:
+                    raise AttributeError(str(ae) + '; possibly bad experiment type given')
+                #other exceptions such as IOError on read failure are propagated.
             if kwargs['maskfile'] is not None:
                 self.set_mask(SASMask(kwargs['maskfile'], dirs = kwargs['dirs']))
         else:
@@ -209,6 +223,7 @@ class SASExposure(object):
                 to `None`, which means the current folder and the `sastool`
                 search path. Defaults to `None`
             `load_mask`: if a mask has to be loaded. Defaults to ``True``
+            `load_header`: if the metadata are to be loaded. ``True`` by default.
         """
         kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
         if len(args) < 2: #scheme 0) 1) and 2) can be handled in the same way 
@@ -288,7 +303,7 @@ class SASExposure(object):
         #Note, that we check for 'Dist' and 'Energy' instead of 'DistCalibrated'
         # and 'EnergyCalibrated', because if the latter are missing, they
         # default to the values of the uncalibrated ones.
-        missing = [x for x in  ['BeamPosX', 'BeamPosY', 'Dist', 'Energy', 'PixelSize'] if x not in self.header]
+        missing = [x for x in  ['BeamPosX', 'BeamPosY', 'Dist', 'Energy', 'XPixel', 'YPixel'] if x not in self.header]
 
         if missing:
             if isfatal:
@@ -299,7 +314,9 @@ class SASExposure(object):
         for x in ['Intensity', 'Error', 'header', 'mask']:
             if hasattr(self, x):
                 delattr(self, x)
-
+    @property
+    def shape(self):
+        return self.Intensity.shape
 ### -------------- Loading routines (new_from_xyz) ------------------------
 
     @classmethod
@@ -317,13 +334,18 @@ class SASExposure(object):
             # adding masks later, thus only one copy of each mask will exist in
             # the memory 
             masknames = set([r.header['maskid'] for r in ret])
-            masks = dict([(mn, SASMask.new_from_hdf5(hpg, mn)) for mn in masknames])
+            masks = dict([(mn, SASMask(hpg, maskid = mn)) for mn in masknames])
             for r in ret:
                 r.set_mask(masks[r.header['maskid']])
         return ret
 
 ### -------------- reading routines--------------------------
 
+    def read_from_image(self, filename, **kwargs):
+        """Read a "bare" image file
+        """
+        #TODO: implement this
+        raise NotImplementedError
 
     def read_from_ESRF_ID02(self, filename, **kwargs):
         """Read an EDF file (ESRF beamline ID02 SAXS pattern)
@@ -485,7 +507,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             self.header = SASHeader()
             self.header.read_from_hdf5(hdf_group)
             if self.header['maskid'] is not None and kwargs['load_mask']:
-                self.mask = SASMask.new_from_hdf5(hdf_group.parent, self.header['maskid'])
+                self.mask = SASMask(hdf_group.parent, maskid = self.header['maskid'])
 
     def read_from_PAXE(self, filename, **kwargs):
         kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
@@ -548,8 +570,8 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         self.check_for_mask()
         qrange = utils2d.integrate.autoqscale(self.header['EnergyCalibrated'],
                                             self.header['DistCalibrated'],
-                                            self.header['PixelSize'],
-                                            self.header['PixelSize'],
+                                            self.header['XPixel'],
+                                            self.header['YPixel'],
                                             self.header['BeamPosX'],
                                             self.header['BeamPosY'], 1 - self.mask.mask)
         if N is None:
@@ -608,7 +630,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             res = utils2d.integrate.radint(mat, err,
                                                self.header['EnergyCalibrated'],
                                                self.header['DistCalibrated'],
-                                               self.header['PixelSize'],
+                                               (self.header['XPixel'], self.header['YPixel']),
                                                self.header['BeamPosX'],
                                                self.header['BeamPosY'],
                                                1 - self.mask.mask, qrange,
@@ -666,7 +688,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             res = utils2d.integrate.radint(mat, err,
                                                self.header['EnergyCalibrated'],
                                                self.header['DistCalibrated'],
-                                               self.header['PixelSize'],
+                                               (self.header['XPixel'], self.header['YPixel']),
                                                self.header['BeamPosX'],
                                                self.header['BeamPosY'],
                                                1 - self.mask.mask, qrange,
@@ -723,7 +745,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             res = utils2d.integrate.azimint(mat, err,
                                                self.header['EnergyCalibrated'],
                                                self.header['DistCalibrated'],
-                                               self.header['PixelSize'],
+                                               (self.header['XPixel'], self.header['YPixel']),
                                                self.header['BeamPosX'],
                                                self.header['BeamPosY'],
                                                1 - self.mask.mask, Ntheta,
@@ -828,10 +850,10 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
 
         if kwargs_default['qrange_on_axis']:
             self.check_for_q()
-            xmin = 4 * np.pi * np.sin(0.5 * np.arctan((0 - self.header['BeamPosY']) * self.header['PixelSize'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / 12398.419
-            xmax = 4 * np.pi * np.sin(0.5 * np.arctan((mat.shape[1] - self.header['BeamPosY']) * self.header['PixelSize'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / 12398.419
-            ymin = 4 * np.pi * np.sin(0.5 * np.arctan((0 - self.header['BeamPosX']) * self.header['PixelSize'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / 12398.419
-            ymax = 4 * np.pi * np.sin(0.5 * np.arctan((mat.shape[0] - self.header['BeamPosX']) * self.header['PixelSize'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / 12398.419
+            xmin = 4 * np.pi * np.sin(0.5 * np.arctan((0 - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC
+            xmax = 4 * np.pi * np.sin(0.5 * np.arctan((mat.shape[1] - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC
+            ymin = 4 * np.pi * np.sin(0.5 * np.arctan((0 - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC
+            ymax = 4 * np.pi * np.sin(0.5 * np.arctan((mat.shape[0] - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC
             if kwargs_for_imshow['origin'].upper() == 'UPPER':
                 kwargs_for_imshow['extent'] = [xmin, xmax, ymax, ymin]
             else:
@@ -1008,7 +1030,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
 
 ### ----------------------- Writing routines ----------------------------------
 
-    def write_to_hdf5(self, hdf_or_filename, **kwargs):
+    def write_to_HDF5(self, hdf_or_filename, **kwargs):
         """Save exposure to a HDF5 file or group.
         
         Inputs:
@@ -1039,3 +1061,28 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             self.header.write_to_hdf5(hpg[groupname])
             if self.mask is not None:
                 self.mask.write_to_hdf5(hpg)
+
+    ### ------------------------ Calculation routines -------------------------
+    @property
+    def Dpix(self):
+        """The distance of each pixel from the beam center in pixel units"""
+        self.check_for_q()
+        col, row = np.meshgrid(np.arange(self.shape[1]), np.arange(self.shape[0]))
+        return np.sqrt((col - self.header['BeamPosX']) ** 2 + (row - self.header['BeamPosY']) ** 2)
+    @property
+    def D(self):
+        """The distance of each pixel from the beam center in length units (mm)."""
+        self.check_for_q()
+        col, row = np.meshgrid(np.arange(self.shape[1]), np.arange(self.shape[0]))
+        return np.sqrt(((col - self.header['BeamPosX']) * self.header['XPixel']) ** 2 +
+                       ((row - self.header['BeamPosY']) * self.header['YPixel']) ** 2)
+    @property
+    def q(self):
+        """The magnitude of the momentum transfer (q=4*pi*sin(theta)/lambda)
+        for each pixel in 1/Angstroem units."""
+        self.check_for_q()
+        return 4 * np.pi * np.sin(0.5 * \
+                                  np.arctan(self.D / \
+                                            self.header['DistCalibrated'])) / \
+                           HC * self.header['EnergyCalibrated']
+    ### ------------------------ Simple arithmetics ---------------------------

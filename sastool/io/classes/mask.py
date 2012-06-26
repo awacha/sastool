@@ -9,6 +9,9 @@ import os
 import scipy
 import matplotlib.nxutils
 import matplotlib.pyplot as plt
+import h5py
+import numbers
+import collections
 
 from common import _HDF_parse_group, SASMaskException
 from ... import misc
@@ -39,24 +42,46 @@ class SASMask(object):
     """
     maskid = None
     _mask = None
-    def __init__(self, maskmatrix = None, dirs = None):
+    @staticmethod
+    def _set_default_kwargs(kwargs):
+        if 'dirs' not in kwargs:
+            kwargs['dirs'] = None
+        if 'maskid' not in kwargs:
+            kwargs['maskid'] = 'mask' + misc.random_str(6)
+        return kwargs
+    def __init__(self, maskmatrix = None, **kwargs):
+        if maskmatrix is None:
+            raise ValueError('Empty SASMasks canot be instantiated!')
+        kwargs = self._set_default_kwargs(kwargs)
         super(SASMask, self).__init__()
-        if maskmatrix is not None:
-            if isinstance(maskmatrix, basestring) and \
-                maskmatrix.lower()[-4:] in ['.mat', '.npz', '.npy']:
-                self.read_from_mat(misc.findfileindirs(maskmatrix, dirs))
-            elif isinstance(maskmatrix, basestring) and \
-                maskmatrix.lower()[-4:] in ['.edf']:
-                self.read_from_edf(misc.findfileindirs(maskmatrix, dirs))
-            elif isinstance(maskmatrix, np.ndarray):
-                self.mask = maskmatrix.astype(np.uint8)
-                self.maskid = 'mask' + misc.random_str(6)
-            elif isinstance(maskmatrix, SASMask):
-                maskmatrix.copy_into(self)
-            else:
-                raise NotImplementedError
+        if isinstance(maskmatrix, basestring) and \
+            maskmatrix.lower()[-4:] in ['.mat', '.npz', '.npy']:
+            # load from a '.mat', '.npz' or '.npy' file
+            self.read_from_mat(maskmatrix, **kwargs)
+        elif isinstance(maskmatrix, basestring) and \
+            maskmatrix.lower()[-4:] in ['.edf']:
+            # load from an EDF file
+            self.read_from_edf(maskmatrix, **kwargs)
+        elif isinstance(maskmatrix, np.ndarray):
+            # convert a numpy array to a SASMask
+            self.mask = (maskmatrix != 0).astype(np.uint8)
+            self.maskid = kwargs['maskid']
+        elif isinstance(maskmatrix, SASMask):
+            #make a copy of an existing SASMask instance
+            self.mask = maskmatrix.mask.copy()
+            self.maskid = maskmatrix.maskid
+        elif isinstance(maskmatrix, h5py.highlevel.Group) or \
+            (isinstance(maskmatrix, basestring) and \
+             (maskmatrix.lower().endswith('.h5') or maskmatrix.lower().endswith('.hdf5'))):
+            self.read_from_hdf5(maskmatrix, **kwargs)
+        elif isinstance(maskmatrix, numbers.Integral):
+            self.mask = np.zeros((maskmatrix, maskmatrix), dtype = np.uint8)
+            self.maskid = kwargs['maskid']
+        elif isinstance(maskmatrix, collections.Sequence) and len(maskmatrix) >= 2:
+            self.mask = np.zeros(maskmatrix[:2], dtype = np.uint8)
+            self.maskid = kwargs['maskid']
         else:
-            raise ValueError('Empty SASMasks cannot be instantiated.')
+            raise NotImplementedError
 
     def __unicode__(self):
         return u'SASMask(' + self.maskid + ')'
@@ -70,28 +95,22 @@ class SASMask(object):
     def _getshape(self):
         return self._mask.shape
     shape = property(_getshape, doc = 'Shortcut to the shape of the mask matrix')
-    def copy_into(self, into):
-        """Helper function for deep copy."""
-        if not isinstance(into, type(self)):
-            raise ValueError('Incompatible class!')
-        if self.mask is not None:
-            into.mask = self.mask.copy()
-        else:
-            into.mask = None
-        into.maskid = self.maskid
-    def read_from_edf(self, filename):
+    def read_from_edf(self, filename, **kwargs):
         """Read a mask from an EDF file."""
-        edf = twodim.readedf(filename)
+        kwargs = self._set_default_kwargs(kwargs)
+        edf = twodim.readedf(misc.findfileindirs(filename, kwargs['dirs']))
         self.maskid = os.path.splitext(os.path.split(edf['FileName'])[1])[0]
         self.mask = (np.absolute(edf['data'] - edf['Dummy']) > edf['DDummy']).reshape(edf['data'].shape)
         return self
-    def read_from_mat(self, filename, fieldname = None):
+    def read_from_mat(self, filename, fieldname = None, **kwargs):
         """Try to load a maskfile (Matlab(R) matrix file or numpy npz/npy)
         
         Inputs:
             filename: the input file name
             fieldname: field in the mat/npz file. None to autodetect.
         """
+        kwargs = self._set_default_kwargs(kwargs)
+        filename = misc.findfileindirs(filename, kwargs['dirs'])
         if filename.lower().endswith('.mat'):
             f = scipy.io.loadmat(filename)
         elif filename.lower().endswith('.npz'):
@@ -120,12 +139,12 @@ class SASMask(object):
         if filename.lower().endswith('.mat'):
             scipy.io.savemat(filename, {self.maskid:self.mask})
         elif filename.lower().endswith('.npz'):
-            np.savez(filename, **{self.maskid:self.mask}) #IGNORE:W0142
+            np.savez_compressed(filename, **{self.maskid:self.mask}) #IGNORE:W0142
         elif filename.lower().endswith('.npy'):
             np.save(filename, self.mask)
         else:
             raise ValueError('File name %s not understood (should end with .mat or .npz).' % filename)
-    def write_to_hdf5(self, hdf_entity):
+    def write_to_hdf5(self, hdf_entity, **kwargs):
         """Write this mask as a HDF5 dataset.
         
         Input:
@@ -134,11 +153,12 @@ class SASMask(object):
                 h5py.highlevel.Group). A new dataset will be created with the
                 name equal to the maskid.
         """
-        with _HDF_parse_group(hdf_entity) as hpg:
+        kwargs = self._set_default_kwargs(kwargs)
+        with _HDF_parse_group(hdf_entity, kwargs['dirs']) as hpg:
             if self.maskid in hpg.keys():
                 del hpg[self.maskid]
             hpg.create_dataset(self.maskid, data = self.mask, compression = 'gzip')
-    def read_from_hdf5(self, hdf_entity, maskid = None):
+    def read_from_hdf5(self, hdf_entity, maskid = None, **kwargs):
         """Read mask from a HDF5 entity.
         
         Inputs:
@@ -149,7 +169,8 @@ class SASMask(object):
                 loaded. If None and the entity contains more datasets, a
                 ValueError is raised.
         """
-        with _HDF_parse_group(hdf_entity) as hpg:
+        kwargs = self._set_default_kwargs(kwargs)
+        with _HDF_parse_group(hdf_entity, kwargs['dirs']) as hpg:
             if len(hpg.keys()) == 0:
                 raise ValueError('No datasets in the HDF5 group!')
             if maskid is None:
@@ -163,11 +184,6 @@ and maskid argument was omitted.')
                 self.maskid = maskid
                 self.mask = hpg[maskid].value
         return self
-    @classmethod
-    def new_from_hdf5(cls, hdf_entity, maskid = None):
-        obj = cls()
-        obj.read_from_hdf5(hdf_entity, maskid)
-        return obj
     def rebin(self, xbin, ybin, enlarge = False):
         """Re-bin the mask."""
         obj = type(self)()

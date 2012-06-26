@@ -24,10 +24,10 @@ import os
 import scipy.io
 
 #Mask matrix should be plotted with plt.imshow(maskmatrix, cmap=_colormap_for_mask)
-_colormap_for_mask=matplotlib.colors.ListedColormap(['white','white'],'_sastool_gui_saspreview2d_maskcolormap')
-_colormap_for_mask._init()
-_colormap_for_mask._lut[:,-1]=0
-_colormap_for_mask._lut[0,-1]=0.7
+_colormap_for_mask = matplotlib.colors.ListedColormap(['white', 'white'], '_sastool_gui_saspreview2d_maskcolormap')
+_colormap_for_mask._init()               #IGNORE:W0212
+_colormap_for_mask._lut[:, -1] = 0       #IGNORE:W0212
+_colormap_for_mask._lut[0, -1] = 0.7     #IGNORE:W0212
 
 
 
@@ -35,7 +35,7 @@ class StatusLine(gtk.HBox):
     _signal_handlers = []
     _button_clicks = []
 
-    def __init__(self, Nbuttons=2):
+    def __init__(self, Nbuttons = 2):
         gtk.HBox.__init__(self)
         self.label = gtk.Label()
         self.label.set_alignment(0, 0)
@@ -53,7 +53,7 @@ class StatusLine(gtk.HBox):
         i = self.button.index(widget)
         self._button_clicks[i] += 1
         for f, a, kw in self._signal_handlers:
-            f(self, i, *a, **kw)
+            f(self, i, *a, **kw)   #IGNORE:W0142
 
     def connect(self, eventname, function, *args, **kwargs):
         if eventname == 'buttonclicked':
@@ -66,7 +66,7 @@ class StatusLine(gtk.HBox):
         self._signal_handlers = [x for x in self._signal_handlers \
                                  if not x[0] == hid]
 
-    def setup(self, text=None, *args):
+    def setup(self, text = None, *args):
         if text is None:
         #    self.hide()
             text = ''
@@ -85,7 +85,7 @@ class StatusLine(gtk.HBox):
         self.setup('')
         self.hide()
 
-    def nbuttonclicks(self, i=None):
+    def nbuttonclicks(self, i = None):
         if i is None:
             ret = self._button_clicks[:]
             self._button_clicks = [0] * len(self._button_clicks)
@@ -94,11 +94,11 @@ class StatusLine(gtk.HBox):
             self._button_clicks[i] = 0
         return ret
 
-    def on_expose(self, *args):
+    def on_expose(self, *args): #IGNORE:W0613
         for b in self.button:
             b.set_visible(bool(b.get_label()))
 
-    def reset_counters(self, n=None):
+    def reset_counters(self, n = None):
         if n is None:
             self._button_clicks = [0] * len(self._button_clicks)
         else:
@@ -147,12 +147,12 @@ class MaskMaker(gtk.Dialog):
     _mouseclick_last = ()
     _selection = None
 
-    def __init__(self, title='Make mask...', parent=None,
-                 flags=gtk.DIALOG_DESTROY_WITH_PARENT | \
+    def __init__(self, title = 'Make mask...', parent = None,
+                 flags = gtk.DIALOG_DESTROY_WITH_PARENT | \
                  gtk.DIALOG_NO_SEPARATOR,
-                 buttons=(gtk.STOCK_OK, gtk.RESPONSE_OK, gtk.STOCK_CANCEL,
+                 buttons = (gtk.STOCK_OK, gtk.RESPONSE_OK, gtk.STOCK_CANCEL,
                           gtk.RESPONSE_CANCEL),
-                 matrix=None, mask=None):
+                 matrix = None, mask = None):
         if matrix is None:
             raise ValueError("Argument 'matrix' is required!")
         gtk.Dialog.__init__(self, title, parent, flags, buttons)
@@ -163,20 +163,20 @@ class MaskMaker(gtk.Dialog):
         self.set_default_response(gtk.RESPONSE_CANCEL)
 
         clearbutton = gtk.Button(stock = gtk.STOCK_NEW)
-        self.action_area.pack_end(clearbutton)
+        self.get_action_area().pack_end(clearbutton)
         clearbutton.connect('clicked', self.newmask)
         clearbutton.show()
         savebutton = gtk.Button(stock = gtk.STOCK_SAVE_AS)
-        self.action_area.pack_end(savebutton)
+        self.get_action_area().pack_end(savebutton)
         savebutton.connect('clicked', self.savemask)
         savebutton.show()
         loadbutton = gtk.Button(stock = gtk.STOCK_OPEN)
-        self.action_area.pack_end(loadbutton)
+        self.get_action_area().pack_end(loadbutton)
         loadbutton.connect('clicked', self.loadmask)
         loadbutton.show()
 
         hbox = gtk.HBox()
-        self.vbox.pack_start(hbox)
+        self.get_content_area().pack_start(hbox)
         self.toolbar = gtk.VBox()
         hbox.pack_start(self.toolbar, False, True)
 
@@ -219,9 +219,9 @@ class MaskMaker(gtk.Dialog):
 
         self.statusline = StatusLine()
         self.statusline.setup(None)
-        self.vbox.pack_start(self.statusline, False, True, 0)
+        self.get_content_area().pack_start(self.statusline, False, True, 0)
 
-        self.vbox.show_all()
+        self.get_content_area().show_all()
         self.update_graph(True)
         self.set_select_mode(True)
     def get_mask(self):
@@ -230,16 +230,16 @@ class MaskMaker(gtk.Dialog):
         if redraw:
             self.fig.clf()
         im = self.fig.gca().imshow(self._matrix, interpolation = 'nearest')
-        if self._mask.sum()!=self._mask.size:
-            self.fig.gca().imshow(self._mask, cmap=_colormap_for_mask, interpolation = 'nearest')
+        if self._mask.sum() != self._mask.size:
+            self.fig.gca().imshow(self._mask, cmap = _colormap_for_mask, interpolation = 'nearest')
         if redraw:
             self.fig.colorbar(im)
         self.canvas.draw()
-    def newmask(self, widget):
+    def newmask(self, widget = None): #IGNORE:W0613
         self._mask = np.ones_like(self._matrix).astype(np.bool8)
         self.update_graph(True)
         return True
-    def savemask(self, widget):
+    def savemask(self, widget = None): #IGNORE:W0613
         fcd = gtk.FileChooserDialog('Select file to save mask...', self,
                                   gtk.FILE_CHOOSER_ACTION_SAVE,
                                   (gtk.STOCK_OK, gtk.RESPONSE_OK,
@@ -247,17 +247,32 @@ class MaskMaker(gtk.Dialog):
         fcd.set_current_folder(os.getcwd())
         fcd.set_destroy_with_parent(True)
         fcd.set_modal(True)
-        ff = gtk.FileFilter(); ff.set_name('All files'); ff.add_pattern('*');
+        fcd.set_do_overwrite_confirmation(True)
+        ff = gtk.FileFilter(); ff.set_name('All files'); ff.add_pattern('*')
         fcd.add_filter(ff)
-        ff = gtk.FileFilter(); ff.set_name('Matlab(R) mask matrices'); ff.add_pattern('*.mat');
+        ff = gtk.FileFilter(); ff.set_name('Matlab(R) mask matrices'); ff.add_pattern('*.mat')
+        fcd.add_filter(ff)
+        ff = gtk.FileFilter(); ff.set_name('Numpy mask matrices'); ff.add_pattern('*.npy'); ff.add_pattern('*.npz')
         fcd.add_filter(ff)
         fcd.set_filter(ff)
         if fcd.run() == gtk.RESPONSE_OK:
             filename = fcd.get_filename()
-            scipy.io.savemat(filename, {'mask':self._mask})
+            # guess the mask file format
+            maskname = os.path.splitext(os.path.split(filename)[1])[0].lower()
+            if not maskname.startswith('mask'):
+                maskname = 'mask' + maskname
+            fdict = {maskname:self._mask}
+            if filename.lower().endswith('.mat'):
+                scipy.io.savemat(filename, fdict)
+            elif filename.lower().endswith('.npz'):
+                np.savez_compressed(filename, **fdict) #IGNORE:W0142
+            elif filename.lower().endswith('.npy'):
+                np.save(filename, self._mask)
+            else:
+                np.savez_compressed(filename + '.npz', **fdict) #IGNORE:W0142
         os.chdir(fcd.get_current_folder())
         fcd.destroy()
-    def loadmask(self, widget):
+    def loadmask(self, widget = None): #IGNORE:W0613
         fcd = gtk.FileChooserDialog('Select file to load mask...', self,
                                   gtk.FILE_CHOOSER_ACTION_OPEN,
                                   (gtk.STOCK_OK, gtk.RESPONSE_OK,
@@ -265,16 +280,16 @@ class MaskMaker(gtk.Dialog):
         fcd.set_current_folder(os.getcwd())
         fcd.set_destroy_with_parent(True)
         fcd.set_modal(True)
-        ff = gtk.FileFilter(); ff.set_name('All files'); ff.add_pattern('*');
+        ff = gtk.FileFilter(); ff.set_name('All files'); ff.add_pattern('*')
         fcd.add_filter(ff)
-        ff = gtk.FileFilter(); ff.set_name('Matlab(R) mask matrices'); ff.add_pattern('*.mat');
+        ff = gtk.FileFilter(); ff.set_name('Matlab(R) mask matrices'); ff.add_pattern('*.mat')
         fcd.add_filter(ff)
         fcd.set_filter(ff)
         if fcd.run() == gtk.RESPONSE_OK:
             filename = fcd.get_filename()
             try:
                 mask1 = readmask(filename).astype(np.bool8)
-            except:
+            except Exception:   #IGNORE:W0703
                 self.statusline.setup('Invalid mask file.')
             else:
                 if mask1.shape != self._mask.shape:
@@ -295,25 +310,25 @@ class MaskMaker(gtk.Dialog):
         if event.button == 1:
             if self._mouseclick_mode.upper() == 'POINTS':
                 ax = self.fig.gca().axis()
-                self.fig.gca().plot(event.xdata, event.ydata, 'o', c = 'white', markersize = 7);
+                self.fig.gca().plot(event.xdata, event.ydata, 'o', c = 'white', markersize = 7)
                 self.fig.gca().axis(ax)
-                self.fig.canvas.draw();
+                self.fig.canvas.draw()
             if self._mouseclick_mode.upper() == 'LINES':
                 ax = self.fig.gca().axis()
                 self.fig.gca().plot(event.xdata, event.ydata, 'o', c = 'white', markersize = 7)
                 if self._mouseclick_last:
                     self.fig.gca().plot([self._mouseclick_last[-1][0], event.xdata],
                                         [self._mouseclick_last[-1][1], event.ydata],
-                                        c = 'white');
+                                        c = 'white')
                 self.fig.gca().axis(ax)
-                self.fig.canvas.draw();
+                self.fig.canvas.draw()
             if self._mouseclick_mode.upper() == 'PIXELHUNT':
                 if (event.xdata >= 0 and event.xdata < self._mask.shape[1] and
                     event.ydata >= 0 and event.ydata < self._mask.shape[0]):
-                    self._mask[round(event.ydata), round(event.xdata)] ^= 1;
+                    self._mask[round(event.ydata), round(event.xdata)] ^= 1
                     self.update_graph()
-            self._mouseclick_last.append((event.xdata, event.ydata));
-    def pixelhunt(self, widget):
+            self._mouseclick_last.append((event.xdata, event.ydata))
+    def pixelhunt(self, widget):    #IGNORE:W0613
         with GraphToolbarVisibility(self.graphtoolbar, self.toolbar):
             self.statusline.setup('Click pixels to change masking. If finished, press --->', 'Finished')
             self.statusline.reset_counters()
@@ -326,15 +341,15 @@ class MaskMaker(gtk.Dialog):
         self.update_graph()
         self.set_select_mode()
         return True
-    def masknonfinite(self, widget):
+    def masknonfinite(self, widget):    #IGNORE:W0613
         self._mask &= np.isfinite(self._matrix)
         self.update_graph()
         return True
-    def masknonpositive(self, widget):
+    def masknonpositive(self, widget):    #IGNORE:W0613
         self._mask &= (self._matrix > 0)
         self.update_graph()
         return True
-    def selecthisto(self, widget, data = None):
+    def selecthisto(self, widget, data = None):  #IGNORE:W0613
         self.toolbar.set_sensitive(False)
         if data is None:
             data = self._matrix
@@ -356,7 +371,7 @@ class MaskMaker(gtk.Dialog):
         return True
     def selecthisto_notyetmasked(self, widget):
         return self.selecthisto(widget, data = self._matrix[self._mask.astype('bool')])
-    def selectrect(self, widget):
+    def selectrect(self, widget):  #IGNORE:W0613
         with GraphToolbarVisibility(self.graphtoolbar, self.toolbar):
             self.statusline.setup('Click two opposite corners of the rectangle')
             self._mouseclick_last = []
@@ -380,7 +395,7 @@ class MaskMaker(gtk.Dialog):
         self.statusline.setup(None)
         self.set_select_mode(False)
         return True
-    def selectcircle(self, widget):
+    def selectcircle(self, widget):  #IGNORE:W0613
         with GraphToolbarVisibility(self.graphtoolbar, self.toolbar):
             self.statusline.setup('Click the center of the circle')
             self._mouseclick_last = []
@@ -396,7 +411,7 @@ class MaskMaker(gtk.Dialog):
             ycen = self._mouseclick_last[0][1]
             r = np.sqrt((self._mouseclick_last[1][0] - xcen) ** 2 +
                       (self._mouseclick_last[1][1] - ycen) ** 2)
-            t = np.linspace(0, np.pi * 2, 1000);
+            t = np.linspace(0, np.pi * 2, 1000)
             self.fig.gca().plot(xcen + r * np.cos(t), ycen + r * np.sin(t),
                                 c = 'white')
             self.fig.gca().axis(ax)
@@ -407,7 +422,7 @@ class MaskMaker(gtk.Dialog):
         self.statusline.setup(None)
         self.set_select_mode(False)
         return True
-    def selectpoly(self, widget):
+    def selectpoly(self, widget):  #IGNORE:W0613
         with GraphToolbarVisibility(self.graphtoolbar, self.toolbar):
             self.statusline.setup('Select corners of the polygon. If finished, press --->', 'Finished')
             self.statusline.reset_counters()
@@ -429,16 +444,16 @@ class MaskMaker(gtk.Dialog):
                                     range(self._mask.shape[0]))
                 points = np.vstack((col.flatten(), row.flatten())).T
                 points_inside = matplotlib.nxutils.points_inside_poly(points, self._mouseclick_last)
-                self._selection=points_inside.astype('bool').reshape(self._mask.shape)
+                self._selection = points_inside.astype('bool').reshape(self._mask.shape)
         self.statusline.setup(None)
         self.set_select_mode(False)
         return True
-    def clearselection(self, widget):
+    def clearselection(self, widget):  #IGNORE:W0613
         self._selection = None
         self.update_graph(redraw = True)
         self.set_select_mode()
         return True
-    def maskselection(self, widget):
+    def maskselection(self, widget):  #IGNORE:W0613
         if self._selection is None:
             return False
         self._mask &= -self._selection
@@ -446,22 +461,22 @@ class MaskMaker(gtk.Dialog):
         self._selection = None
         self.set_select_mode()
         return True
-    def unmaskselection(self, widget):
+    def unmaskselection(self, widget):  #IGNORE:W0613
         if self._selection is None: return False
         self._mask |= self._selection
         self.update_graph(redraw = True)
         self._selection = None
         self.set_select_mode()
         return True
-    def flipmaskselection(self, widget):
+    def flipmaskselection(self, widget):  #IGNORE:W0613
         if self._selection is None: return False
         self._mask[self._selection] ^= 1
         self.update_graph(redraw = True)
         self._selection = None
         self.set_select_mode()
         return True
-    def flipmask(self, widget):
-        self._mask ^= 1;
+    def flipmask(self, widget):  #IGNORE:W0613
+        self._mask ^= 1
         self.update_graph(redraw = True)
         return True
 
