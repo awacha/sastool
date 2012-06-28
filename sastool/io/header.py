@@ -9,6 +9,7 @@ import numpy as np
 import gzip
 import math
 import functools
+import os
 
 from .. import misc
 
@@ -370,34 +371,73 @@ def readehf(filename):
     edf['__Origin__'] = 'EDF ID02'
     return edf
 
-def readbhfv2(filename):
+def readbhfv2(filename, load_data = False, bdfext = '.bdf', bhfext = '.bhf'):
+    # strip the bhf or bdf extension if there.
+    if filename.endswith(bdfext):
+        basename = filename[:-len(bdfext)]
+    elif filename.endswith(bhfext):
+        basename = filename[:-len(bhfext)]
+    else: #assume a single file of header and data.
+        basename, bhfext = os.path.splitext(filename)
+        bdfext = bhfext
+    headername = basename + bhfext
+    dataname = basename + bdfext
     header = {}
-    f = open(filename, 'rt')
-    for l in f:
-        if not l.startswith('#'):
-            continue
-        l = l[1:].strip()
-        section, keyvalue = l.split(None, 1)
-        if section not in header.keys():
+    with open(headername, 'rt') as f:
+        for l in f:
+            if not l.startswith('#'):
+                continue
+            l = l[1:].strip()
+            section, keyvalue = l.split(None, 1)
+            if section not in header.keys():
+                if section in ['HIS']:
+                    header[section] = []
+                else:
+                    header[section] = {}
             if section in ['HIS']:
-                header[section] = []
+                header[section].append(keyvalue)
             else:
-                header[section] = {}
-        if section in ['HIS']:
-            header[section].append(keyvalue)
-        else:
-            key, value = keyvalue.split('=')
-            value = value.strip()
-            try:
-                value = float(value)
-            except ValueError:
-                pass
-            header[section][key.strip()] = value
-    f.close()
+                key, value = keyvalue.split('=')
+                value = value.strip()
+                try:
+                    value = float(value)
+                except ValueError:
+                    pass
+                header[section][key.strip()] = value
     header['xdim'] = header['C']['xdim']
     header['ydim'] = header['C']['ydim']
     header['type'] = header['C']['type']
     header['__Origin__'] = 'BDFv2'
+
+    #now open the data if needed
+    if load_data:
+        f = open(dataname, 'r')
+        s = f.read()
+        datasets = re.findall('#\s*(?P<name>\w+)\[(?P<xsize>\d+):(?P<ysize>\d+)\]', s)
+        names = [d[0] for d in datasets]
+        xsize = [long(d[1]) for d in datasets]
+        ysize = [long(d[2]) for d in datasets]
+        dt = np.dtype(header['type'])
+        for i in range(len(datasets)):
+            start = s.find('#%s' % names[i])
+            if i < len(datasets) - 1:
+                end = s.find('#%s' % (names[i + 1]))
+            else:
+                end = len(s)
+            s1 = s[start:end]
+            datasize = xsize[i] * ysize[i] * dt.itemsize
+            if datasize > len(s1):
+                # assume we are dealing with a BOOL matrix
+                header[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i]:], dtype = np.uint8)
+            else:
+                header[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i] * dt.itemsize:], dtype = dt)
+            #conversion: Matlab saves the array in Fortran-style ordering (columns first).
+            # Python however loads in C-style: rows first. We need to take care:
+            #   1) reshape from linear to (ysize,xsize) and not (xsize,ysize)
+            #   2) transpose (swaps columns and rows)
+            # After these operations, we only have to rotate this counter-clockwise by 90
+            # degrees because bdf2_write rotates by +270 degrees before saving.
+            header[names[i]] = np.rot90(header[names[i]].reshape((ysize[i], xsize[i]), order = 'F'), 1)
     return header
 
 def writebhfv2(filename, bdf):
@@ -415,7 +455,7 @@ def writebhfv2(filename, bdf):
             f.write("#HIS %s\n" % h)
     f.close()
 
-def readbhf(filename, load_data = False):
+def readbhfv1(filename, load_data = False, bdfext = '.bdf', bhfext = '.bhf'):
     """Read header data from bdf/bhf file (Bessy Data Format v1)
 
     Input:
@@ -427,12 +467,22 @@ def readbhf(filename, load_data = False):
 
     Adapted the bdf_read.m macro from Sylvio Haas.
     """
+    # strip the bhf or bdf extension if there.
+    if filename.endswith(bdfext):
+        basename = filename[:-len(bdfext)]
+    elif filename.endswith(bhfext):
+        basename = filename[:-len(bhfext)]
+    else: #assume a single file of header and data.
+        basename, bhfext = os.path.splitext(filename)
+        bdfext = bhfext
+    headername = basename + bhfext
+    dataname = basename + bdfext
     bdf = {}
     bdf['his'] = [] #empty list for history
     bdf['C'] = {} # empty list for bdf file descriptions
     namelists = {}
     valuelists = {}
-    with open(filename, 'rb') as fid: #if fails, an exception is raised
+    with open(headername, 'rb') as fid: #if fails, an exception is raised
         for line in fid:
             if not line.strip():
                 continue  #empty line
@@ -451,19 +501,19 @@ def readbhf(filename, load_data = False):
                 elif left in ['xdim', 'ydim']:
                     bdf['C'][left] = int(right)
                 else:
-                    bdf['C'][left] = right
+                    bdf['C'][left] = misc.parse_number(right)
             elif prefix.startswith("#H"):
                 bdf['his'].append(mat[1])
-            elif prefix.startswith("#DATA"):
-                if not load_data:
-                    break
-                darray = np.fromfile(fid, dtype = bdf['type'], count = int(bdf['xdim'] * bdf['ydim']))
-                bdf['data'] = np.rot90((darray.reshape(bdf['xdim'], bdf['ydim'])).astype('double').T, 1).copy() # this weird transformation is needed to get the matrix in the same form as bdf_read.m gets it.
-            elif prefix.startswith('#ERROR'):
-                if not load_data:
-                    break
-                darray = np.fromfile(fid, dtype = bdf['type'], count = int(bdf['xdim'] * bdf['ydim']))
-                bdf['error'] = np.rot90((darray.reshape(bdf['xdim'], bdf['ydim'])).astype('double').T, 1).copy()
+#            elif prefix.startswith("#DATA"):
+#                if not load_data:
+#                    break
+#                darray = np.fromfile(fid, dtype = bdf['type'], count = int(bdf['xdim'] * bdf['ydim']))
+#                bdf['data'] = np.rot90((darray.reshape(bdf['xdim'], bdf['ydim'])).astype('double').T, 1).copy() # this weird transformation is needed to get the matrix in the same form as bdf_read.m gets it.
+#            elif prefix.startswith('#ERROR'):
+#                if not load_data:
+#                    break
+#                darray = np.fromfile(fid, dtype = bdf['type'], count = int(bdf['xdim'] * bdf['ydim']))
+#                bdf['error'] = np.rot90((darray.reshape(bdf['xdim'], bdf['ydim'])).astype('double').T, 1).copy()
             else:
                 for prf in ['M', 'G', 'S', 'T']:
                     if prefix.startswith('#C%sL' % prf):
@@ -472,10 +522,59 @@ def readbhf(filename, load_data = False):
                     elif prefix.startswith('#C%sV' % prf):
                         if prf not in valuelists: valuelists[prf] = []
                         valuelists[prf].extend([float(x) for x in mat[1].split()])
+                    else:
+                        continue
     for dictname, prfname in zip(['M', 'CG', 'CS', 'CT'], ['M', 'G', 'S', 'T']):
-        bdf[dictname] = dict(zip(namelists[prf], valuelists[prf]))
+        bdf[dictname] = dict(zip(namelists[prfname], valuelists[prfname]))
     bdf['__Origin__'] = 'BDFv1'
+
+    if load_data:
+        f = open(dataname, 'r')
+        s = f.read()
+        datasets = re.findall('#\s*(?P<name>\w+)\[(?P<xsize>\d+):(?P<ysize>\d+)\]', s)
+        names = [d[0] for d in datasets]
+        xsize = [long(d[1]) for d in datasets]
+        ysize = [long(d[2]) for d in datasets]
+        dt = np.dtype(bdf['type'])
+        for i in range(len(datasets)):
+            start = s.find('#%s' % names[i])
+            if i < len(datasets) - 1:
+                end = s.find('#%s' % (names[i + 1]))
+            else:
+                end = len(s)
+            s1 = s[start:end]
+            datasize = xsize[i] * ysize[i] * dt.itemsize
+            if datasize > len(s1):
+                # assume we are dealing with a BOOL matrix
+                bdf[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i]:], dtype = np.uint8)
+            else:
+                bdf[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i] * dt.itemsize:], dtype = dt)
+            #conversion: Matlab saves the array in Fortran-style ordering (columns first).
+            # Python however loads in C-style: rows first. We need to take care:
+            #   1) reshape from linear to (ysize,xsize) and not (xsize,ysize)
+            #   2) transpose (swaps columns and rows)
+            # After these operations, we only have to rotate this counter-clockwise by 90
+            # degrees because bdf2_write rotates by +270 degrees before saving.
+            bdf[names[i]] = np.rot90(bdf[names[i]].reshape((ysize[i], xsize[i]), order = 'F'), 1)
+
     return bdf
+
+def readbhf(filename, load_data = False, bdfext = '.bdf', bhfext = '.bhf'):
+    if not filename.upper().endswith(bhfext.upper()):
+        filename = os.path.splitext(filename)[0] + bhfext
+    with open(filename, 'rt') as f:
+        version = None
+        for l in f:
+            m = re.match('#C\sbdfVersion\s*=\s*(\d+\.\d+)', l.strip())
+            if m:
+                version = float(m.group(1))
+                break
+    if version is None:
+        raise ValueError('Invalid BDF file: no bdfVersion line found!')
+    if version < 2:
+        return readbhfv1(filename, load_data, bdfext, bhfext)
+    else:
+        return readbhfv2(filename, load_data, bdfext, bhfext)
 
 def readPAXE(filename, load_data = False):
     f = open(filename, 'r')

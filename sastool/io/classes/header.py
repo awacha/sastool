@@ -344,8 +344,8 @@ class SASHeader(dict):
             val = '<untitled>'
         elif key.endswith('Calibrated'):
             val = self[key[:-len('Calibrated')]]
-        elif key in ['Dist', 'Energy', 'BeamPosX', 'BeamPosY', 'PixelSize']:
-            val = np.NAN
+        #elif key in ['Dist', 'Energy', 'BeamPosX', 'BeamPosY', 'PixelSize']:
+        #    val = np.NAN
         elif key in ['XPixel', 'YPixel']:
             val = self['PixelSize']
         else:
@@ -498,11 +498,55 @@ class SASHeader(dict):
         if isinstance(filename, basestring):
             self.add_history('B1 logfile loaded: ' + filename)
 
-    def read_from_BDFv1(self, filename, **kwargs):
-        pass
-
-    def read_from_BDFv2(self, filename, **kwargs):
-        pass
+    def read_from_BDF(self, filename, **kwargs):
+        kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
+        if isinstance(filename, basestring):
+            hed = misc.flatten_hierarchical_dict(header.readbhf(misc.findfileindirs(filename, kwargs['dirs'])))
+        else:
+            hed = misc.flatten_hierarchical_dict(filename)
+        self.update(hed)
+        if self['C.bdfVersion'] < 2:
+            self['BeamPosX'] = self['C.xcen'] - 1
+            self['BeamPosY'] = self['C.ycen'] - 1
+            for h in self['his']:
+                self.add_history('BDF: ' + h)
+        elif self['C.bdfVersion'] > 2:
+            if 'CORR.CenterX' in self:
+                self['BeamPosX'] = self['CORR.CenterX'] - 1
+            if 'CORR.CenterY' in self:
+                self['BeamPosY'] = self['CORR.CenterY'] - 1
+            if 'CORR.EnergyReal' in self:
+                self._key_aliases['EnergyCalibrated'] = 'CORR.EnergyReal'
+            if 'CORR.PixelSizeX' in self:
+                self['XPixel'] = self['CORR.PixelSizeX'] * 10
+            if 'CORR.PixelSizeY' in self:
+                self['YPixel'] = self['CORR.PixelSizeY'] * 10
+            for h in self['HIS']:
+                self.add_history('BDF: ' + h)
+            if 'CORR.SampleThickness' in self:
+                self._key_aliases['Thickness'] = 'CORR.SampleThickness'
+            if 'CORR.SampleThicknessError' in self:
+                self._key_aliases['ThicknessError'] = 'CORR.SampleThicknessError'
+        #common to BDFv1 and v2
+        self.add_history('History imported from BDF file')
+        self._key_aliases['Energy'] = 'M.Energy'
+        self._key_aliases['Dist'] = 'M.SD'
+        self._key_aliases['Title'] = 'C.Sample'
+        self._key_aliases['Temperature'] = 'C.isTemp'
+        self._key_aliases['MeasTime'] = 'CS.Seconds'
+        self._key_aliases['Monitor'] = 'CS.Monitor'
+        self._key_aliases['Anode'] = 'CS.Anode'
+        self._key_aliases['PosSample'] = 'M.VacSampleX'
+        self._key_aliases['PosRef'] = 'M.RefSampleX'
+        self._key_aliases['Transm'] = 'CT.trans'
+        self._key_aliases['TransmError'] = 'CT.transerr'
+        try:
+            self['FSN'] = re.search('\d+', self['C.Frame']).group()
+        except AttributeError:
+            self['FSN'] = self['C.Frame']
+        return self
+    read_from_BDFv2 = read_from_BDF
+    read_from_BDFv1 = read_from_BDF
 
     def write_B1_log(self, filename):
         header.writeB1logfile(filename, self)

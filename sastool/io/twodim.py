@@ -112,7 +112,7 @@ def readcbf(name):
     nbytes = long(getvaluefromheader(hed, 'X-Binary-Size'))
     return cbfdecompress(cbfbin[datastart:datastart + nbytes], dim1, dim2)
 
-def readbdf(filename):
+def readbdfv1(filename, bdfext = '.bdf', bhfext = '.bhf'):
     """Read bdf file (Bessy Data Format v1)
 
     Input
@@ -128,7 +128,7 @@ def readbdf(filename):
     -----
     This is an adaptation of the bdf_read.m macro of Sylvio Haas.
     """
-    return header.readbhf(filename, load_data = True)
+    return header.readbhfv1(filename, True, bdfext, bhfext)
 
 def readtif(filename):
     """Read image files (TIFF, JPEG, PNG... supported by PIL).
@@ -303,40 +303,11 @@ def readbdfv2(filename, bdfext = '.bdf', bhfext = '.bhf'):
     BDFv2 header and scattering data are stored separately in the header and 
     the data files. Given the file name both are loaded.
     """
-    # strip the bhf or bdf extension if there.
-    if filename.endswith(bdfext):
-        filename = filename[:-len(bdfext)]
-    elif filename.endswith(bhfext):
-        filename = filename[:-len(bhfext)]
-    datas = header.readbhfv2(filename + bhfext)
-    f = open(filename + bdfext, 'r')
-    s = f.read()
-    datasets = re.findall('#([A-Z]+)\[([0-9]+):([0-9]+)\]', s)
-    names = [d[0] for d in datasets]
-    xsize = [long(d[1]) for d in datasets]
-    ysize = [long(d[2]) for d in datasets]
-    dt = np.dtype(datas['type'])
-    for i in range(len(datasets)):
-        start = s.find('#%s' % names[i])
-        if i < len(datasets) - 1:
-            end = s.find('#%s' % (names[i + 1]))
-        else:
-            end = len(s)
-        s1 = s[start:end]
-        datasize = xsize[i] * ysize[i] * dt.itemsize
-        if datasize > len(s1):
-            # assume we are dealing with a BOOL matrix
-            datas[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i]:], dtype = np.uint8)
-        else:
-            datas[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i] * dt.itemsize:], dtype = dt)
-        #conversion: Matlab saves the array in Fortran-style ordering (columns first).
-        # Python however loads in C-style: rows first. We need to take care:
-        #   1) reshape from linear to (ysize,xsize) and not (xsize,ysize)
-        #   2) transpose (swaps columns and rows)
-        # After these operations, we only have to rotate this counter-clockwise by 90
-        # degrees because bdf2_write rotates by +270 degrees before saving.
-        datas[names[i]] = np.rot90(datas[names[i]].reshape((ysize[i], xsize[i]), order = 'F'), 1)
+    datas = header.readbhfv2(filename, True, bdfext, bhfext)
     return datas
+
+def readbdf(filename, bdfext = '.bdf', bhfext = '.bhf'):
+    return header.readbhf(filename, True, bdfext, bhfext)
 
 def writebdfv2(filename, bdf, bdfext = '.bdf', bhfext = '.bhf'):
     """Write a version 2 Bessy Data File

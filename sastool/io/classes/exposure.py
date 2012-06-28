@@ -22,6 +22,7 @@ from ... import misc
 from .. import twodim
 from ... import utils2d
 from ... import dataset
+from ...dataset import ArithmeticBase, ErrorValue
 
 import scipy.constants
 #Planck constant times speed of light in eV*Angstroem units
@@ -317,6 +318,15 @@ class SASExposure(object):
     @property
     def shape(self):
         return self.Intensity.shape
+
+    def __setitem__(self, key, value):
+        self.header[key] = value
+
+    def __getitem__(self, key):
+        return self.header[key]
+
+    def __delitem__(self, key):
+        del self.header[key]
 ### -------------- Loading routines (new_from_xyz) ------------------------
 
     @classmethod
@@ -344,8 +354,16 @@ class SASExposure(object):
     def read_from_image(self, filename, **kwargs):
         """Read a "bare" image file
         """
-        #TODO: implement this
-        raise NotImplementedError
+        kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
+        filename = misc.findfileindirs(filename, kwargs['dirs'])
+        if filename.upper().endswith('CBF'):
+            self.Intensity = twodim.readcbf(filename)
+        elif filename.upper().endswith('.TIF') or filename.upper().endswith('.TIFF'):
+            self.Intensity = twodim.readtif(filename)
+        if kwargs['estimate_errors']:
+            self.Error = np.sqrt(self.Intensity)
+        self.header = SASHeader({'__Origin__':'bare_image'})
+        return self
 
     def read_from_ESRF_ID02(self, filename, **kwargs):
         """Read an EDF file (ESRF beamline ID02 SAXS pattern)
@@ -468,6 +486,13 @@ class SASExposure(object):
         data_extns = ['.npy', '.mat']
         data_extn = [x for x in data_extns if filename.upper().endswith(x.upper())]
 
+        if os.path.isabs(filename):
+            if kwargs['dirs'] is None:
+                kwargs['dirs'] = []
+            elif isinstance(kwargs['dirs'], basestring):
+                kwargs['dirs'] = [kwargs['dirs']]
+            kwargs['dirs'] = [os.path.split(filename)[0]] + kwargs['dirs']
+
         if data_extn: # is not empty
             basename = os.path.splitext(filename)[0]
         else:
@@ -521,10 +546,31 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         return self
 
     def read_from_BDF(self, filename, **kwargs):
-        #TODO: implement BDFv1 and BDFv2
+        if 'bdfext' not in kwargs:
+            kwargs['bdfext'] = '.bdf'
+        if 'bhfext' not in kwargs:
+            kwargs['bhfext'] = '.bhf'
+        if 'read_corrected_if_present' not in kwargs:
+            kwargs['read_corrected_if_present'] = True
         kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
-        raise NotImplementedError
-
+        data = misc.flatten_hierarchical_dict(twodim.readbdf(misc.findfileindirs(filename, kwargs['dirs'])))
+        datanames = [k for k in data if isinstance(data[k], np.ndarray)]
+        if data['C.bdfVersion'] < 2:
+            Intname = 'DATA'
+            Errname = 'ERROR'
+        elif kwargs['read_corrected_if_present'] and 'CORRDATA' in datanames:
+            Intname = 'CORRDATA'
+            Errname = 'CORRERROR'
+        else:
+            Intname = 'RAWDATA'
+            Errname = 'RAWERROR'
+        self.Intensity = data[Intname]
+        self.Error = data[Errname]
+        for dn in datanames:
+            del data[dn]
+        self.header = SASHeader(data)
+        #TODO: load mask if needed
+        return self
 ### ------------------- Interface routines ------------------------------------
     def set_mask(self, mask):
         self.mask = SASMask(mask)
@@ -551,6 +597,39 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 pass
         raise AttributeError('No matrix in this instance of' + str(type(self)))
 
+### ------------------- simple arithmetics ------------------------------------
+
+    def _check_arithmetic_compatibility(self, other):
+        if isinstance(other, numbers.Number):
+            return ErrorValue(other)
+        elif isinstance(other, np.ndarray):
+            if other.shape == self.shape:
+                return ErrorValue(other)
+            else:
+                raise ValueError('Incompatible shape!')
+        elif isinstance(other, SASExposure):
+            if other.shape == self.shape:
+                return ErrorValue(other.Intensity, other.Error)
+            else:
+                raise ValueError('Incompatible shape!')
+        else:
+            raise NotImplementedError
+    def __iadd__(self, other):
+        try:
+            other = self._check_arithmetic_compatibility(other)
+        except NotImplementedError:
+            return NotImplemented
+        if self.Error is None:
+            self.Error = np.zeros_like(self.Intensity)
+        self.Intensity = self.Intensity + other.val
+        self.Error = np.sqrt(self.Error ** 2 + other.err ** 2)
+        return self
+    def __neg__(self):
+        pass  #TODO
+    def _recip(self):
+        pass  #TODO
+    def __imul__(self):
+        pass  #TODO    Also COPY constructors in DATASET-related classes, for ArithmeticBase...
 ### ------------------- Routines for radial integration -----------------------
 
     def get_qrange(self, N = None, spacing = 'linear'):
@@ -844,9 +923,14 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         mat = kwargs_default['zscale'](mat)
 
         if kwargs_default['drawmask']:
-            kwargs_default['drawmask'] = self.check_for_mask(False)
+            if not self.check_for_mask(False):
+                warnings.warn('Drawing of mask was requested, but mask is not present!')
+                kwargs_default['drawmask'] = False
         if kwargs_default['qrange_on_axis']:
-            kwargs_default['qrange_on_axis'] = not bool(self.check_for_q(False))
+            missing = self.check_for_q(False)
+            if missing:
+                warnings.warn('Q scaling on the axes was requested, but the following fields are missing: ' + repr(missing))
+                kwargs_default['qrange_on_axis'] = False
 
         if kwargs_default['qrange_on_axis']:
             self.check_for_q()
@@ -861,8 +945,11 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             bcx = 0
             bcy = 0
         else:
-            bcx = self.header['BeamPosX']
-            bcy = self.header['BeamPosY']
+            if 'BeamPosX' in self.header and 'BeamPosY' in self.header:
+                bcx = self.header['BeamPosX']
+                bcy = self.header['BeamPosY']
+            else:
+                bcx = None; bcy = None
             xmin = 0; xmax = mat.shape[1]; ymin = 0; ymax = mat.shape[0]
 
         if kwargs_default['axis'] is None:
@@ -882,11 +969,14 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 kwargs_for_imshow['cmap'] = _colormap_for_mask
                 kwargs_default['axis'].imshow(self.mask.mask, **kwargs_for_imshow) #IGNORE:W0142
         if kwargs_default['crosshair']:
-            ax = kwargs_default['axis'].axis()
-            kwargs_default['axis'].plot([xmin, xmax], [bcx] * 2, 'w-')
-            kwargs_default['axis'].plot([bcy] * 2, [ymin, ymax], 'w-')
-            kwargs_default['axis'].axis(ax)
-        kwargs_default['axis'].set_axis_bgcolor(kwargs_default['invalid_color'])
+            if bcx is not None and bcy is not None:
+                ax = kwargs_default['axis'].axis()
+                kwargs_default['axis'].plot([xmin, xmax], [bcx] * 2, 'w-')
+                kwargs_default['axis'].plot([bcy] * 2, [ymin, ymax], 'w-')
+                kwargs_default['axis'].axis(ax)
+            else:
+                warnings.warn('Cross-hair was requested but beam center was not found.')
+        #kwargs_default['axis'].set_axis_bgcolor(kwargs_default['invalid_color'])
         kwargs_default['axis'].figure.canvas.draw()
         if return_matrix:
             return ret, mat
