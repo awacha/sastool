@@ -411,8 +411,29 @@ def readbhfv2(filename, load_data = False, bdfext = '.bdf', bhfext = '.bhf'):
 
     #now open the data if needed
     if load_data:
-        f = open(dataname, 'r')
-        s = f.read()
+        f = open(dataname, 'rb')
+        try:
+            s = f.read()
+        except IOError as ioe:
+            #an ugly bug (M$ KB899149) in W!nd0w$ causes an error if loading too
+            # large a file from a network drive and opening it read-only.
+            if ioe.errno == 22:
+                f.close()
+                try:
+                    #one work-around is to open it read-write.
+                    f = open(dataname, 'r+b')
+                    s = f.read()
+                except IOError:
+                    #if this does not work, inform the user to either obtain
+                    # write permission for that file or copy it to a local drive
+                    f.close()
+                    raise IOError(22, """
+You were probably trying to open a read-only file from a network drive on
+Windows, weren\'t you? There is a bug in Windows causing this error
+(see http://support.microsoft.com/default.aspx?scid=kb;en-us;899149).
+To work around this, please either obtain write permission for that file
+(I won't write anything to it, I promise!!!) or copy it to a local drive.
+Sorry for the inconvenience.""", ioe.filename)
         datasets = re.findall('#\s*(?P<name>\w+)\[(?P<xsize>\d+):(?P<ysize>\d+)\]', s)
         names = [d[0] for d in datasets]
         xsize = [long(d[1]) for d in datasets]
@@ -530,7 +551,28 @@ def readbhfv1(filename, load_data = False, bdfext = '.bdf', bhfext = '.bhf'):
 
     if load_data:
         f = open(dataname, 'r')
-        s = f.read()
+        try:
+            s = f.read()
+        except IOError as ioe:
+            #an ugly bug (M$ KB899149) in W!nd0w$ causes an error if loading too
+            # large a file from a network drive and opening it read-only.
+            if ioe.errno == 22:
+                f.close()
+                try:
+                    #one work-around is to open it read-write.
+                    f = open(dataname, 'r+b')
+                    s = f.read()
+                except IOError:
+                    #if this does not work, inform the user to either obtain
+                    # write permission for that file or copy it to a local drive
+                    f.close()
+                    raise IOError(22, """
+You were probably trying to open a read-only file from a network drive on
+Windows, weren\'t you? There is a bug in Windows causing this error
+(see http://support.microsoft.com/default.aspx?scid=kb;en-us;899149).
+To work around this, please either obtain write permission for that file
+(I won't write anything to it, I promise!!!) or copy it to a local drive.
+Sorry for the inconvenience.""", ioe.filename)
         datasets = re.findall('#\s*(?P<name>\w+)\[(?P<xsize>\d+):(?P<ysize>\d+)\]', s)
         names = [d[0] for d in datasets]
         xsize = [long(d[1]) for d in datasets]

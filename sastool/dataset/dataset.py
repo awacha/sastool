@@ -14,7 +14,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.cbook import is_numlike
 import scipy.optimize
-        
+
 class AliasedVectorAttributes(AliasedArrayAttributes, ArithmeticBase):
     """A specialization of AliasedArrayAttributes with the constraint that the
     attributes are (one-dimensional) vectors. The other constraint is, that it
@@ -57,9 +57,9 @@ AliasedVectorAttributes or its subclasses')
     def _convert_numcompatible(self, c):
         """Convert c to a form usable by arithmetic operations"""
         #the compatible dataset to be returned, initialize it to zeros.
-        comp = {'x':np.zeros_like(self._x), 
-              'y':np.zeros_like(self._x), 
-              'dy':np.zeros_like(self._x), 
+        comp = {'x':np.zeros_like(self._x),
+              'y':np.zeros_like(self._x),
+              'dy':np.zeros_like(self._x),
               'dx':np.zeros_like(self._x)}
         # if c is a DataSet:
         if isinstance(c, AliasedVectorAttributes):
@@ -68,7 +68,7 @@ AliasedVectorAttributes or its subclasses')
             # if the size of them is compatible, check if the abscissae are
             # compatible.
             xtol = min(self._xtolerance, c._xtolerance) # use the strictest
-            if max(np.abs(self._x-c._x)) < xtol:
+            if max(np.abs(self._x - c._x)) < xtol:
                 try:
                     comp['x'] = c._x
                     comp['y'] = c._y
@@ -106,11 +106,11 @@ AliasedVectorAttributes or its subclasses')
         try:
             comp = self._convert_numcompatible(value)
         except DataSetError:
-            return NotImplemented
-        self._dx = 0.5*np.sqrt(self._dx**2+comp['dx']**2)
-        self._dy = np.sqrt(self._dy**2+comp['dy']**2)
-        self._x = 0.5*(self._x+comp['x'])
-        self._y = self._y+comp['y']
+            raise
+        self._dx = 0.5 * np.sqrt(self._dx ** 2 + comp['dx'] ** 2)
+        self._dy = np.sqrt(self._dy ** 2 + comp['dy'] ** 2)
+        self._x = 0.5 * (self._x + comp['x'])
+        self._y = self._y + comp['y']
         return self
     def __neg__(self):
         obj = self.copy()
@@ -122,19 +122,19 @@ AliasedVectorAttributes or its subclasses')
             comp = self._convert_numcompatible(value)
         except DataSetError:
             return NotImplemented
-        self._dx = 0.5*np.sqrt(self._dx**2+comp['dx']**2)
-        self._dy = np.sqrt(self._dy**2*comp['y']**2+
-                                  self._y**2*comp['dy']**2)
-        self._x = 0.5*(self._x+comp['x'])
-        self._y = self._y*comp['y']
+        self._dx = 0.5 * np.sqrt(self._dx ** 2 + comp['dx'] ** 2)
+        self._dy = np.sqrt(self._dy ** 2 * comp['y'] ** 2 +
+                                  self._y ** 2 * comp['dy'] ** 2)
+        self._x = 0.5 * (self._x + comp['x'])
+        self._y = self._y * comp['y']
         return self
     def _recip(self):
         """Calculate the reciprocal."""
         obj = self.copy()
-        obj._dy = np.absolute(self._dy/self._y**2)
+        obj._dy = np.absolute(self._dy / self._y ** 2)
         return obj
     def sanitize(self, accordingto = None, thresholdmin = 0,
-                 thresholdmax = np.inf, function = None, inplace = True, 
+                 thresholdmax = np.inf, function = None, inplace = True,
                  finiteness = True, inclusive = False):
         """Do an in-place sanitization on this DataSet, i.e. remove nonfinite
         and out-of-bound elements.
@@ -157,7 +157,7 @@ AliasedVectorAttributes or its subclasses')
         """
         if accordingto is None:
             accordingto = '_y'
-        if not (isinstance(accordingto, list) or 
+        if not (isinstance(accordingto, list) or
                 isinstance(accordingto, tuple)):
             accordingto = [accordingto]
         indices = np.ones(self._shape, dtype = np.bool)
@@ -172,7 +172,7 @@ AliasedVectorAttributes or its subclasses')
                     indices &= ((self.getfield(a) >= thresholdmin) &
                               (self.getfield(a) <= thresholdmax))
                 else:
-                    indices &= ((self.getfield(a)  >  thresholdmin) &
+                    indices &= ((self.getfield(a) > thresholdmin) &
                               (self.getfield(a) < thresholdmax))
         obj = self[indices]
         if inplace:
@@ -192,7 +192,7 @@ AliasedVectorAttributes or its subclasses')
             dataset where the abscissa is between xmin and xmax (limits
             included).
         """
-        return self.sanitize(accordingto = '_x', thresholdmin = xmin, 
+        return self.sanitize(accordingto = '_x', thresholdmin = xmin,
                              thresholdmax = xmax, inplace = inplace,
                              finiteness = True, inclusive = True)
     def __array__(self, keys = None):
@@ -204,9 +204,9 @@ AliasedVectorAttributes or its subclasses')
         else:
             keys1 = self.unalias_keys(keys)
             values = [self.getfield(k) for k in keys1]
-        a = np.array(zip(*values), dtype = zip(keys, [np.double]*len(keys)))
+        a = np.array(zip(*values), dtype = zip(keys, [np.double] * len(keys)))
         return a
-        
+
     def sort(self, order = '_x'):
         """Sort the current dataset according to 'order' (defaults to '_x').
         """
@@ -232,29 +232,29 @@ AliasedVectorAttributes or its subclasses')
             cols = ['_x', '_y', '_dy', '_dx']
             # other fields, which are not in cols, but we have them among the
             # fields.
-            colsother = [x for x in self.unalias_keys(self.fields()) 
+            colsother = [x for x in self.unalias_keys(self.fields())
                         if not x in self.unalias_keys(cols)]
             cols.extend(colsother)
             # alias them...
             cols = self.alias_keys(cols)
             # remove fields which we do not have
-            cols = [x for x in cols if self.unalias_keys(x) in 
+            cols = [x for x in cols if self.unalias_keys(x) in
                     self.unalias_keys(self.fields())]
             # do not save fields starting with an underscore and having no
             # normal aliases.
             cols = [c for c in cols if not c.startswith('_')]
         # check if filename is a stream.
-        if hasattr(filename,'write'):
-            f=filename
+        if hasattr(filename, 'write'):
+            f = filename
         else:
             # if not, open a file.
             f = open(filename, 'wt')
         # comment line of columns.
-        f.write('#%s\n'%'\t'.join(cols))
-        tmp=np.vstack([self.getfield(x) for x in cols]).T
-        np.savetxt(f,tmp,fmt=formatstring)
+        f.write('#%s\n' % '\t'.join(cols))
+        tmp = np.vstack([self.getfield(x) for x in cols]).T
+        np.savetxt(f, tmp, fmt = formatstring)
         # format string to use for each line
-        if not hasattr(filename,'write'):
+        if not hasattr(filename, 'write'):
             # if we opened the file, close it.
             f.close()
     @classmethod
@@ -270,7 +270,7 @@ AliasedVectorAttributes or its subclasses')
         Output:
             a new instance of this class.
         """
-        f = np.loadtxt(filename,*args,**kwargs) # this raises IOError if file cannot be loaded.
+        f = np.loadtxt(filename, *args, **kwargs) # this raises IOError if file cannot be loaded.
         N = f.shape[0]
         if N > 0:
             x = f[:, 0]
@@ -292,15 +292,15 @@ AliasedVectorAttributes or its subclasses')
     def interpolate(self, newx):
         """Interpolate this dataset to a new abscissa (newx). Returns the new
         instance (the original is left intact)."""
-        self1=self.copy()
+        self1 = self.copy()
         self1.sort()
         obj = self.copy()
         # set shape to None, to allow validation of different shaped fields.
         obj._shape = None
         for k in self1.fields():
-            obj.addfield(k, np.interp(newx,self1._x,self1.getfield(k)), False)
+            obj.addfield(k, np.interp(newx, self1._x, self1.getfield(k)), False)
         obj._shape = obj.getfield(k).shape
-        if hasattr(obj,'validate'):
+        if hasattr(obj, 'validate'):
             obj.validate()
         return obj
 
@@ -313,37 +313,36 @@ AliasedVectorAttributes or its subclasses')
             errorrequested: True if error should be returned (true Gaussian
                 error-propagation of the trapezoid formula)
         """
-        y = self._y*self._x**exponent
+        y = self._y * self._x ** exponent
         m = np.trapz(y, self._x)
         if errorrequested:
-            err = self._dy*self._x**exponent
+            err = self._dy * self._x ** exponent
             dm = errtrapz(self._x, err)
-            return (m, dm) 
+            return (m, dm)
         else:
             return m
-            
-    def extend(self,dataset,verbose=True):
+
+    def extend(self, dataset):
         """Merge two datasets. The original is left intact, the merged one is 
         returned.
         
         Note that points with the same abscissa aren't treated specially, i.e.
         that point will exist in the abscissa of the merged curve _twice_!
         """
-        print "Extending..."
-        obj=type(self)()
-        obj._shape=None
-        myfields=set(self.unalias_keys(self.fields()))
-        otherfields=set(dataset.unalias_keys(dataset.fields()))
-        common_fields=myfields.intersection(otherfields)
-        obj.addfield('_x',np.concatenate((self._x,dataset._x)))
-        for k in common_fields-set('_x'):
-            obj.addfield(k,np.concatenate((self.getfield(k),dataset.getfield(k))))
-        if hasattr(obj,'validate'):
+        obj = type(self)()
+        obj._shape = None
+        myfields = set(self.unalias_keys(self.fields()))
+        otherfields = set(dataset.unalias_keys(dataset.fields()))
+        common_fields = myfields.intersection(otherfields)
+        obj.addfield('_x', np.concatenate((self._x, dataset._x)))
+        for k in common_fields - set('_x'):
+            obj.addfield(k, np.concatenate((self.getfield(k), dataset.getfield(k))))
+        if hasattr(obj, 'validate'):
             obj.validate()
         return obj.sort()
 
-    def unite(self, dataset, xmin=None, xmax=None, xsep=None, Npoints=30,
-              scaleother=True, verbose=True):
+    def unite(self, dataset, xmin = None, xmax = None, xsep = None, Npoints = 30,
+              scaleother = True, verbose = True):
         """Merge 'dataset' with 'self' by scaling.
         
         Inputs:
@@ -369,54 +368,54 @@ AliasedVectorAttributes or its subclasses')
                 two datasets will be merged simply.
         """
         if xmin is None:   #auto-determine
-            xmin=max(self._x.min(),dataset._x.min())
+            xmin = max(self._x.min(), dataset._x.min())
         if xmax is None:   #auto-determine
-            xmax=min(self._x.max(),dataset._x.max())
-        if xmin>xmax:
+            xmax = min(self._x.max(), dataset._x.max())
+        if xmin > xmax:
             raise ValueError('Datasets do not overlap or xmin > xmax.')
-        commonx=np.linspace(xmin,xmax,Npoints)
-        selfint=self.interpolate(commonx)
-        datasetint=dataset.interpolate(commonx)
-        I1=ErrorValue(*(selfint.momentum(errorrequested=True)))
-        I2=ErrorValue(*(datasetint.momentum(errorrequested=True)))
-        obj=self.copy()
+        commonx = np.linspace(xmin, xmax, Npoints)
+        selfint = self.interpolate(commonx)
+        datasetint = dataset.interpolate(commonx)
+        I1 = ErrorValue(*(selfint.momentum(errorrequested = True)))
+        I2 = ErrorValue(*(datasetint.momentum(errorrequested = True)))
+        obj = self.copy()
         if verbose:
-            print "I1:",I1
-            print "I2:",I2
-            print "Uniting factor:", (I1/I2)
+            print "I1:", I1
+            print "I2:", I2
+            print "Uniting factor:", (I1 / I2)
         if scaleother:
-            dataset=dataset*(I1/I2)
+            dataset = dataset * (I1 / I2)
         else:
-            obj=obj*(I2/I1)
+            obj = obj * (I2 / I1)
         if xsep is not None:
-            smallx=obj[obj._x<=xsep]
-            bigx=dataset[dataset._x>xsep]
+            smallx = obj[obj._x <= xsep]
+            bigx = dataset[dataset._x > xsep]
             if verbose:
-                print "Small-x part: ",len(smallx)," data points."
-                print "High-x part: ",len(bigx)," data points."
-            uni=obj[obj._x<=xsep].extend(dataset[dataset._x>xsep])
+                print "Small-x part: ", len(smallx), " data points."
+                print "High-x part: ", len(bigx), " data points."
+            uni = obj[obj._x <= xsep].extend(dataset[dataset._x > xsep])
         else:
-            uni=obj.extend(dataset)
+            uni = obj.extend(dataset)
         if verbose:
-            print "United dataset: ",len(uni)," data points."
+            print "United dataset: ", len(uni), " data points."
         return uni
     @staticmethod
     def average(*datasets):
         """Average several datasets (weighted average, errors squared are the weights)
         """
-        if len(datasets)==1 and hasattr(datasets[0],'__getitem__'):
-            datasets=datasets[0]
-        res=datasets[0].copy()
-        res._y=np.zeros_like(res._y)
-        res._dy=np.zeros_like(res._y)
+        if len(datasets) == 1 and hasattr(datasets[0], '__getitem__'):
+            datasets = datasets[0]
+        res = datasets[0].copy()
+        res._y = np.zeros_like(res._y)
+        res._dy = np.zeros_like(res._y)
         for ds in datasets:
-            w=1/ds._dy**2
-            res._y+=ds._y*w
-            res._dy+=w
-        res._y/=res._dy
-        res._dy=np.sqrt(1.0/res._dy)
+            w = 1 / ds._dy ** 2
+            res._y += ds._y * w
+            res._dy += w
+        res._y /= res._dy
+        res._dy = np.sqrt(1.0 / res._dy)
         return res
-        
+
 
 
 class MatrixAttrMixin(AliasedArrayAttributes, ArithmeticBase):
@@ -458,27 +457,27 @@ MatrixAttrMixin or its subclasses')
         raise DataSetError('Incompatible type')
     def __iadd__(self, rhs):
         val, err = self._convert_numcompatible(rhs)
-        self._dA = np.sqrt(self._dA**2+err**2)
-        self._A = self._A+val
+        self._dA = np.sqrt(self._dA ** 2 + err ** 2)
+        self._A = self._A + val
         return self
     def __imul__(self, rhs):
         val, err = self._convert_numcompatible(rhs)
-        self._dA = np.sqrt(self._dA**2*val**2+self._A**2*err**2)
-        self._A = self._A*val
+        self._dA = np.sqrt(self._dA ** 2 * val ** 2 + self._A ** 2 * err ** 2)
+        self._A = self._A * val
         return self
     def _recip(self):
         obj = self.copy()
-        obj._A = 1./self._A
-        obj._dA = self._dA/(self._A*self._A)
+        obj._A = 1. / self._A
+        obj._dA = self._dA / (self._A * self._A)
         return obj
     def __neg__(self):
         obj = self.copy()
         obj._A = -self._A
         return obj
     def getXvec(self):
-        return (np.arange(self.shape()[1])-self._colpos)*self._colpixsize
+        return (np.arange(self.shape()[1]) - self._colpos) * self._colpixsize
     def getYvec(self):
-        return (np.arange(self.shape()[0])-self._rowpos)*self._rowpixsize
+        return (np.arange(self.shape()[0]) - self._rowpos) * self._rowpixsize
     def getXmat(self):
         return np.outer(np.ones(self.shape()[0]), self.getXvec)
     def getYmat(self):
@@ -486,9 +485,9 @@ MatrixAttrMixin or its subclasses')
     def getD(self):
         x = self.getXmat()
         y = self.getYmat()
-        return np.sqrt(x**2+y**2)
-        
-            
+        return np.sqrt(x ** 2 + y ** 2)
+
+
 class PlotAndTransform(object):
     """This is a mixin class supporting plotting and transforming vectors. It
     should be mixed in alongside AliasedVectorAttributes. At least, the final
@@ -543,18 +542,18 @@ PlotAndTransform or its subclasses')
             d = self._transform(**d)
         #create the new fields.
         for k in d.keys():
-            self.addfield('_plot%s'%k, d[k], False)
+            self.addfield('_plot%s' % k, d[k], False)
         self._plotuptodate = True
     def plot(self, *args, **kwargs):
         """Plot current dataset. Call plt.plot() with the appropriate arguments.
         """
         if not self._plotuptodate:
             self._do_transform()
-        if len(args)>0 and isinstance(args[0],matplotlib.axes.Axes):
-            ax=args[0]
-            args=args[1:]
+        if len(args) > 0 and isinstance(args[0], matplotlib.axes.Axes):
+            ax = args[0]
+            args = args[1:]
         else:
-            ax=plt.gca()
+            ax = plt.gca()
         ax.plot(self._plotx, self._ploty, *args, **kwargs)
         self._plotaxes = ax
     def errorbar(self, *args, **kwargs):
@@ -571,11 +570,11 @@ PlotAndTransform or its subclasses')
             dx = None
         else:
             dx = self._plotdx
-        if len(args)>0 and isinstance(args[0],matplotlib.axes.Axes):
-            ax=args[0]
-            args=args[1:]
+        if len(args) > 0 and isinstance(args[0], matplotlib.axes.Axes):
+            ax = args[0]
+            args = args[1:]
         else:
-            ax=plt.gca()
+            ax = plt.gca()
         ax.errorbar(self._plotx, self._ploty, dy, dx, *args, **kwargs)
         self._plotaxes = ax
     def loglog(self, *args, **kwargs):
@@ -584,11 +583,11 @@ PlotAndTransform or its subclasses')
         """
         if not self._plotuptodate:
             self._do_transform()
-        if len(args)>0 and isinstance(args[0],matplotlib.axes.Axes):
-            ax=args[0]
-            args=args[1:]
+        if len(args) > 0 and isinstance(args[0], matplotlib.axes.Axes):
+            ax = args[0]
+            args = args[1:]
         else:
-            ax=plt.gca()
+            ax = plt.gca()
         ax.loglog(self._plotx, self._ploty, *args, **kwargs)
         self._plotaxes = ax
     def semilogx(self, *args, **kwargs):
@@ -597,11 +596,11 @@ PlotAndTransform or its subclasses')
         """
         if not self._plotuptodate:
             self._do_transform()
-        if len(args)>0 and isinstance(args[0],matplotlib.axes.Axes):
-            ax=args[0]
-            args=args[1:]
+        if len(args) > 0 and isinstance(args[0], matplotlib.axes.Axes):
+            ax = args[0]
+            args = args[1:]
         else:
-            ax=plt.gca()
+            ax = plt.gca()
         ax.semilogx(self._plotx, self._ploty, *args, **kwargs)
         self._plotaxes = ax
     def semilogy(self, *args, **kwargs):
@@ -610,11 +609,11 @@ PlotAndTransform or its subclasses')
         """
         if not self._plotuptodate:
             self._do_transform()
-        if len(args)>0 and isinstance(args[0],matplotlib.axes.Axes):
-            ax=args[0]
-            args=args[1:]
+        if len(args) > 0 and isinstance(args[0], matplotlib.axes.Axes):
+            ax = args[0]
+            args = args[1:]
         else:
-            ax=plt.gca()
+            ax = plt.gca()
         ax.semilogy(self._plotx, self._ploty, *args, **kwargs)
         self._plotaxes = ax
     def _attr_validate(self, name, value):
@@ -651,11 +650,11 @@ PlotAndTransform or its subclasses')
             raise ValueError('No plot axes corresponds to this dataset (and no \
 overriding axes found)!')
         limits = axes.axis()
-        obj = self.sanitize(accordingto = '_plotx', thresholdmin = limits[0], 
-                          thresholdmax = limits[1], inplace = inplace, 
+        obj = self.sanitize(accordingto = '_plotx', thresholdmin = limits[0],
+                          thresholdmax = limits[1], inplace = inplace,
                           finiteness = True, inclusive = True)
-        obj = obj.sanitize(accordingto = '_ploty', thresholdmin = limits[2], 
-                         thresholdmax = limits[3], inplace = inplace, 
+        obj = obj.sanitize(accordingto = '_ploty', thresholdmin = limits[2],
+                         thresholdmax = limits[3], inplace = inplace,
                          finiteness = True, inclusive = True)
         return obj
     def apparent(self):
@@ -669,11 +668,11 @@ overriding axes found)!')
         return obj
     def validate(self):
         self._do_transform()
-    
+
 class DataSetError(StandardError):
     pass
 
-class DataSet(AliasedVectorAttributes,PlotAndTransform):
+class DataSet(AliasedVectorAttributes, PlotAndTransform):
     """ A general purpose dataset class. It has four special fields: x, y, 
         dx (sqrt(variance of x)), dy (sqrt(variance of y)), which can be
         accessed by object.fieldname and object['fieldname'] as well. Basic
@@ -725,30 +724,30 @@ class DataSet(AliasedVectorAttributes,PlotAndTransform):
         Example: DataSet([x [, y [, dy [, dx [, < keyword arguments > ]]]]])
         """
         PlotAndTransform.__init__(self)
-        AliasedVectorAttributes.__init__(self,**kwargs)
+        AliasedVectorAttributes.__init__(self, **kwargs)
         if len(args) > 4:
             raise TypeError('DataSet.__init__() takes at most 5 positional \
-arguments (%d given, including \'self\')'%(len(args)+1))
+arguments (%d given, including \'self\')' % (len(args) + 1))
         for a, n in zip(args, self._normalnames):
             if n in kwargs.keys():
                 raise TypeError('DataSet.__init__() got multiple values for \
-keyword argument \'%s\''%n)
+keyword argument \'%s\'' % n)
             kwargs[n] = a
         for n in kwargs.keys():
             if self.couldhavefield(n):
                 self.addfield(n, kwargs[n])
         if self.fields(): # don't call transform() if no fields are defined.
             self.set_transform()
-    def _attr_validate(self,name,value):
+    def _attr_validate(self, name, value):
         """Validator function to combine effects of the same function
         in both AliasedVectorAttributes and PlotAndTransform."""
-        value=AliasedVectorAttributes._attr_validate(self,name,value)
-        return PlotAndTransform._attr_validate(self,name,value)
+        value = AliasedVectorAttributes._attr_validate(self, name, value)
+        return PlotAndTransform._attr_validate(self, name, value)
     def copy_into(self, obj):
-        AliasedVectorAttributes.copy_into(self,obj)
+        AliasedVectorAttributes.copy_into(self, obj)
         PlotAndTransform.copy_into(self, obj)
         obj._MCErrorPropSteps = self._MCErrorPropSteps
-        
+
     def evalfunction(self, function, *args, **kwargs):
         """Evaluate a function in the abscissa of the dataset.
         
@@ -769,8 +768,8 @@ keyword argument \'%s\''%n)
         if (self._MCErrorPropSteps > 1) and (self._dx.sum() > 0):
             dy = np.zeros_like(x)
             for i in xrange(self._MCErrorPropSteps):
-                dy += (y-function(x+self._dx*np.random.randn(len(x))))**2
-            dy = np.sqrt(dy)/(self._MCErrorPropSteps-1)
+                dy += (y - function(x + self._dx * np.random.randn(len(x)))) ** 2
+            dy = np.sqrt(dy) / (self._MCErrorPropSteps - 1)
             dx = self._dx
         else:
             dy = None
@@ -778,7 +777,7 @@ keyword argument \'%s\''%n)
         ret = self.__class__(x, y, dy, dx)
         ret.set_transform(self._transform)
         return ret
-        
+
     def plotfitted(self, function, params, dparams = None, chi2 = None,
                    dof = None, funcinfo = None):
         """Plot a nice graph from the results of a fitting.
@@ -815,49 +814,49 @@ keyword argument \'%s\''%n)
         """
         if funcinfo is not None:
             #make a copy so we can update it without destroying the original.
-            funcinfo = funcinfo.copy() 
+            funcinfo = funcinfo.copy()
         else:
             funcinfo = {}
             funcinfo['funcname'] = 'Model function'
-            funcinfo['paramnames'] = ['parameter #%d'%(i+1) for i in
+            funcinfo['paramnames'] = ['parameter #%d' % (i + 1) for i in
                                     range(len(params))]
         cfitted = self.evalfunction(function, *params)
         if 'plotmethod' not in funcinfo.keys():
             funcinfo['plotmethod'] = 'plot'
         if dparams is None:
-            dparams = [np.nan]*len(params)
-        self.__getattribute__(funcinfo['plotmethod']).__call__(linestyle = ' ', 
-                                                               marker = '.', 
+            dparams = [np.nan] * len(params)
+        self.__getattribute__(funcinfo['plotmethod']).__call__(linestyle = ' ',
+                                                               marker = '.',
                                                                color = 'b')
-        cfitted.__getattribute__(funcinfo['plotmethod'])(linestyle = '-', 
-                                                         marker = '', 
+        cfitted.__getattribute__(funcinfo['plotmethod'])(linestyle = '-',
+                                                         marker = '',
                                                          color = 'r')
-        logtext = u"Function: %s\n"%funcinfo['funcname']
+        logtext = u"Function: %s\n" % funcinfo['funcname']
         if 'formula' in funcinfo.keys():
-            logtext = u"Formula: %s\n"%funcinfo['formula']
+            logtext = u"Formula: %s\n" % funcinfo['formula']
         logtext += u"Parameters:\n"
         for i in range(len(params)):
             if dparams is None:
-                logtext += u"    %s : %g \n" % (funcinfo['paramnames'][i], 
+                logtext += u"    %s : %g \n" % (funcinfo['paramnames'][i],
                                               params[i])
             else:
-                logtext += u"    %s : %g +/- %g\n" % (funcinfo['paramnames'][i], 
+                logtext += u"    %s : %g +/- %g\n" % (funcinfo['paramnames'][i],
                                                     params[i], dparams[i])
         if chi2 is not None:
-            logtext += u"Reduced chi^2: %g\n"%chi2
+            logtext += u"Reduced chi^2: %g\n" % chi2
         if dof is not None:
-            logtext += u"Degrees of freedom: %d\n"%dof
+            logtext += u"Degrees of freedom: %d\n" % dof
         if 'logtext' in funcinfo.keys():
             for i in funcinfo['logtext']:
-                logtext += u"%s" % i.__call__({'_x':self._x, '_y':self._y, 
-                                             '_dy':self._dy, '_dx':self._dx}, 
+                logtext += u"%s" % i.__call__({'_x':self._x, '_y':self._y,
+                                             '_dy':self._dy, '_dx':self._dx},
                                             params, dparams, chi2, dof)
-        plt.text(0.95, 0.95, logtext, bbox = {'facecolor':'white', 'alpha':0.6, 
-                                         'edgecolor':'black'}, 
-                 ha = 'right', va = 'top', multialignment = 'left', 
+        plt.text(0.95, 0.95, logtext, bbox = {'facecolor':'white', 'alpha':0.6,
+                                         'edgecolor':'black'},
+                 ha = 'right', va = 'top', multialignment = 'left',
                  transform = plt.gca().transAxes)
-                 
-    def fit(self, function, parinit = None, funcinfo = {}, doplot = True, 
+
+    def fit(self, function, parinit = None, funcinfo = {}, doplot = True,
             ext_output = False, **kwargs):
         """Perform a least-squares fit to the dataset.
         
@@ -906,9 +905,9 @@ keyword argument \'%s\''%n)
                         
         """
         funcinfo = funcinfo.copy() # thus we can update it freely
-        if hasattr(function,'funcinfo'):
+        if hasattr(function, 'funcinfo'):
             funcinfo.update(function.funcinfo())
-        if parinit is None and hasattr(function,'init_arguments'):
+        if parinit is None and hasattr(function, 'init_arguments'):
             parinit = function.init_arguments(self._x, self._y)
         #get the initial parameters
         if hasattr(parinit, '__call__'):
@@ -927,29 +926,29 @@ keyword argument \'%s\''%n)
             w = np.ones_like(x)
             weighting = 'uniform, only points where sigma = 0'
         else:
-            w = 1/self._dy
+            w = 1 / self._dy
             weighting = 'instrumental'
         def func(p, x, y, w, f = function):
-            return (f(x, *(p.tolist()))-y)*w
+            return (f(x, *(p.tolist())) - y) * w
         p, cov_x, infodict, mesg, ier = scipy.optimize.leastsq(func,
-                                                               params_initial, 
-                                                               args = (x, y, w), 
+                                                               params_initial,
+                                                               args = (x, y, w),
                                                                full_output = 1,
                                                                **kwargs)
 #        if ier > 4 or ier < 1:
 #            raise DataSetError(mesg)
-        chisquare = (infodict['fvec']**2).sum()
-        degrees_of_freedom = len(self)-len(p)
+        chisquare = (infodict['fvec'] ** 2).sum()
+        degrees_of_freedom = len(self) - len(p)
         if cov_x is None:
-            pstd = [np.nan]*len(p)
+            pstd = [np.nan] * len(p)
         else:
-            pstd = [ np.sqrt(cov_x[i, i]*chisquare/degrees_of_freedom) for i in
+            pstd = [ np.sqrt(cov_x[i, i] * chisquare / degrees_of_freedom) for i in
                             range(len(p))]
-        sserr = np.sum(((function(x, *(p.tolist()))-y)*w)**2)
-        sstot = np.sum((y-np.mean(y))**2*w**2)
-        r2 = 1-sserr/sstot
+        sserr = np.sum(((function(x, *(p.tolist())) - y) * w) ** 2)
+        sstot = np.sum((y - np.mean(y)) ** 2 * w ** 2)
+        r2 = 1 - sserr / sstot
         if funcinfo is not None and doplot:
-            self.plotfitted(function, p, pstd, chisquare, degrees_of_freedom, 
+            self.plotfitted(function, p, pstd, chisquare, degrees_of_freedom,
                             funcinfo)
         if ext_output:
             infodict['Chi2'] = chisquare
@@ -958,20 +957,20 @@ keyword argument \'%s\''%n)
             infodict['ier'] = ier
             infodict['weighting'] = weighting
             if cov_x is None:
-                infodict['cov_x']=np.zeros((len(p),len(p)))*np.nan
+                infodict['cov_x'] = np.zeros((len(p), len(p))) * np.nan
             else:
-                infodict['cov_x'] = np.array(cov_x)*float(chisquare)/float(degrees_of_freedom)
+                infodict['cov_x'] = np.array(cov_x) * float(chisquare) / float(degrees_of_freedom)
             infodict['R2'] = r2
             return p, pstd, infodict
-        else:            
+        else:
             return p, pstd
-            
-        
+
+
 class SASCurve(DataSet):
     def __init__(self, *args, **kwargs):
         if 'keytrans' not in kwargs.keys():
             kwargs['keytrans'] = {}
-        kwargs['keytrans'].update({'q':'_x', 'Intensity':'_y', 'Error':'_dy', 
+        kwargs['keytrans'].update({'q':'_x', 'Intensity':'_y', 'Error':'_dy',
                                    'dq':'_dx'})
         DataSet.__init__(self, *args, **kwargs)
 
@@ -986,8 +985,8 @@ def errtrapz(x, yerr):
     """
     x = np.array(x)
     yerr = np.array(yerr)
-    return 0.5*np.sqrt((x[1]-x[0])**2*yerr[0]**2+
-                        np.sum((x[2:]-x[:-2])**2*yerr[1:-1]**2)+
-                        (x[-1]-x[-2])**2*yerr[-1]**2)
+    return 0.5 * np.sqrt((x[1] - x[0]) ** 2 * yerr[0] ** 2 +
+                        np.sum((x[2:] - x[:-2]) ** 2 * yerr[1:-1] ** 2) +
+                        (x[-1] - x[-2]) ** 2 * yerr[-1] ** 2)
 
 

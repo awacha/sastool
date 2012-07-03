@@ -20,30 +20,67 @@ class ArithmeticBase(object):
         given functions (assuming commutative addition and multiplication)
     """
     def __add__(self, value):
-        obj = self.copy()
-        obj += value
+        if hasattr(self, 'copy'):
+            obj = self.copy()
+        else:
+            obj = type(self)(self)
+        obj=obj.__iadd__(value)
         return obj
     def __radd__(self, value):
-        return self + value
+        retval=self + value
+        if retval==NotImplemented:
+            raise NotImplementedError('addition is not implemented between %s and %s types'%(type(self),type(value)))
+        return retval
     def __isub__(self, value):
         return self.__iadd__(-value)
     def __sub__(self, value):
-        obj = self.copy()
-        obj -= value
+        if hasattr(self, 'copy'):
+            obj = self.copy()
+        else:
+            obj = type(self)(self)
+        obj=obj.__isub__(value)
         return obj
     def __rsub__(self, value):
-        return (-self)+value
+        retval=(-self) + value
+        if retval==NotImplemented:
+            raise NotImplementedError('subtraction is not implemented between %s and %s types'%(type(self),type(value)))
+        return retval
     def __mul__(self, value):
-        obj = self.copy()
-        obj *= value
+        #print "arithmetic.__mul__ starting: ",type(self),type(value)
+        if hasattr(self, 'copy'):
+            obj = self.copy()
+        else:
+            obj = type(self)(self)
+        #print "calling imul"
+        obj=obj.__imul__(value)
+        #print "imul returned"
         return obj
     def __rmul__(self, value):
-        return self*value
+        #print "arithmetic.__rmul__ starting: ",type(self),type(value)
+        retval=self * value
+        if retval==NotImplemented:
+            #print "arithmetic.__rmul__ not implemented"
+            raise NotImplementedError('multiplication is not implemented between %s and %s types'%(type(self),type(value)))
+        return retval
     def __idiv__(self, value):
-        return self.__imul__(1.0/value)
+        return self.__imul__(1.0 / value)
     def __div__(self, value):
-        obj = self.copy()
-        obj /= value
+        if hasattr(self, 'copy'):
+            obj = self.copy()
+        else:
+            obj = type(self)(self)
+        obj=obj.__idiv__(value)
         return obj
     def __rdiv__(self, value):
-        return self._recip()*value
+        retval=self._recip()*value
+        if retval==NotImplemented:
+            raise NotImplementedError('division is not implemented between %s and %s types'%(type(self),type(value)))
+        return retval
+    def __iadd__(self, value):
+        raise NotImplementedError
+    def __imul__(self, value):
+        raise NotImplementedError
+    def __neg__(self):
+        raise NotImplementedError
+    def _recip(self):
+        raise NotImplementedError

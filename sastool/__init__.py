@@ -49,7 +49,12 @@ try:
     # matplotlib
     import gtk
     gtk.init_check() # returns None if OK, raises an exception (RuntimeError) if not.
-    matplotlib.use('GTKAgg', warn = False)
+    try:
+        matplotlib.use('GTKAgg', warn = False)
+    except TypeError:
+        # older versions of IPython monkey-patch matplotlib.use(). That patch does not
+        # support the 'warn' keyword argument
+        matplotlib.use('GTKAgg')
 except ImportError:
     # if gtk could not be imported, we still can use matplotlib but with a different backend
     warnings.warn('could not import gtk, GUI utilities won\'t work.')

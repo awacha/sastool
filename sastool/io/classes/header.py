@@ -510,7 +510,7 @@ class SASHeader(dict):
             self['BeamPosY'] = self['C.ycen'] - 1
             for h in self['his']:
                 self.add_history('BDF: ' + h)
-        elif self['C.bdfVersion'] > 2:
+        elif self['C.bdfVersion'] >= 2:
             if 'CORR.CenterX' in self:
                 self['BeamPosX'] = self['CORR.CenterX'] - 1
             if 'CORR.CenterY' in self:
@@ -541,7 +541,7 @@ class SASHeader(dict):
         self._key_aliases['Transm'] = 'CT.trans'
         self._key_aliases['TransmError'] = 'CT.transerr'
         try:
-            self['FSN'] = re.search('\d+', self['C.Frame']).group()
+            self['FSN'] = int(re.search('\d+', self['C.Frame']).group())
         except AttributeError:
             self['FSN'] = self['C.Frame']
         return self

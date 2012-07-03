@@ -29,7 +29,7 @@ import scipy.constants
 HC = scipy.constants.codata.value('Planck constant in eV s') * \
     scipy.constants.codata.value('speed of light in vacuum') * 1e10
 
-class SASExposure(object):
+class SASExposure(ArithmeticBase):
     """A class for holding SAS exposure data, i.e. intensity, error, metadata
     and mask.
     
@@ -77,7 +77,9 @@ class SASExposure(object):
     @staticmethod
     def _set_default_kwargs_for_readers(kwargs):
         if 'dirs' not in kwargs:
-            kwargs['dirs'] = None
+            kwargs['dirs'] = []
+        if isinstance(kwargs['dirs'], basestring):
+            kwargs['dirs'] = [kwargs['dirs']]
         if 'load_mask' not in kwargs:
             kwargs['load_mask'] = True
         if 'estimate_errors' not in kwargs:
@@ -101,6 +103,7 @@ class SASExposure(object):
         called directly since `__new__()` is implemented. See there for the
         usual cases of object construction.
         """
+        ArithmeticBase.__init__(self)
         kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
 
         if not args: #no positional arguments:
@@ -154,6 +157,8 @@ class SASExposure(object):
                 self.set_mask(SASMask(kwargs['maskfile'], dirs = kwargs['dirs']))
         else:
             raise ValueError('Too many positional arguments!')
+        if self.mask is None:
+            self.set_mask(SASMask(np.ones_like(self.Intensity)))
     def __new__(cls, *args, **kwargs):
         """Load files or just create an empty instance or copy.
         
@@ -569,7 +574,13 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         for dn in datanames:
             del data[dn]
         self.header = SASHeader(data)
-        #TODO: load mask if needed
+        if kwargs['load_mask'] and 'CORR.Maskfile' in self.header:
+            path, filename = os.path.split(self.header['CORR.Maskfile'])
+            if path:
+                dirs = [path] + kwargs['dirs']
+            else:
+                dirs = kwargs['dirs']
+            self.set_mask(SASMask(filename, dirs = dirs))
         return self
 ### ------------------- Interface routines ------------------------------------
     def set_mask(self, mask):
@@ -625,11 +636,29 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         self.Error = np.sqrt(self.Error ** 2 + other.err ** 2)
         return self
     def __neg__(self):
-        pass  #TODO
+        obj = SASExposure(self)
+        obj.Intensity = -obj.Intensity
+        return obj
     def _recip(self):
-        pass  #TODO
-    def __imul__(self):
-        pass  #TODO    Also COPY constructors in DATASET-related classes, for ArithmeticBase...
+        obj = SASExposure(self)
+        if obj.Error is None:
+            obj.Error = np.zeros_like(self.Intensity)
+        obj.Error = obj.Error / (self.Intensity * self.Intensity)
+        obj.Intensity = 1.0 / self.Intensity
+        return obj
+    def __imul__(self, other):
+        try:
+            other = self._check_arithmetic_compatibility(other)
+        except NotImplementedError:
+            return NotImplemented
+        if self.Error is None:
+            self.Error = np.zeros_like(self.Intensity)
+        self.Intensity = self.Intensity * other.val
+        self.Error = np.sqrt((self.Intensity * other.err) ** 2 + (self.Error * other.val) ** 2)
+        return self
+
+    def __array__(self):
+        return self.Intensity
 ### ------------------- Routines for radial integration -----------------------
 
     def get_qrange(self, N = None, spacing = 'linear'):
@@ -686,7 +715,8 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         N = min([len(qr) for qr in qranges])
         return np.linspace(qmin, qmax, N)
 
-    def radial_average(self, qrange = None, pixel = False, matrix = 'Intensity', errormatrix = 'Error'):
+    def radial_average(self, qrange = None, pixel = False, matrix = 'Intensity',
+                       errormatrix = 'Error', q_average = True):
         """Do a radial averaging
         
         Inputs:
@@ -694,15 +724,17 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             pixel: do a pixel-integration (instead of q)
             matrix: matrix to use for averaging
             errormatrix: error matrix to use for averaging (or None)
-            
+            q_average: if the averaged abscissa values are to be returned
+                instead of the nominal ones
+                
         Outputs:
             the one-dimensional curve as an instance of SASCurve (if pixel is
                 False) or DataSet (if pixel is True)
         """
         self.check_for_mask()
-        mat = getattr(self, matrix)
+        mat = getattr(self, matrix).astype(np.double)
         if errormatrix is not None:
-            err = getattr(self, errormatrix)
+            err = getattr(self, errormatrix).astype(np.double)
         else:
             err = None
         if not pixel:
@@ -713,7 +745,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                self.header['BeamPosX'],
                                                self.header['BeamPosY'],
                                                1 - self.mask.mask, qrange,
-                                               returnavgq = True,
+                                               returnavgq = q_average,
                                                returnpixel = True)
             if err is not None:
                 q, I, E, A, p = res
@@ -727,7 +759,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                      self.header['BeamPosX'],
                                                      self.header['BeamPosY'],
                                                      1 - self.mask.mask, qrange,
-                                                     returnavgpix = True)
+                                                     returnavgpix = q_average)
             if err is not None:
                 p, I, E, A = res
             else:
@@ -738,7 +770,9 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         ds.header = SASHeader(self.header)
         return ds
 
-    def sector_average(self, phi0, dphi, qrange = None, pixel = False, matrix = 'Intensity', errormatrix = 'Error', symmetric_sector = False):
+    def sector_average(self, phi0, dphi, qrange = None, pixel = False,
+                       matrix = 'Intensity', errormatrix = 'Error',
+                       symmetric_sector = False, q_average = True):
         """Do a radial averaging restricted to one sector.
         
         Inputs:
@@ -750,6 +784,9 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             errormatrix: error matrix to use for averaging (or None)
             symmetric_sectors: if the sector should be symmetric (phi0+pi needs
                 also be taken into account)
+            q_average: if the averaged abscissa values are to be returned
+                instead of the nominal ones
+
         Outputs:
             the one-dimensional curve as an instance of SASCurve (if pixel is
                 False) or DataSet (if pixel is True)
@@ -758,9 +795,9 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             x is row direction, y is column. 0 degree is +x, 90 degree is +y.
         """
         self.check_for_mask()
-        mat = getattr(self, matrix)
+        mat = getattr(self, matrix).astype(np.double)
         if errormatrix is not None:
-            err = getattr(self, errormatrix)
+            err = getattr(self, errormatrix).astype(np.double)
         else:
             err = None
         if not pixel:
@@ -771,7 +808,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                self.header['BeamPosX'],
                                                self.header['BeamPosY'],
                                                1 - self.mask.mask, qrange,
-                                               returnavgq = True,
+                                               returnavgq = q_average,
                                                returnpixel = True,
                                                phi0 = phi0, dphi = dphi, symmetric_sector = symmetric_sector)
             if err is not None:
@@ -786,7 +823,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                      self.header['BeamPosX'],
                                                      self.header['BeamPosY'],
                                                      1 - self.mask.mask, qrange,
-                                                     returnavgpix = True, phi0 = phi0,
+                                                     returnavgpix = q_average, phi0 = phi0,
                                                      dphi = dphi, symmetric_sector = symmetric_sector)
             if err is not None:
                 p, I, E, A = res
@@ -815,9 +852,9 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             x is row direction, y is column. 0 degree is +x, 90 degree is +y.
         """
         self.check_for_mask()
-        mat = getattr(self, matrix)
+        mat = getattr(self, matrix).astype(np.double)
         if errormatrix is not None:
-            err = getattr(self, errormatrix)
+            err = getattr(self, errormatrix).astype(np.double)
         else:
             err = None
         if not pixel:
@@ -976,7 +1013,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 kwargs_default['axis'].axis(ax)
             else:
                 warnings.warn('Cross-hair was requested but beam center was not found.')
-        #kwargs_default['axis'].set_axis_bgcolor(kwargs_default['invalid_color'])
+        kwargs_default['axis'].set_axis_bgcolor(kwargs_default['invalid_color'])
         kwargs_default['axis'].figure.canvas.draw()
         if return_matrix:
             return ret, mat

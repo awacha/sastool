@@ -36,7 +36,7 @@ class ErrorValue(ArithmeticBase):
                 self.val = val.val
                 self.err = val.err
         else:
-            raise ValueError('ErrorValue class can hold only Python numbers or numpy ndarrays!')
+            raise ValueError('ErrorValue class can hold only Python numbers or numpy ndarrays, got %s!'%type(val))
     def copy(self):
         """Make a deep copy of this instance"""
         return ErrorValue(self.val, self.err)
@@ -46,12 +46,20 @@ class ErrorValue(ArithmeticBase):
         """Calculate the reciprocal of this instance"""
         return ErrorValue(1.0 / self.val, self.err / (self.val * self.val))
     def __iadd__(self, value):
-        value = ErrorValue(value)
+        try:
+            value = ErrorValue(value)
+        except ValueError:
+            return NotImplemented
         self.val = self.val + value.val
         self.err = np.sqrt(self.err ** 2 + value.err ** 2)
         return self
     def __imul__(self, value):
-        value = ErrorValue(value)
+        #print "Errorvalue.__imul__"
+        try:
+            value = ErrorValue(value)
+        except ValueError:
+            #print "Errorvalue.__imul__ not implemented."
+            return NotImplemented
         self.err = np.sqrt(self.err * self.err * value.val * value.val +
                              value.err * value.err * self.val * self.val)
         self.val = self.val * value.val

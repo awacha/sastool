@@ -2,9 +2,9 @@ from _integrate import radint, azimint, bin2D, autoqscale, calculateDmatrix, \
 polartransform, twodimfromonedim, radint_fullq, radint_nsector
 import numpy as np
 
-def radintpix(data, dataerr, bcx, bcy, mask=None, pix=None, returnavgpix=False, 
-              phi0=0, dphi=0, returnmask=False, symmetric_sector=False,
-              doslice=False):
+def radintpix(data, dataerr, bcx, bcy, mask = None, pix = None, returnavgpix = False,
+              phi0 = 0, dphi = 0, returnmask = False, symmetric_sector = False,
+              doslice = False):
     """Radial integration (averaging) on the detector plane
     
     Inputs:
@@ -30,12 +30,19 @@ def radintpix(data, dataerr, bcx, bcy, mask=None, pix=None, returnavgpix=False,
     
     Relies heavily (completely) on radint().
     """
-    return radint(data, dataerr, -1, -1, -1, 1.0*bcx, 1.0*bcy, mask, pix, returnavgpix,
+    if isinstance(data, np.ndarray):
+        data = data.astype(np.double)
+    if isinstance(dataerr, np.ndarray):
+        dataerr = dataerr.astype(np.double)
+    if isinstance(mask, np.ndarray):
+        mask = mask.astype(np.uint8)
+    return radint(data, dataerr, -1, -1, -1,
+                  1.0 * bcx, 1.0 * bcy, mask, pix, returnavgpix,
                   phi0, dphi, returnmask, symmetric_sector, doslice, False)
 
 
-def azimintpix(data, dataerr, bcx, bcy, mask=None, Ntheta=100, pixmin=0,
-               pixmax=np.inf, returnmask=False):
+def azimintpix(data, dataerr, bcx, bcy, mask = None, Ntheta = 100, pixmin = 0,
+               pixmax = np.inf, returnmask = False):
     """Azimuthal integration (averaging) on the detector plane
     
     Inputs:
@@ -54,6 +61,13 @@ def azimintpix(data, dataerr, bcx, bcy, mask=None, Ntheta=100, pixmin=0,
     
     Relies heavily (completely) on azimint().
     """
-    return azimint(data, dataerr, -1, -1, -1, bcx, bcy, mask, Ntheta, pixmin,
+    if isinstance(data, np.ndarray):
+        data = data.astype(np.double)
+    if isinstance(dataerr, np.ndarray):
+        dataerr = dataerr.astype(np.double)
+    if isinstance(mask, np.ndarray):
+        mask = mask.astype(np.uint8)
+    return azimint(data, dataerr, -1, -1,
+                   - 1, bcx, bcy, mask, Ntheta, pixmin,
                    pixmax, returnmask)
 
