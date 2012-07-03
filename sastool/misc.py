@@ -9,7 +9,7 @@ import matplotlib
 import random
 import collections
 import re
-
+import stat
 
 import fitting.easylsq
 
@@ -292,12 +292,12 @@ def set_search_path(pathlist):
     global sastool_search_path
     sastool_search_path = pathlist
 
-def find_subdirs(startdir = '.', recursion_depth = np.inf):
+def find_subdirs(startdir = '.', recursion_depth = None):
     """Find all subdirectory of a directory.
     
     Inputs:
         startdir: directory to start with. Defaults to the current folder.
-        recursion_depth: number of levels to traverse. Default is infinite.
+        recursion_depth: number of levels to traverse. None is infinite.
         
     Output: a list of absolute names of subfolders.
     
@@ -307,6 +307,38 @@ def find_subdirs(startdir = '.', recursion_depth = np.inf):
         >>> find_subdirs('dir',1)  # returns all direct (first-level) subdirs
                                    # of 'dir'.
     """
-    folder_slashes = os.path.abspath(os.path.expanduser(startdir)).count(os.sep)
-    return [x[0] for x in os.walk(startdir)
-        if os.path.abspath(x[0]).count(os.sep) - folder_slashes <= recursion_depth]
+    direct_subdirs = [os.path.join(startdir, x) for x in os.listdir(startdir) if stat.S_ISDIR(os.stat(os.path.join(startdir, x)).st_mode)]
+    if recursion_depth is None:
+        next_recursion_depth = None
+    else:
+        next_recursion_depth = recursion_depth - 1
+    if recursion_depth <= 1:
+        return [startdir] + direct_subdirs
+    else:
+        subdirs = []
+        for d in direct_subdirs:
+            subdirs.extend(find_subdirs(d, next_recursion_depth))
+        return [startdir] + subdirs
+
+#    folder_slashes = os.path.abspath(os.path.expanduser(startdir)).count(os.sep)
+#    return [x[0] for x in os.walk(startdir)
+#        if os.path.abspath(x[0]).count(os.sep) - folder_slashes <= recursion_depth]
+
+#def find_subdirs_old(startdir = '.', recursion_depth = np.inf):
+#    """Find all subdirectory of a directory.
+#    
+#    Inputs:
+#        startdir: directory to start with. Defaults to the current folder.
+#        recursion_depth: number of levels to traverse. Default is infinite.
+#        
+#    Output: a list of absolute names of subfolders.
+#    
+#    Examples:
+#        >>> find_subdirs('dir',0)  # returns just ['dir']
+#        
+#        >>> find_subdirs('dir',1)  # returns all direct (first-level) subdirs
+#                                   # of 'dir'.
+#    """
+#    folder_slashes = os.path.abspath(os.path.expanduser(startdir)).count(os.sep)
+#    return [x[0] for x in os.walk(startdir)
+#        if os.path.abspath(x[0]).count(os.sep) - folder_slashes <= recursion_depth]
