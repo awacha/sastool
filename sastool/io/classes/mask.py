@@ -186,10 +186,9 @@ and maskid argument was omitted.')
         return self
     def rebin(self, xbin, ybin, enlarge = False):
         """Re-bin the mask."""
-        obj = type(self)()
-        obj.mask = twodim.rebinmask(self.mask.astype(np.uint8), int(xbin), int(ybin), enlarge)
-        obj.maskid = self.maskid + 'bin%dx%d_%s' % (xbin, ybin, ['shrink', 'enlarge'][enlarge])
-        return obj
+        mask = twodim.rebinmask(self.mask.astype(np.uint8), int(xbin), int(ybin), enlarge)
+        maskid = self.maskid + 'bin%dx%d_%s' % (xbin, ybin, ['shrink', 'enlarge'][enlarge])
+        return type(self)(mask, maskid = maskid)
     def invert(self):
         """Inverts the whole mask in-place"""
         self.mask = 1 - self.mask

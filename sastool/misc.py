@@ -307,6 +307,7 @@ def find_subdirs(startdir = '.', recursion_depth = None):
         >>> find_subdirs('dir',1)  # returns all direct (first-level) subdirs
                                    # of 'dir'.
     """
+    startdir = os.path.expanduser(startdir)
     direct_subdirs = [os.path.join(startdir, x) for x in os.listdir(startdir) if stat.S_ISDIR(os.stat(os.path.join(startdir, x)).st_mode)]
     if recursion_depth is None:
         next_recursion_depth = None
