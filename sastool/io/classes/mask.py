@@ -92,9 +92,6 @@ class SASMask(object):
     def _getmask(self):
         return self._mask
     mask = property(_getmask, _setmask, doc = 'Mask matrix')
-    def _getshape(self):
-        return self._mask.shape
-    shape = property(_getshape, doc = 'Shortcut to the shape of the mask matrix')
     def read_from_edf(self, filename, **kwargs):
         """Read a mask from an EDF file."""
         kwargs = self._set_default_kwargs(kwargs)
@@ -312,3 +309,23 @@ and maskid argument was omitted.')
         """Plot the mask matrix with matplotlib.pyplot.spy()
         """
         plt.spy(self.mask, *args, **kwargs)
+    def __array__(self):
+        return self.mask.astype(np.uint8)
+    @property
+    def shape(self):
+        return self.mask.shape
+    def edit_gaps(self, module_rows = 195, module_columns = 487, gap_rows = 17, gap_columns = 7, first_row = 0, first_column = 0, whattodo = 'mask'):
+        col, row = np.meshgrid(np.arange(self.mask.shape[1]),
+                            np.arange(self.mask.shape[0]))
+        idx = ((col - first_column) % (module_columns + gap_columns) >= module_columns) | \
+            ((row - first_row) % (module_rows + gap_rows) >= module_rows)
+        if whattodo.lower() == 'mask':
+            self.mask[idx] = 0
+        elif whattodo.lower() == 'unmask':
+            self.mask[idx] = 1
+        elif whattodo.lower() == 'invert':
+            self.mask[idx] = 1 - self.mask[idx]
+        else:
+            raise ValueError('Invalid name for argument \'whattodo\': ' + whattodo)
+        return self
+
