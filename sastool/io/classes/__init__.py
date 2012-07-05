@@ -16,4 +16,4 @@ import mask
 from exposure import SASExposure, SASExposureException
 from mask import SASMask, SASMaskException
 from header import SASHeader
-
+from curve import SASCurve

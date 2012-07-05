@@ -31,4 +31,4 @@ import asa
 import onedim
 import statistics
 
-from classes import SASHeader, SASExposure, SASMask
+from classes import SASHeader, SASExposure, SASMask, SASCurve
