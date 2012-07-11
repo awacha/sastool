@@ -7,6 +7,7 @@ Created on Thu Aug 25 11:18:05 2011
 from arithmetic import ArithmeticBase
 import numpy as np
 import numbers
+import math
 
 class ErrorValue(ArithmeticBase):
     """Class to hold a value and its absolute error. Basic arithmetic
@@ -36,7 +37,7 @@ class ErrorValue(ArithmeticBase):
                 self.val = val.val
                 self.err = val.err
         else:
-            raise ValueError('ErrorValue class can hold only Python numbers or numpy ndarrays, got %s!'%type(val))
+            raise ValueError('ErrorValue class can hold only Python numbers or numpy ndarrays, got %s!' % type(val))
     def copy(self):
         """Make a deep copy of this instance"""
         return ErrorValue(self.val, self.err)
@@ -65,8 +66,18 @@ class ErrorValue(ArithmeticBase):
         self.val = self.val * value.val
         return self
     def __str__(self):
+        if isinstance(self.val,numbers.Real):
+            try:
+                Ndigits=-int(math.floor(math.log10(self.err)))
+            except OverflowError:
+                return str(self.val) + ' +/- ' + str(self.err)
+            else:
+                return str(round(self.val,Ndigits)) + ' +/- ' + str(round(self.err,Ndigits))
         return str(self.val) + ' +/- ' + str(self.err)
-    def __unicode__(self):
-        return unicode(self.val) + ' +/- ' + unicode(self.err)
     def __repr__(self):
         return 'ErrorValue(' + repr(self.val) + ' +/- ' + repr(self.err) + ')'
+    def __float__(self):
+        return float(self.val)
+    def __trunc__(self):
+        return long(self.val)
+

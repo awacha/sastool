@@ -8,25 +8,52 @@ import numpy as np
 import collections
 import numbers
 import matplotlib.pyplot as plt
+import gzip
+import itertools
+import operator
+import functools
+import warnings
 
-from .. import onedim
 from ...dataset import ArithmeticBase, ErrorValue
+from ...fitting.easylsq import nlsq_fit
+
+def errtrapz(x, yerr):
+    """Error of the trapezoid formula
+    Inputs:
+        x: the abscissa
+        yerr: the error of the dependent variable
+        
+    Outputs:
+        the error of the integral
+    """
+    x = np.array(x)
+    yerr = np.array(yerr)
+    return 0.5 * np.sqrt((x[1] - x[0]) ** 2 * yerr[0] ** 2 +
+                        np.sum((x[2:] - x[:-2]) ** 2 * yerr[1:-1] ** 2) +
+                        (x[-1] - x[-2]) ** 2 * yerr[-1] ** 2)
+
 
 class ControlledVectorAttribute(object):
     def __init__(self, value = None, name = None, obj = None):
-        self.name = name
-        self.value = obj.check_compatibility(value, self.name)
+        if isinstance(value, type(self)):
+            self.value = value.value
+            self.name = value.name
+        else:
+            self.name = name
+            if not isinstance(value, np.ndarray):
+                raise TypeError("Cannot instantiate a ControlledVectorAttribute with a type %s" % type(value))
+            self.value = obj.check_compatibility(value, self.name)
     def __get__(self, obj, type = None):
         return self.value
     def __set__(self, obj, value):
         self.value = obj.check_compatibility(value, self.name)
     def __delete__(self, obj):
-        print "CVA.__delete__, name:", self.name
         if hasattr(obj, '_controlled_attributes'):
             obj._controlled_attributes.remove(self.name)
 
-class SASCurve(ArithmeticBase):
+class GeneralCurve(ArithmeticBase):
     _xtol = 1e-3
+    _default_special_names = [('x', 'X'), ('y', 'Y'), ('dy', 'DY'), ('dx', 'DX')]
     def __init__(self, *args, **kwargs):
         kwargs = self._initialize_kwargs_for_readers(kwargs)
         self._controlled_attributes = []
@@ -38,7 +65,7 @@ class SASCurve(ArithmeticBase):
             self.y = None
             self.dy = None
             self.dx = None
-        elif isinstance(args[0], SASCurve):
+        elif isinstance(args[0], type(self)):
             #copy constructor
             self._special_names = args[0]._special_names
             for name in args[0]._controlled_attributes:
@@ -49,9 +76,19 @@ class SASCurve(ArithmeticBase):
         elif isinstance(args[0], basestring):
             kwargs_for_loadtxt = kwargs.copy()
             del kwargs_for_loadtxt['special_names']
+            columnnames = itertools.chain(self._special_names.values(),
+                                        itertools.imap(lambda x:'column%d' % x,
+                                                       itertools.count(len(self._special_names))
+                                                       )
+                                        )
+            with open(args[0], 'rt') as f:
+                firstline = f.readline()
+                if firstline.startswith('#'):
+                    columnnames = firstline[1:].strip().split()
+
             m = np.loadtxt(args[0], **kwargs_for_loadtxt)
-            for i in range(m.shape[1]):
-                self.add_dataset(self._special_names.values()[i], m[:, i])
+            for i, cn in itertools.izip(range(m.shape[1]), columnnames):
+                self.add_dataset(cn, m[:, i])
         else:
             for a, name in zip(args, self._special_names.values()):
                 self.add_dataset(name, a)
@@ -80,10 +117,9 @@ class SASCurve(ArithmeticBase):
         if isinstance(obj, ControlledVectorAttribute):
             obj.__delete__(self)
         object.__delattr__(self, name)
-    @staticmethod
-    def _initialize_kwargs_for_readers(kwargs):
+    def _initialize_kwargs_for_readers(self, kwargs):
         if 'special_names' not in kwargs:
-            kwargs['special_names'] = collections.OrderedDict([('x', 'q'), ('y', 'Intensity'), ('dy', 'Error'), ('dx', 'qError')])
+            kwargs['special_names'] = collections.OrderedDict(self._default_special_names)
         return kwargs
     @property
     def xname(self):
@@ -159,8 +195,11 @@ class SASCurve(ArithmeticBase):
         else:
             raise ValueError('Incompatible length!')
     def add_dataset(self, name, value):
-        object.__setattr__(self, name, ControlledVectorAttribute(value, name, self))
+        if value is None:
+            return self.remove_dataset(name)
+        retval = object.__setattr__(self, name, ControlledVectorAttribute(value, name, self))
         self._controlled_attributes.append(name)
+        return retval
     def remove_dataset(self, name):
         if hasattr(self, name):
             self.__delattr__(name)
@@ -174,25 +213,27 @@ class SASCurve(ArithmeticBase):
                 pass
         raise ValueError('This SASClass has no length (no dataset yet)')
     def check_arithmetic_compatibility(self, other):
-        if isinstance(other, numbers.Number):
+        if isinstance(other, ErrorValue):
+            return other
+        elif isinstance(other, numbers.Number):
             return ErrorValue(other)
         elif isinstance(other, np.ndarray):
             if len(other) == len(self):
                 return ErrorValue(other.flatten())
             else:
                 raise ValueError('Incompatible shape!')
-        elif isinstance(other, SASCurve):
+        elif isinstance(other, type(self)):
             if not len(other) == len(self):
                 raise ValueError('Incompatible shape!')
-            if hasattr(other, 'dx') and hasattr(self, 'dx') and (self.dx ** 2 + other.dy ** 2).sum() > 0:
-                if (((self.dx ** 2 + other.dx ** 2) - np.absolute(self.x - other.x)) > 0).all():
+            if hasattr(other, 'dx') and hasattr(self, 'dx') and ((self.dx ** 2 + other.dx ** 2).sum() > 0):
+                if (((self.dx ** 2 + other.dx ** 2) ** 0.5 - np.absolute(self.x - other.x)) <= 0).all():
                     return other
                 else:
                     raise ValueError('Abscissae are not the same within error!')
             elif np.absolute(other.x - self.x).max() < max(self._xtol, other._xtol):
                 return other
             else:
-                raise ValueError('Incompatible abscissa!')
+                raise ValueError('Incompatible abscissae!')
         else:
             raise NotImplementedError
     def __iadd__(self, other):
@@ -205,7 +246,7 @@ class SASCurve(ArithmeticBase):
             if not hasattr(self, 'dy'):
                 self.dy = np.zeros_like(self.y)
             self.dy = np.sqrt(self.dy ** 2 + other.err ** 2)
-        elif isinstance(other, SASCurve):
+        elif isinstance(other, type(self)):
             self.x = 0.5 * (self.x + other.x)
             self.y = self.y + other.y
             if not hasattr(self, 'dx') and hasattr(other, 'dx'):
@@ -230,7 +271,7 @@ class SASCurve(ArithmeticBase):
                 self.dy = np.zeros_like(self.y)
             self.dy = np.sqrt(self.dy ** 2 * other.val ** 2 + other.err ** 2 * self.y ** 2)
             self.y = self.y * other.val
-        elif isinstance(other, SASCurve):
+        elif isinstance(other, type(self)):
             if not hasattr(self, 'dx') and hasattr(other, 'dx'):
                 self.dx = other.dx
             elif hasattr(self, 'dx') and hasattr(other, 'dx'):
@@ -293,13 +334,165 @@ class SASCurve(ArithmeticBase):
     def trimzoomed(self):
         axis = plt.axis()
         return self.trim(*axis)
-    def sanitize(self):
-        raise NotImplementedError
-    def save(self):
-        raise NotImplementedError
-    def interpolate(self):
-        raise NotImplementedError
-    def merge(self):
-        raise NotImplementedError
-    def unite(self):
-        raise NotImplementedError
+    def sanitize(self, minval = -np.inf, maxval = np.inf, fieldname = 'y', discard_nonfinite = True):
+        self_as_array = np.array(self)
+        indices = (getattr(self, fieldname) >= minval) & \
+            (getattr(self, fieldname) <= maxval)
+        if discard_nonfinite:
+            indices &= reduce(operator.and_, [np.isfinite(self_as_array[x]) \
+                                    for x in self_as_array.dtype.names])
+        self_as_array = self_as_array[indices]
+        return type(self)(dict([(k, self_as_array[k]) for k in self_as_array.dtype.names]))
+    def generate_errorbars(self):
+        if not hasattr(self, 'dx'):
+            self.dx = np.zeros_like(self.x)
+        if not hasattr(self, 'dy'):
+            self.dy = np.zeros_like(self.x)
+    def save(self, filename, *args, **kwargs):
+        self.generate_errorbars()
+        self_as_array = np.array(self)
+        headerline = '# ' + '\t'.join(*[self_as_array.dtype.names]) + '\n'
+        if hasattr(filename, 'write'):
+            filename.write(headerline)
+            fileopened = filename
+            filetobeclosed = False
+        elif isinstance(filename, basestring) and filename.upper().endswith('.GZ'):
+            fileopened = gzip.GzipFile(filename, 'wb')
+            fileopened.write(headerline)
+            filetobeclosed = True
+        elif isinstance(filename, basestring):
+            fileopened = open(filename, 'wb')
+            fileopened.write(headerline)
+            filetobeclosed = True
+        else:
+            fileopened = filename
+            filetobeclosed = False
+        np.savetxt(fileopened, self_as_array, *args, **kwargs)
+        if filetobeclosed:
+            fileopened.close()
+    def interpolate(self, newx, **kwargs):
+        d = {}
+        for k in self.get_controlled_attributes():
+            d[k] = np.interp(newx, self.x, getattr(self, k), **kwargs)
+        return type(self)(d)
+    @classmethod
+    def merge(cls, first, last, xsep = None):
+        if not (isinstance(first, cls) and isinstance(last, cls)):
+            raise ValueError('Cannot merge types %s and %s together, only %s is supported.' % (type(first), type(last), cls))
+        if xsep is not None:
+            first = first.trim(xmax = xsep)
+            last = last.trim(xmin = xsep)
+        d = dict()
+        for a in set(first.get_controlled_attributes()).intersection(set(last.get_controlled_attributes())):
+            d[a] = np.concatenate((getattr(first, a), getattr(last, a)))
+        return cls(d)
+    def unite(self, other, xmin = None, xmax = None, xsep = None,
+              Npoints = None, scaleother = True, verbose = False, return_factor=False):
+        if not isinstance(other, type(self)):
+            raise ValueError('Argument `other` should be an instance of class %s' % type(self))
+        if xmin is None:
+            xmin = max(self.x.min(), other.x.min())
+        if xmax is None:
+            xmax = min(self.x.max(), other.x.max())
+        data1 = self.trim(xmin, xmax)
+        data2 = other.trim(xmin, xmax)
+        if Npoints is None:
+            Npoints = min(len(data1), len(data2))
+        commonx=np.linspace(max(data1.x.min(),data2.x.min()),min(data2.x.max(),data1.x.max()),Npoints)
+        I1 = data1.interpolate(commonx).momentum(1, True)
+        I2 = data2.interpolate(commonx).momentum(1, True)
+        if scaleother:
+            factor=I1/I2
+            retval=type(self).merge(self, factor * other, xsep)
+        else:
+            factor=I2/I1
+            retval=type(self).merge(factor * self, other, xsep)
+        if verbose:
+            print "Uniting two datasets."
+            print "   xmin   : ", xmin
+            print "   xmax   : ", xmax
+            print "   xsep   : ", xsep
+            print "   I_1    : ", I1
+            print "   I_2    : ", I2
+            print "   Npoints: ", Npoints
+            print "   Factor : ", I1 / I2
+        if return_factor:
+            return retval, factor
+        else:
+            return retval
+    def momentum(self, exponent = 1, errorrequested = True):
+        """Calculate momenta (integral of y times x^exponent)
+        The integration is done by the trapezoid formula (np.trapz).
+        
+        Inputs:
+            exponent: the exponent of q in the integration.
+            errorrequested: True if error should be returned (true Gaussian
+                error-propagation of the trapezoid formula)
+        """
+        y = self.x * self.y ** exponent
+        m = np.trapz(y, self.x)
+        if errorrequested:
+            err = self.dy * self.x ** exponent
+            dm = errtrapz(self.x, err)
+            return ErrorValue(m, dm)
+        else:
+            return m
+    def get_controlled_attributes(self):
+        return ([x for x in self._special_names.values() if hasattr(self, x)] +
+            [x for x in self._controlled_attributes \
+             if x not in self._special_names.keys() and \
+             x not in self._special_names.values()])
+    def __array__(self, attrs = None):
+        """Make a structured numpy array from the current dataset.
+        """
+        if attrs == None:
+            attrs = self.get_controlled_attributes()
+        values = [getattr(self, k) for k in attrs]
+        return np.array(zip(*values), dtype = zip(attrs, [v.dtype for v in values]))
+    def sorted(self, order = 'x'):
+        """Sort the current dataset according to 'order' (defaults to '_x').
+        """
+        a = np.array(self)
+        self_as_array = np.sort(a, order = order)
+        for k in self_as_array.dtype.names:
+            setattr(self, k, self_as_array[k])
+        return self
+    def fit(self, function, parameters_init, **kwargs):
+        pars, dpars, statdict = nlsq_fit(self.x, self.y, self.dy, function, parameters_init, **kwargs)
+        return [ErrorValue(p, dp) for p, dp in zip(pars, dpars)], statdict
+    @classmethod
+    def average(cls, *args):
+        args=list(args)
+        if len(args)==1:
+            return args[0]
+        for i in range(1,len(args)):
+            args[i]=args[0].check_arithmetic_compatibility(args[i])
+        d={}
+        if not all([a.has_valid_dx() for a in args]):
+            d['x']=np.mean([a.x for a in args],0)
+            d['dx']=np.std([a.x for a in args],0)
+        else:
+            sumweight=np.sum([1.0/a.dx**2 for a in args],0)
+            d['x']=np.sum([a.x/a.dx**2 for a in args],0)/sumweight
+            d['dx']=1.0/sumweight
+        if not all([a.has_valid_dy() for a in args]):
+            d['y']=np.mean([a.y for a in args],0)
+            d['dy']=np.std([a.y for a in args],0)
+        else:
+            sumweight=np.sum([1.0/a.dy**2 for a in args],0)
+            d['y']=np.sum([a.y/a.dy**2 for a in args],0)/sumweight
+            d['dy']=1.0/sumweight
+        return cls(d)
+    def has_valid_dx(self):
+        return hasattr(self,'dx') and np.absolute(self.dx).sum()>0
+    def has_valid_dy(self):
+        return hasattr(self,'dy') and np.absolute(self.dy).sum()>0
+    
+class SASCurve(GeneralCurve):
+    _default_special_names = [('x', 'q'), ('y', 'Intensity'), ('dy', 'Error'), ('dx', 'qError')]
+
+class SASPixelCurve(GeneralCurve):
+    _default_special_names = [('x', 'pixel'), ('y', 'Intensity'), ('dy', 'Error'), ('dx', 'pixelError')]
+
+class SASAzimuthalCurve(GeneralCurve):
+    _default_special_names = [('x', 'phi'), ('y', 'Intensity'), ('dy', 'Error'), ('dx', 'phiError')]

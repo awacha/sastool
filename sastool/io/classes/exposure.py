@@ -17,12 +17,13 @@ import h5py
 
 from .header import SASHeader
 from .common import SASExposureException, _HDF_parse_group
+from .curve import SASCurve, SASAzimuthalCurve, SASPixelCurve
 from .mask import SASMask
 from ... import misc
 from .. import twodim
 from ... import utils2d
-from ... import dataset
-from ...dataset import ArithmeticBase, ErrorValue
+from ...dataset.arithmetic import ArithmeticBase
+from ...dataset.errorvalue import ErrorValue
 
 import scipy.constants
 #Planck constant times speed of light in eV*Angstroem units
@@ -729,7 +730,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 
         Outputs:
             the one-dimensional curve as an instance of SASCurve (if pixel is
-                False) or DataSet (if pixel is True)
+                False) or SASPixelCurve (if pixel is True)
         """
         self.check_for_mask()
         mat = getattr(self, matrix).astype(np.double)
@@ -752,8 +753,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             else:
                 q, I, A, p = res
                 E = np.zeros_like(q)
-            ds = dataset.SASCurve(q, I, E)
-            ds.addfield('Pixels', p)
+            ds = SASCurve(q, I, E, pixel = p, area = A)
         else:
             res = utils2d.integrate.radintpix(mat, err,
                                                      self.header['BeamPosX'],
@@ -765,8 +765,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             else:
                 p, I, A = res
                 E = np.zeros_like(p)
-            ds = dataset.DataSet(p, I, E)
-        ds.addfield('Area', A)
+            ds = SASPixelCurve(p, I, E, area = A)
         ds.header = SASHeader(self.header)
         return ds
 
@@ -789,7 +788,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
 
         Outputs:
             the one-dimensional curve as an instance of SASCurve (if pixel is
-                False) or DataSet (if pixel is True)
+                False) or SASPixelCurve (if pixel is True)
     
         Notes:
             x is row direction, y is column. 0 degree is +x, 90 degree is +y.
@@ -816,8 +815,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             else:
                 q, I, A, p = res
                 E = np.zeros_like(q)
-            ds = dataset.SASCurve(q, I, E)
-            ds.addfield('Pixels', p)
+            ds = SASCurve(q, I, E, pixel = p, area = A)
         else:
             res = utils2d.integrate.radintpix(mat, err,
                                                      self.header['BeamPosX'],
@@ -830,8 +828,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             else:
                 p, I, A = res
                 E = np.zeros_like(p)
-            ds = dataset.DataSet(p, I, E)
-        ds.addfield('Area', A)
+            ds = SASPixelCurve(p, I, E, area = A)
         ds.header = SASHeader(self.header)
         return ds
 
@@ -846,7 +843,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             errormatrix: error matrix to use for averaging (or None)
         
         Outputs:
-            the one-dimensional curve as an instance of DataSet
+            the one-dimensional curve as an instance of SASAzimuthalCurve
     
         Notes:
             x is row direction, y is column. 0 degree is +x, 90 degree is +y.
@@ -871,7 +868,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             else:
                 theta, I, A = res
                 E = np.zeros_like(theta)
-            ds = dataset.DataSet(theta, I, E)
+            ds = SASAzimuthalCurve(theta, I, E, area = A)
         else:
             res = utils2d.integrate.azimintpix(mat, err,
                                                      self.header['BeamPosX'],
@@ -883,8 +880,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             else:
                 theta, I, A = res
                 E = np.zeros_like(theta)
-            ds = dataset.DataSet(theta, I, E)
-        ds.addfield('Area', A)
+            ds = SASAzimuthalCurve(theta, I, E, area = A)
         ds.header = SASHeader(self.header)
         return ds
 
