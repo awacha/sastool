@@ -4,6 +4,9 @@ Created on Jul 5, 2012
 @author: andris
 '''
 
+# pylint: disable=E1103
+# pylint: disable=F0401
+
 import numpy as np
 import collections
 import numbers
@@ -11,11 +14,10 @@ import matplotlib.pyplot as plt
 import gzip
 import itertools
 import operator
-import functools
-import warnings
 
-from ...dataset import ArithmeticBase, ErrorValue
-from ...fitting.easylsq import nlsq_fit
+from .arithmetic import ArithmeticBase
+from .errorvalue import ErrorValue
+from ..fitting.easylsq import nlsq_fit
 
 def errtrapz(x, yerr):
     """Error of the trapezoid formula
@@ -121,62 +123,35 @@ class GeneralCurve(ArithmeticBase):
         if 'special_names' not in kwargs:
             kwargs['special_names'] = collections.OrderedDict(self._default_special_names)
         return kwargs
-    @property
-    def xname(self):
-        """The name of the dataset treated as the abscissa."""
-        return self.get_specialname('x')
-    @xname.setter
-    def xname(self, value):
-        return self.set_specialname('x', value)
 
-    @property
-    def yname(self):
-        """The name of the dataset treated as the ordinate."""
-        return self.get_specialname('y')
-    @yname.setter
-    def yname(self, value):
-        return self.set_specialname('y', value)
+    def _get_xname(self):          return self.get_specialname('x')
+    def _set_xname(self, value):   return self.set_specialname('x', value)
+    def _get_yname(self):          return self.get_specialname('y')
+    def _set_yname(self, value):   return self.set_specialname('y', value)
+    def _get_dxname(self):         return self.get_specialname('dx')
+    def _set_dxname(self, value):  return self.set_specialname('dx', value)
+    def _get_dyname(self):         return self.get_specialname('dy')
+    def _set_dyname(self, value):  return self.set_specialname('dy', value)
 
-    @property
-    def dxname(self):
-        """The name of the dataset treated as the error of the abscissa."""
-        return self.get_specialname('dx')
-    @dxname.setter
-    def dxname(self, value):
-        return self.set_specialname('dx', value)
+    xname = property(_get_xname, _set_xname, None, 'The name of the abscissa')
+    yname = property(_get_yname, _set_yname, None, 'The name of the ordinate')
+    dxname = property(_get_dxname, _set_dxname, None, 'The name of the error of the abscissa')
+    dyname = property(_get_dyname, _set_dyname, None, 'The name of the error of the ordinate')
 
-    @property
-    def dyname(self):
-        """The name of the dataset treated as the error of the ordinate."""
-        return self.get_specialname('dy')
-    @dyname.setter
-    def dyname(self, value):
-        return self.set_specialname('dy', value)
+    def _get_x(self):           return self.__getattribute__(self.xname)
+    def _set_x(self, value):    return self.add_dataset(self.xname, value)
+    def _get_y(self):           return self.__getattribute__(self.yname)
+    def _set_y(self, value):    return self.add_dataset(self.yname, value)
+    def _get_dx(self):          return self.__getattribute__(self.dxname)
+    def _set_dx(self, value):   return self.add_dataset(self.dxname, value)
+    def _get_dy(self):          return self.__getattribute__(self.dyname)
+    def _set_dy(self, value):   return self.add_dataset(self.dyname, value)
+    x = property(_get_x, _set_x)
+    y = property(_get_y, _set_y)
+    dx = property(_get_dx, _set_dx)
+    dy = property(_get_dy, _set_dy)
 
-    @property
-    def x(self):
-        return self.__getattribute__(self.xname)
-    @x.setter
-    def x(self, value):
-        return self.add_dataset(self.xname, value)
-    @property
-    def y(self):
-        return self.__getattribute__(self.yname)
-    @y.setter
-    def y(self, value):
-        return self.add_dataset(self.yname, value)
-    @property
-    def dx(self):
-        return self.__getattribute__(self.dxname)
-    @dx.setter
-    def dx(self, value):
-        return self.add_dataset(self.dxname, value)
-    @property
-    def dy(self):
-        return self.__getattribute__(self.dyname)
-    @dy.setter
-    def dy(self, value):
-        return self.add_dataset(self.dyname, value)
+
     def set_specialname(self, specname, newname):
         if newname == specname:
             raise ValueError('Name `%s` not supported for %s. Try `%s`.' % (newname, specname, specname.upper()))
@@ -203,8 +178,8 @@ class GeneralCurve(ArithmeticBase):
     def remove_dataset(self, name):
         if hasattr(self, name):
             self.__delattr__(name)
-        else:
-            print "Skipping removing ", name
+#        else:
+#            print "Skipping removing ", name
     def __len__(self):
         for name in ['x', 'y', 'dx', 'dy']:
             try:
@@ -246,18 +221,18 @@ class GeneralCurve(ArithmeticBase):
             if not hasattr(self, 'dy'):
                 self.dy = np.zeros_like(self.y)
             self.dy = np.sqrt(self.dy ** 2 + other.err ** 2)
-        elif isinstance(other, type(self)):
-            self.x = 0.5 * (self.x + other.x)
-            self.y = self.y + other.y
+        elif isinstance(other, GeneralCurve):
+            self.x = 0.5 * (self.x + other.x)  #IGNORE:E1103
+            self.y = self.y + other.y          #IGNORE:E1103
             if not hasattr(self, 'dx') and hasattr(other, 'dx'):
-                self.dx = other.dx
+                self.dx = other.dx             #IGNORE:E1103
             elif hasattr(self, 'dx') and hasattr(other, 'dx'):
-                self.dx = 0.5 * (self.dx + other.dx)
+                self.dx = 0.5 * (self.dx + other.dx)   #IGNORE:E1103
             #the other two cases do not need explicit treatment.
             if not hasattr(self, 'dy') and hasattr(other, 'dy'):
-                self.dy = other.dy
+                self.dy = other.dy   #IGNORE:E1103
             elif hasattr(self, 'dy') and hasattr(other, 'dy'):
-                self.dy = np.sqrt(self.dy ** 2 + other.dy ** 2)
+                self.dy = np.sqrt(self.dy ** 2 + other.dy ** 2)   #IGNORE:E1103
         else:
             return NotImplemented
         return self
@@ -266,12 +241,7 @@ class GeneralCurve(ArithmeticBase):
             other = self.check_arithmetic_compatibility(other)
         except NotImplementedError:
             return NotImplemented
-        if isinstance(other, ErrorValue):
-            if not hasattr(self, 'dy'):
-                self.dy = np.zeros_like(self.y)
-            self.dy = np.sqrt(self.dy ** 2 * other.val ** 2 + other.err ** 2 * self.y ** 2)
-            self.y = self.y * other.val
-        elif isinstance(other, type(self)):
+        if isinstance(other, GeneralCurve):
             if not hasattr(self, 'dx') and hasattr(other, 'dx'):
                 self.dx = other.dx
             elif hasattr(self, 'dx') and hasattr(other, 'dx'):
@@ -283,6 +253,11 @@ class GeneralCurve(ArithmeticBase):
                 self.dy = np.sqrt(self.dy ** 2 * other.y ** 2 + other.dy ** 2 * self.y ** 2)
             self.x = 0.5 * (self.x + other.x)
             self.y = self.y * other.y
+        elif isinstance(other, ErrorValue):
+            if not hasattr(self, 'dy'):
+                self.dy = np.zeros_like(self.y)
+            self.dy = np.sqrt(self.dy ** 2 * other.val ** 2 + other.err ** 2 * self.y ** 2)
+            self.y = self.y * other.val
         else:
             return NotImplemented
         return self
@@ -308,12 +283,15 @@ class GeneralCurve(ArithmeticBase):
         else:
             raise TypeError('indices must be integers, not %s' % type(name))
     def loglog(self, *args, **kwargs):
-        return plt.loglog(self.x, self.y, *args, **kwargs)
+        idx = np.isfinite(self.y) & np.isfinite(self.x) & (self.y > 0) & (self.x > 0)
+        return plt.loglog(self.x[idx], self.y[idx], *args, **kwargs)
     def plot(self, *args, **kwargs):
         return plt.plot(self.x, self.y, *args, **kwargs)
     def semilogx(self, *args, **kwargs):
+        idx = np.isfinite(self.y) & np.isfinite(self.x) & (self.x > 0)
         return plt.semilogx(self.x, self.y, *args, **kwargs)
     def semilogy(self, *args, **kwargs):
+        idx = np.isfinite(self.y) & np.isfinite(self.x) & (self.y > 0)
         return plt.semilogy(self.x, self.y, *args, **kwargs)
     def errorbar(self, *args, **kwargs):
         if hasattr(self, 'dx'):
@@ -336,8 +314,8 @@ class GeneralCurve(ArithmeticBase):
         return self.trim(*axis)
     def sanitize(self, minval = -np.inf, maxval = np.inf, fieldname = 'y', discard_nonfinite = True):
         self_as_array = np.array(self)
-        indices = (getattr(self, fieldname) >= minval) & \
-            (getattr(self, fieldname) <= maxval)
+        indices = (getattr(self, fieldname) > minval) & \
+            (getattr(self, fieldname) < maxval)
         if discard_nonfinite:
             indices &= reduce(operator.and_, [np.isfinite(self_as_array[x]) \
                                     for x in self_as_array.dtype.names])
@@ -387,7 +365,7 @@ class GeneralCurve(ArithmeticBase):
             d[a] = np.concatenate((getattr(first, a), getattr(last, a)))
         return cls(d)
     def unite(self, other, xmin = None, xmax = None, xsep = None,
-              Npoints = None, scaleother = True, verbose = False, return_factor=False):
+              Npoints = None, scaleother = True, verbose = False, return_factor = False):
         if not isinstance(other, type(self)):
             raise ValueError('Argument `other` should be an instance of class %s' % type(self))
         if xmin is None:
@@ -398,15 +376,15 @@ class GeneralCurve(ArithmeticBase):
         data2 = other.trim(xmin, xmax)
         if Npoints is None:
             Npoints = min(len(data1), len(data2))
-        commonx=np.linspace(max(data1.x.min(),data2.x.min()),min(data2.x.max(),data1.x.max()),Npoints)
+        commonx = np.linspace(max(data1.x.min(), data2.x.min()), min(data2.x.max(), data1.x.max()), Npoints)
         I1 = data1.interpolate(commonx).momentum(1, True)
         I2 = data2.interpolate(commonx).momentum(1, True)
         if scaleother:
-            factor=I1/I2
-            retval=type(self).merge(self, factor * other, xsep)
+            factor = I1 / I2
+            retval = type(self).merge(self, factor * other, xsep)
         else:
-            factor=I2/I1
-            retval=type(self).merge(factor * self, other, xsep)
+            factor = I2 / I1
+            retval = type(self).merge(factor * self, other, xsep)
         if verbose:
             print "Uniting two datasets."
             print "   xmin   : ", xmin
@@ -462,32 +440,32 @@ class GeneralCurve(ArithmeticBase):
         return [ErrorValue(p, dp) for p, dp in zip(pars, dpars)], statdict
     @classmethod
     def average(cls, *args):
-        args=list(args)
-        if len(args)==1:
+        args = list(args)
+        if len(args) == 1:
             return args[0]
-        for i in range(1,len(args)):
-            args[i]=args[0].check_arithmetic_compatibility(args[i])
-        d={}
+        for i in range(1, len(args)):
+            args[i] = args[0].check_arithmetic_compatibility(args[i])
+        d = {}
         if not all([a.has_valid_dx() for a in args]):
-            d['x']=np.mean([a.x for a in args],0)
-            d['dx']=np.std([a.x for a in args],0)
+            d['x'] = np.mean([a.x for a in args], 0)
+            d['dx'] = np.std([a.x for a in args], 0)
         else:
-            sumweight=np.sum([1.0/a.dx**2 for a in args],0)
-            d['x']=np.sum([a.x/a.dx**2 for a in args],0)/sumweight
-            d['dx']=1.0/sumweight
+            sumweight = np.sum([1.0 / a.dx ** 2 for a in args], 0)
+            d['x'] = np.sum([a.x / a.dx ** 2 for a in args], 0) / sumweight
+            d['dx'] = 1.0 / sumweight
         if not all([a.has_valid_dy() for a in args]):
-            d['y']=np.mean([a.y for a in args],0)
-            d['dy']=np.std([a.y for a in args],0)
+            d['y'] = np.mean([a.y for a in args], 0)
+            d['dy'] = np.std([a.y for a in args], 0)
         else:
-            sumweight=np.sum([1.0/a.dy**2 for a in args],0)
-            d['y']=np.sum([a.y/a.dy**2 for a in args],0)/sumweight
-            d['dy']=1.0/sumweight
+            sumweight = np.sum([1.0 / a.dy ** 2 for a in args], 0)
+            d['y'] = np.sum([a.y / a.dy ** 2 for a in args], 0) / sumweight
+            d['dy'] = 1.0 / sumweight
         return cls(d)
     def has_valid_dx(self):
-        return hasattr(self,'dx') and np.absolute(self.dx).sum()>0
+        return hasattr(self, 'dx') and np.absolute(self.dx).sum() > 0
     def has_valid_dy(self):
-        return hasattr(self,'dy') and np.absolute(self.dy).sum()>0
-    
+        return hasattr(self, 'dy') and np.absolute(self.dy).sum() > 0
+
 class SASCurve(GeneralCurve):
     _default_special_names = [('x', 'q'), ('y', 'Intensity'), ('dy', 'Error'), ('dx', 'qError')]
 

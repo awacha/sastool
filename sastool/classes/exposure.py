@@ -3,7 +3,8 @@ Created on Jun 15, 2012
 
 @author: andris
 '''
-
+# pylint: disable=F0401
+# pylint: disable=E0611
 
 import numpy as np
 import warnings
@@ -19,11 +20,11 @@ from .header import SASHeader
 from .common import SASExposureException, _HDF_parse_group
 from .curve import SASCurve, SASAzimuthalCurve, SASPixelCurve
 from .mask import SASMask
-from ... import misc
-from .. import twodim
-from ... import utils2d
-from ...dataset.arithmetic import ArithmeticBase
-from ...dataset.errorvalue import ErrorValue
+from .. import misc
+from ..io import twodim
+from .. import utils2d
+from .arithmetic import ArithmeticBase
+from .errorvalue import ErrorValue
 
 import scipy.constants
 #Planck constant times speed of light in eV*Angstroem units
@@ -333,6 +334,31 @@ class SASExposure(ArithmeticBase):
 
     def __delitem__(self, key):
         del self.header[key]
+
+    def sum(self, masked = True):
+        if self.check_for_mask(False) and masked:
+            indices = np.array(self.mask) != 0
+        else:
+            indices = slice(None)
+        return ErrorValue(self.Intensity[indices].sum(), self.Error[indices].sum())
+    def max(self, masked = True):
+        if self.check_for_mask(False) and masked:
+            indices = np.array(self.mask) != 0
+        else:
+            indices = slice(None)
+        I = self.Intensity[indices]
+        E = self.Error[indices]
+        return ErrorValue(I.max(), E[I == I.max()].max())
+
+    def min(self, masked = True):
+        if self.check_for_mask(False) and masked:
+            indices = np.array(self.mask) != 0
+        else:
+            indices = slice(None)
+        I = self.Intensity[indices]
+        E = self.Error[indices]
+        return ErrorValue(I.min(), E[I == I.min()].max())
+
 ### -------------- Loading routines (new_from_xyz) ------------------------
 
     @classmethod

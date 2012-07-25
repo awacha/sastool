@@ -4,7 +4,8 @@ Created on Jun 15, 2012
 @author: andris
 '''
 
-import functools
+# pylint: disable=E0611
+
 import collections
 import numpy as np
 import itertools
@@ -15,8 +16,8 @@ import numbers
 import re
 import h5py
 
-from .. import header
-from ... import misc
+from ..io import header
+from .. import misc
 
 
 class SASHeader(dict):

@@ -1,20 +1,11 @@
-import numpy as np
-import re
-import itertools
-import datetime
-import glob
-import os
-import xlwt
 import numbers
 import h5py
 
-import twodim
 from ..misc import findfileindirs, normalize_listargument
-from ..dataset import SASCurve
-from classes import SASHeader, SASExposure, SASMask
+from ..classes import SASHeader, SASExposure, SASMask, SASCurve
 
 
-def read2dB1data(fsns,fileformat='org_%05d',dirs=[]):
+def read2dB1data(fsns, fileformat = 'org_%05d', dirs = []):
     """Read 2D measurement files, along with their header data
 
     Inputs:
@@ -35,29 +26,29 @@ def read2dB1data(fsns,fileformat='org_%05d',dirs=[]):
         #in this case the org_*.header files should be present
         data,header=read2dB1data(range(123,131),'org_%05d')
     """
-    fsns=normalize_listargument(fsns)
-    datas=[]
-    headers=[]
+    fsns = normalize_listargument(fsns)
+    datas = []
+    headers = []
     for f in fsns:
         try:
-            data=SASExposure.new_from_B1_org(f,fileformat,dirs)
+            data = SASExposure.new_from_B1_org(f, fileformat, dirs)
         except IOError:
             continue #skip this file
         datas.append(data)
         headers.append(data.header)
-    return datas,headers
+    return datas, headers
 
-def read2dintfile(fsn,fileformat='int2dnorm%d',logfileformat='intnorm%d.log',dirs=[]):
-    fsns=normalize_listargument(fsn)
+def read2dintfile(fsn, fileformat = 'int2dnorm%d', logfileformat = 'intnorm%d.log', dirs = []):
+    fsns = normalize_listargument(fsn)
     def read_and_eat_exception(f):
         try:
-            return SASExposure.new_from_B1_int2dnorm(f,fileformat,logfileformat,dirs)
+            return SASExposure.new_from_B1_int2dnorm(f, fileformat, logfileformat, dirs)
         except IOError:
-            print "Could not load files for FSN",f
+            print "Could not load files for FSN", f
             return None
-    loaded=[read_and_eat_exception(f) for f in fsns]
-    loaded=[l for l in loaded if l is not None]
-    if isinstance(fsn,numbers.Number) and loaded:
+    loaded = [read_and_eat_exception(f) for f in fsns]
+    loaded = [l for l in loaded if l is not None]
+    if isinstance(fsn, numbers.Number) and loaded:
         return loaded[0]
     return loaded
 
@@ -71,17 +62,17 @@ def readparamfile(filename):
     """
     return SASHeader.new_from_B1_log(filename)
 
-def readlogfile(fsns,paramformat='intnorm%d.log',dirs=[]):
-    fsns=normalize_listargument(fsns)
-    logfiles=[]
+def readlogfile(fsns, paramformat = 'intnorm%d.log', dirs = []):
+    fsns = normalize_listargument(fsns)
+    logfiles = []
     for f in fsns:
         try:
-            logfiles.append(readparamfile(findfileindirs(paramformat%f,dirs)))
+            logfiles.append(readparamfile(findfileindirs(paramformat % f, dirs)))
         except IOError:
             pass
     return logfiles
 
-def writeparamfile(filename,param):
+def writeparamfile(filename, param):
     """Write the param structure into a logfile. See writelogfile() for an explanation.
     
     Inputs:
@@ -92,42 +83,42 @@ def writeparamfile(filename,param):
         all exceptions pass through to the caller.
     """
     return SASHeader(param).write_B1_log(filename)
-    
-def read1d(fsns,fileformat='intnorm%d.dat',paramformat='intnorm%d.log',dirs=[]):
-    fsns=normalize_listargument(fsns)
-    datas=[]
-    params=[]
+
+def read1d(fsns, fileformat = 'intnorm%d.dat', paramformat = 'intnorm%d.log', dirs = []):
+    fsns = normalize_listargument(fsns)
+    datas = []
+    params = []
     for f in fsns:
         try:
-            filename=findfileindirs(fileformat%f,dirs)
-            paramname=findfileindirs(paramformat%f,dirs)
+            filename = findfileindirs(fileformat % f, dirs)
+            paramname = findfileindirs(paramformat % f, dirs)
         except IOError:
             continue
-        data=SASCurve.new_from_file(filename)
-        param=readparamfile(paramname)
-        data.header=param
+        data = SASCurve.new_from_file(filename)
+        param = readparamfile(paramname)
+        data.header = param
         datas.append(data)
         params.append(param)
-    return datas,params
+    return datas, params
 
-def readbinned(fsns,*args,**kwargs):
-    return read1d(fsns,*args,fileformat='intbinned%d.dat',**kwargs)
+def readbinned(fsns, *args, **kwargs):
+    return read1d(fsns, *args, fileformat = 'intbinned%d.dat', **kwargs)
 
-def readsummed(fsns,*args,**kwargs):
-    return read1d(fsns,*args,fileformat='summed%d.dat',paramformat='summed%d.log',**kwargs)
+def readsummed(fsns, *args, **kwargs):
+    return read1d(fsns, *args, fileformat = 'summed%d.dat', paramformat = 'summed%d.log', **kwargs)
 
-def readunited(fsns,*args,**kwargs):
-    return read1d(fsns,*args,fileformat='united%d.dat',paramformat='united%d.log',**kwargs)
+def readunited(fsns, *args, **kwargs):
+    return read1d(fsns, *args, fileformat = 'united%d.dat', paramformat = 'united%d.log', **kwargs)
 
-def readwaxscor(fsns,*args,**kwargs):
-    return read1d(fsns,*args,fileformat='waxs%d.cor',**kwargs)
-
-
+def readwaxscor(fsns, *args, **kwargs):
+    return read1d(fsns, *args, fileformat = 'waxs%d.cor', **kwargs)
 
 
-def convert_B1intnorm_to_HDF5(fsns,hdf5_filename,maskrules,
-                              int2dnormformat='int2dnorm%d',
-                              logformat='intnorm%d.log',dirs=[]):
+
+
+def convert_B1intnorm_to_HDF5(fsns, hdf5_filename, maskrules,
+                              int2dnormformat = 'int2dnorm%d',
+                              logformat = 'intnorm%d.log', dirs = []):
     """Convert int2dnorm.mat files to hdf5 format.
     
     Inputs:
@@ -151,35 +142,35 @@ def convert_B1intnorm_to_HDF5(fsns,hdf5_filename,maskrules,
     """
     class MatchesException(Exception):
         pass
-    def mask_rule_matches(headerval,value_or_function):
-        if hasattr(value_or_function,'__call__'):
+    def mask_rule_matches(headerval, value_or_function):
+        if hasattr(value_or_function, '__call__'):
             return value_or_function(headerval)
         else:
-            return value_or_function==headerval
-    fsns=normalize_listargument(fsns)
-    hdf=h5py.highlevel.File(hdf5_filename)
+            return value_or_function == headerval
+    fsns = normalize_listargument(fsns)
+    hdf = h5py.highlevel.File(hdf5_filename)
     for f in fsns:
         # read the exposition
         try:
-            a=SASExposure.new_from_B1_int2dnorm(f,int2dnormformat,logformat,dirs)
+            a = SASExposure.new_from_B1_int2dnorm(f, int2dnormformat, logformat, dirs)
         except IOError:
-            print "Could not open file",f
+            print "Could not open file", f
             continue
         try:
             # find a matching mask
-            for m,rulesdict in maskrules:
-                if all([mask_rule_matches(a.header[k],rulesdict[k]) for k in rulesdict]):
+            for m, rulesdict in maskrules:
+                if all([mask_rule_matches(a.header[k], rulesdict[k]) for k in rulesdict]):
                     raise MatchesException(m)
         except MatchesException as me:
-            mask=me.args[0]
+            mask = me.args[0]
         else:
-            raise ValueError('No mask found for '+unicode(a.header))
-        if isinstance(mask,basestring):
-            mask=findfileindirs(mask,dirs)
-        mask=SASMask(mask)
+            raise ValueError('No mask found for ' + unicode(a.header))
+        if isinstance(mask, basestring):
+            mask = findfileindirs(mask, dirs)
+        mask = SASMask(mask)
         a.set_mask(mask)
         a.write_to_hdf5(hdf)
         del mask
         del a
-        print "Converted ",f
+        print "Converted ", f
     hdf.close()

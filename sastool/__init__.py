@@ -38,7 +38,7 @@ __docformat__ = "restructuredtext en"
 
 from _version import __version__
 
-__all__ = ['io', 'misc', 'utils2d', 'dataset', 'fitting', 'sim']
+__all__ = ['io', 'misc', 'utils2d', 'fitting', 'sim', 'classes']
 
 import warnings
 import matplotlib
@@ -67,9 +67,9 @@ except RuntimeError: # raised if we are on a terminal without a graphic display
 import misc
 import utils2d
 import io
-import dataset
 import fitting
 import sim
+import classes
 
 def _sas2dgui_main_program():
     """Entry point for the `sas2dutil` GUI script."""

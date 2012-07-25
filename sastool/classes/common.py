@@ -6,7 +6,7 @@ Created on Jun 15, 2012
 
 import h5py
 
-from ... import misc
+from .. import misc
 
 
 class SASExposureException(misc.SASException):

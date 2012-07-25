@@ -13,10 +13,9 @@ import h5py
 import numbers
 import collections
 
-from common import _HDF_parse_group, SASMaskException
-from ... import misc
-from .. import twodim
-
+from .common import _HDF_parse_group, SASMaskException
+from .. import misc
+from ..io import twodim  #IGNORE:E0611
 
 class SASMask(object):
     """Class to represent mask matrices.

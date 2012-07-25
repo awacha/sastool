@@ -131,9 +131,9 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, **kwargs):
     # later during the fit.
     paramcat = []  # this will be the concatenated list of parameters
     param_indices = [] # this will have the same structure as params_inits (i.e.
-                       # a tuple of tuples of ints). Each integer number holds
-                       # the index of the corresponding fit parameter in the 
-                       # concatenated parameter list.
+        # a tuple of tuples of ints). Each integer number holds
+        # the index of the corresponding fit parameter in the 
+        # concatenated parameter list.
     for j in range(Ndata): # for each dataset
         param_indices.append([])
         jorig = j
