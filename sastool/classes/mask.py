@@ -327,4 +327,5 @@ and maskid argument was omitted.')
         else:
             raise ValueError('Invalid name for argument \'whattodo\': ' + whattodo)
         return self
-
+    def __getitem__(self,key):
+        return self.__class__(self.mask[key],maskid=self.maskid+'$trim')

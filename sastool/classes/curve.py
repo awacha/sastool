@@ -17,7 +17,7 @@ import operator
 
 from .arithmetic import ArithmeticBase
 from .errorvalue import ErrorValue
-from ..fitting.easylsq import nlsq_fit
+from ..misc.easylsq import nlsq_fit
 
 def errtrapz(x, yerr):
     """Error of the trapezoid formula

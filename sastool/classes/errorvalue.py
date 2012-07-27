@@ -66,13 +66,13 @@ class ErrorValue(ArithmeticBase):
         self.val = self.val * value.val
         return self
     def __str__(self):
-        if isinstance(self.val,numbers.Real):
+        if isinstance(self.val, numbers.Real):
             try:
-                Ndigits=-int(math.floor(math.log10(self.err)))
+                Ndigits = -int(math.floor(math.log10(self.err)))
             except OverflowError:
                 return str(self.val) + ' +/- ' + str(self.err)
             else:
-                return str(round(self.val,Ndigits)) + ' +/- ' + str(round(self.err,Ndigits))
+                return str(round(self.val, Ndigits)) + ' +/- ' + str(round(self.err, Ndigits))
         return str(self.val) + ' +/- ' + str(self.err)
     def __repr__(self):
         return 'ErrorValue(' + repr(self.val) + ' +/- ' + repr(self.err) + ')'
@@ -80,4 +80,6 @@ class ErrorValue(ArithmeticBase):
         return float(self.val)
     def __trunc__(self):
         return long(self.val)
+    def __array__(self):
+        return np.array(self.val)
 

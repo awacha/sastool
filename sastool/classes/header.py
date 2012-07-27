@@ -276,7 +276,7 @@ class SASHeader(dict):
             # its keys
 
             if isinstance(args[0], SASHeader):
-                super(SASHeader, self).__init__(args[0])
+                super(SASHeader,self).__init__(args[0])
                 # copy over protected attributes
                 for fn in args[0]._protectedfields_to_copy: #IGNORE:W0212
                     attr = getattr(args[0], fn)

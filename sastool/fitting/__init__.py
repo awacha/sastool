@@ -17,4 +17,4 @@ import transform
 import saspolymer
 import basic
 import bilayers
-import easylsq
+import sasspecial

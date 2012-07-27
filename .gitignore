@@ -4,3 +4,6 @@
 /build
 sastool/__init__.py~
 sastool/_version.py~
+.settings
+sastool/fitting/_fitfunction.c
+tests

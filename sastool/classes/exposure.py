@@ -234,6 +234,8 @@ class SASExposure(ArithmeticBase):
             `load_header`: if the metadata are to be loaded. ``True`` by default.
         """
         kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
+        if not args:
+            return super(SASExposure,cls).__new__(cls)
         if len(args) < 2: #scheme 0) 1) and 2) can be handled in the same way 
             if isinstance(args[0], h5py.highlevel.Group) or \
               (isinstance(args[0], basestring) and any([args[0].upper().endswith(k) for k in ['.HDF5', '.HDF', '.H5']])) or \
@@ -330,7 +332,21 @@ class SASExposure(ArithmeticBase):
         self.header[key] = value
 
     def __getitem__(self, key):
-        return self.header[key]
+        if isinstance(key,basestring):
+            return self.header[key]
+        else:
+            obj=self.__class__()
+            obj.Intensity=self.Intensity[key]
+            try:
+                obj.Error=self.Error[key]
+            except:
+                pass
+            try:
+                obj.mask=self.mask[key]
+            except:
+                pass
+            obj.header=SASHeader(self.header)
+            return obj
 
     def __delitem__(self, key):
         del self.header[key]
@@ -358,7 +374,21 @@ class SASExposure(ArithmeticBase):
         I = self.Intensity[indices]
         E = self.Error[indices]
         return ErrorValue(I.min(), E[I == I.min()].max())
-
+    
+    def trimpix(self, rowmin, rowmax, columnmin, columnmax):
+        obj=self[rowmin:rowmax,columnmin:columnmax]
+        if 'BeamPosX' in obj.header:
+            obj.header['BeamPosX']-=rowmin
+        if 'BeamPosY' in obj.header:
+            obj.header['BeamPosY']-=columnmin
+        return obj
+    
+    def trimq(self, qrowmin, qrowmax, qcolmin, qcolmax):
+        rowmin=self.header['DistCalibrated']*np.tan(2*np.arcsin(qrowmin*HC/self.header['EnergyCalibrated']/(4*np.pi)))/self.header['XPixel']+self.header['BeamPosX']
+        rowmax=self.header['DistCalibrated']*np.tan(2*np.arcsin(qrowmax*HC/self.header['EnergyCalibrated']/(4*np.pi)))/self.header['XPixel']+self.header['BeamPosX']
+        colmin=self.header['DistCalibrated']*np.tan(2*np.arcsin(qcolmin*HC/self.header['EnergyCalibrated']/(4*np.pi)))/self.header['YPixel']+self.header['BeamPosY']
+        colmax=self.header['DistCalibrated']*np.tan(2*np.arcsin(qcolmax*HC/self.header['EnergyCalibrated']/(4*np.pi)))/self.header['YPixel']+self.header['BeamPosY']
+        return self.trimpix(int(np.floor(rowmin)),int(np.ceil(rowmax)),int(np.floor(colmin)),int(np.ceil(colmax)))
 ### -------------- Loading routines (new_from_xyz) ------------------------
 
     @classmethod
@@ -515,7 +545,7 @@ class SASExposure(ArithmeticBase):
         if 'logfileextn' not in kwargs:
             kwargs['logfileextn'] = '.log'
 
-        data_extns = ['.npy', '.mat']
+        data_extns = ['.npy', '.mat', '.npz']
         data_extn = [x for x in data_extns if filename.upper().endswith(x.upper())]
 
         if os.path.isabs(filename):
