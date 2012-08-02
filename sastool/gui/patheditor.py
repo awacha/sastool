@@ -11,148 +11,154 @@ import os
 from .. import misc
 
 class PathEditor(gtk.Dialog):
-    def __init__(self,parent=None):
+    def __init__(self, parent=None, pathlist=None):
         if parent is not None:
-            parent=parent.get_toplevel()
-        gtk.Dialog.__init__(self,'Edit sastool search path...',parent,
+            parent = parent.get_toplevel()
+        if pathlist is None:
+            pathlist = misc.searchpath.sastool_search_path
+        elif not isinstance(pathlist, misc.searchpath.SearchPath):
+            pathlist = misc.searchpath.SearchPath(pathlist)
+        self.pathlist = pathlist
+
+        gtk.Dialog.__init__(self, 'Edit sastool search path...', parent,
                             gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                             (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                              gtk.STOCK_OK, gtk.RESPONSE_OK))
         self.set_default_response(gtk.RESPONSE_CANCEL)
-        hbox=gtk.HBox()
+        hbox = gtk.HBox()
         self.vbox.pack_start(hbox)
-        
-        sw=gtk.ScrolledWindow()
+
+        sw = gtk.ScrolledWindow()
         hbox.pack_start(sw)
-        
-        self.pathstore=gtk.ListStore(gobject.TYPE_STRING)
-        self.tw=gtk.TreeView(self.pathstore)
+
+        self.pathstore = gtk.ListStore(gobject.TYPE_STRING)
+        self.tw = gtk.TreeView(self.pathstore)
         sw.add(self.tw)
-        self.tw.set_size_request(300,150);
+        self.tw.set_size_request(300, 150);
         self.tw.set_grid_lines(gtk.TREE_VIEW_GRID_LINES_HORIZONTAL)
         self.tw.set_rules_hint(True)
         self.tw.set_reorderable(True)
         self.tw.set_enable_search(True)
-        
-        
-        pathcolumn=gtk.TreeViewColumn('Folder',gtk.CellRendererText(),text=0)
+
+
+        pathcolumn = gtk.TreeViewColumn('Folder', gtk.CellRendererText(), text=0)
         self.tw.append_column(pathcolumn)
-        
-        bb=gtk.VButtonBox()
-        hbox.pack_start(bb,False)
-        b=gtk.Button(label='Add folder')
-        b.connect('clicked',self.callback_add)
+
+        bb = gtk.VButtonBox()
+        hbox.pack_start(bb, False)
+        b = gtk.Button(label='Add folder')
+        b.connect('clicked', self.callback_add)
         bb.add(b)
-        b=gtk.Button(label='Add current folder')
-        b.connect('clicked',self.callback_add,'.')
+        b = gtk.Button(label='Add current folder')
+        b.connect('clicked', self.callback_add, '.')
         bb.add(b)
-        b=gtk.Button(label='Add home folder')
-        b.connect('clicked',self.callback_add,os.path.expanduser('~'))
+        b = gtk.Button(label='Add home folder')
+        b.connect('clicked', self.callback_add, os.path.expanduser('~'))
         bb.add(b)
-        b=gtk.Button(stock=gtk.STOCK_GOTO_TOP)
-        b.connect('clicked',self.callback_move,'top')
+        b = gtk.Button(stock=gtk.STOCK_GOTO_TOP)
+        b.connect('clicked', self.callback_move, 'top')
         bb.add(b)
-        b=gtk.Button(stock=gtk.STOCK_GO_UP)
-        b.connect('clicked',self.callback_move,'up')
+        b = gtk.Button(stock=gtk.STOCK_GO_UP)
+        b.connect('clicked', self.callback_move, 'up')
         bb.add(b)
-        b=gtk.Button(stock=gtk.STOCK_GO_DOWN)
-        b.connect('clicked',self.callback_move,'down')
+        b = gtk.Button(stock=gtk.STOCK_GO_DOWN)
+        b.connect('clicked', self.callback_move, 'down')
         bb.add(b)
-        b=gtk.Button(stock=gtk.STOCK_GOTO_BOTTOM)
-        b.connect('clicked',self.callback_move,'bottom')
+        b = gtk.Button(stock=gtk.STOCK_GOTO_BOTTOM)
+        b.connect('clicked', self.callback_move, 'bottom')
         bb.add(b)
-        b=gtk.Button(stock=gtk.STOCK_REMOVE)
-        b.connect('clicked',self.callback_remove)
+        b = gtk.Button(stock=gtk.STOCK_REMOVE)
+        b.connect('clicked', self.callback_remove)
         bb.add(b)
-        b=gtk.Button(stock=gtk.STOCK_CLEAR)
-        b.connect('clicked',self.callback_clear)
+        b = gtk.Button(stock=gtk.STOCK_CLEAR)
+        b.connect('clicked', self.callback_clear)
         bb.add(b)
-        
-        
+
+
         self.update_from_search_path()
         self.show_all()
         self.hide()
-    def run(self,*args,**kwargs):
+    def run(self, *args, **kwargs):
         self.update_from_search_path()
-        return gtk.Dialog.run(self,*args,**kwargs)
+        return gtk.Dialog.run(self, *args, **kwargs)
     def update_from_search_path(self):
         self.pathstore.clear()
-        for k in misc.get_search_path():
+        for k in self.pathlist:
             self.pathstore.append([k])
     def update_search_path(self):
-        it=self.pathstore.get_iter_first()
-        mypath=[]
+        it = self.pathstore.get_iter_first()
+        mypath = []
         while it is not None:
-            mypath.append(self.pathstore.get_value(it,0))
-            it=self.pathstore.iter_next(it)
-        misc.set_search_path(mypath)
-    def callback_move(self,button,whatmove):
-        it=self.tw.get_selection().get_selected()[1]
+            mypath.append(self.pathstore.get_value(it, 0))
+            it = self.pathstore.iter_next(it)
+        self.pathlist.set(mypath)
+    def callback_move(self, button, whatmove):
+        it = self.tw.get_selection().get_selected()[1]
         if it is None:
             return
-        if whatmove=='down':
-            nextit=self.pathstore.iter_next(it)
+        if whatmove == 'down':
+            nextit = self.pathstore.iter_next(it)
             if nextit is not None:
-                self.pathstore.move_after(it,nextit)
-        elif whatmove=='up':
-            nr=self.pathstore.get_path(it)[0]
-            nr_to=max(nr-1,0)
-            self.pathstore.move_before(it,self.pathstore.get_iter(nr_to))
-        elif whatmove=='top':
-            self.pathstore.move_after(it,None)
-        elif whatmove=='bottom':
-            self.pathstore.move_before(it,None)
+                self.pathstore.move_after(it, nextit)
+        elif whatmove == 'up':
+            nr = self.pathstore.get_path(it)[0]
+            nr_to = max(nr - 1, 0)
+            self.pathstore.move_before(it, self.pathstore.get_iter(nr_to))
+        elif whatmove == 'top':
+            self.pathstore.move_after(it, None)
+        elif whatmove == 'bottom':
+            self.pathstore.move_before(it, None)
         else:
             assert True
-    def callback_remove(self,button=None):
-        it=self.tw.get_selection().get_selected()[1]
+    def callback_remove(self, button=None):
+        it = self.tw.get_selection().get_selected()[1]
         if it is None:
             return
-        nr=self.pathstore.get_path(it)[0]
+        nr = self.pathstore.get_path(it)[0]
         self.pathstore.remove(it)
         if len(self.pathstore):
-            self.tw.get_selection().select_iter(self.pathstore.get_iter(min(nr,len(self.pathstore)-1)))
-    def callback_clear(self,button=None):
+            self.tw.get_selection().select_iter(self.pathstore.get_iter(min(nr, len(self.pathstore) - 1)))
+    def callback_clear(self, button=None):
         self.pathstore.clear()
-    def callback_add(self,button=None,folder=None):
+    def callback_add(self, button=None, folder=None):
         if folder is not None:
             self.pathstore.prepend([folder])
             return True
-        if not hasattr(self,'_filechooser_for_add'):
-            self._filechooser_for_add=gtk.FileChooserDialog(title='Choose folder...',
-                parent=self,action=gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER,
+        if not hasattr(self, '_filechooser_for_add'):
+            self._filechooser_for_add = gtk.FileChooserDialog(title='Choose folder...',
+                parent=self, action=gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER,
                 buttons=(gtk.STOCK_OK, gtk.RESPONSE_OK, gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL))
             self._filechooser_for_add.set_modal(True)
             self._filechooser_for_add.set_transient_for(self)
             self._filechooser_for_add.set_destroy_with_parent(True)
-            hbox=gtk.HBox()
-            self._filechooser_for_add.withsubfolders=gtk.CheckButton('Recursive add')
+            hbox = gtk.HBox()
+            self._filechooser_for_add.withsubfolders = gtk.CheckButton('Recursive add')
             self._filechooser_for_add.withsubfolders.set_active(True)
-            self._filechooser_for_add.recursedepth=gtk.SpinButton()
+            self._filechooser_for_add.recursedepth = gtk.SpinButton()
             self._filechooser_for_add.recursedepth.set_digits(0)
             self._filechooser_for_add.recursedepth.set_value(1)
-            self._filechooser_for_add.recursedepth.set_increments(1,10)
-            self._filechooser_for_add.recursedepth.set_range(1,100)
-            hbox.pack_start(self._filechooser_for_add.withsubfolders,False)
-            l=gtk.Label('    Recursion depth:')
-            l.set_alignment(0,0.5)
-            hbox.pack_start(l,False)
-            hbox.pack_start(self._filechooser_for_add.recursedepth,False)
+            self._filechooser_for_add.recursedepth.set_increments(1, 10)
+            self._filechooser_for_add.recursedepth.set_range(1, 100)
+            hbox.pack_start(self._filechooser_for_add.withsubfolders, False)
+            l = gtk.Label('    Recursion depth:')
+            l.set_alignment(0, 0.5)
+            hbox.pack_start(l, False)
+            hbox.pack_start(self._filechooser_for_add.recursedepth, False)
             hbox.show_all()
             self._filechooser_for_add.set_extra_widget(hbox)
-        if self._filechooser_for_add.run()==gtk.RESPONSE_OK:
-            folder=self._filechooser_for_add.get_filename()
-            folder_slashes=os.path.abspath(folder).count(os.sep)
-            recursedepth=self._filechooser_for_add.recursedepth.get_value_as_int()
+        if self._filechooser_for_add.run() == gtk.RESPONSE_OK:
+            folder = self._filechooser_for_add.get_filename()
+            folder_slashes = os.path.abspath(folder).count(os.sep)
+            recursedepth = self._filechooser_for_add.recursedepth.get_value_as_int()
             if self._filechooser_for_add.withsubfolders.get_active():
-                [self.pathstore.prepend([x[0]]) for x in os.walk(folder) 
-                 if os.path.abspath(x[0]).count(os.sep)-folder_slashes<=recursedepth]
+                [self.pathstore.prepend([x[0]]) for x in os.walk(folder)
+                 if os.path.abspath(x[0]).count(os.sep) - folder_slashes <= recursedepth]
             else:
                 self.pathstore.prepend([folder])
         self._filechooser_for_add.hide()
 
-def pathedit(mainwindow=None):
-    pe=PathEditor(mainwindow)
-    if pe.run()==gtk.RESPONSE_OK:
+def pathedit(mainwindow=None, searchpath=None):
+    pe = PathEditor(mainwindow, searchpath)
+    if pe.run() == gtk.RESPONSE_OK:
         pe.update_search_path()
     pe.destroy()

@@ -7,47 +7,49 @@ import os
 import collections
 import sys
 
-class SearchPath(object):
-    def __init__(self, path = None):
-        self._path = []
+class SearchPath(list):
+    def __init__(self, path=None):
         if isinstance(path, collections.Sequence):
-            for p in path:
-                self.append(p)
+            self.extend(path)
         elif isinstance(path, basestring):
-            self.append(p)
+            self.append(path)
         elif path is None:
             pass
         else:
             raise ValueError('Invalid initialization of SearchPath with type %s' % repr(type(path)))
-    def append(self, *args):
-        for path in args:
-            path = os.path.abspath(os.path.expanduser(path))
-            if not os.path.exists(path):
-                raise IOError('Nonexistent path: ' + path)
-            if os.path.isdir(path):
-                self._path.append(os.path.abspath(os.path.expanduser(path)))
-            else:
-                raise ValueError(path + ' is not a directory')
+    def validate_path(self, path):
+        path = os.path.abspath(os.path.expanduser(path))
+        if not os.path.exists(path):
+            raise IOError('Nonexistent path: ' + path)
+        if os.path.isdir(path):
+            return path
+        else:
+            raise ValueError(path + ' is not a directory')
+    def append(self, path):
+        super(SearchPath, self).append(self.validate_path(path))
+    def append_with_subdirs(self, path, Nrecursion=None):
+        path = find_subdirs(path, Nrecursion)
+        super(SearchPath, self).extend([self.validate_path(p) for p in path])
+    def extend(self, pathlist):
+        super(SearchPath, self).extend([self.validate_path(p) for p in pathlist])
     def get(self):
-        return self._path[:]
+        return list(self)
     def set(self, pathlist):
-        oldpath = self._path
-        try:
-            self._path = []
-            for p in pathlist:
-                self.append(p)
-        except (IOError, ValueError):
-            self._path = oldpath
-            raise
+        pathlist = [self.validate_path(p) for p in pathlist]
+        self.clear()
+        self.extend(pathlist)
+    def clear(self):
+        while len(self):
+            self.pop()
     def add_python_path(self):
         for p in sys.path:
             self.append(p)
+    def __setitem__(self, key, value):
+        super(SearchPath, self).__setitem__(key, self.validate_path(value))
     def remove(self, path):
+        print "remove called"
         path = os.path.abspath(os.path.expanduser(path))
-        if path in self._path:
-            self._path.remove(path)
-        else:
-            raise ValueError(path + ' not in path list')
+        super(SearchPath, self).remove(path)
     def remove_duplicates(self):
         path1 = []
         for p in self._path:
@@ -61,3 +63,33 @@ append_search_path = sastool_search_path.append
 get_search_path = sastool_search_path.get
 remove_from_search_path = sastool_search_path.remove
 set_search_path = sastool_search_path.set
+
+def find_subdirs(startdir='.', recursion_depth=None):
+    """Find all subdirectory of a directory.
+
+    Inputs:
+        startdir: directory to start with. Defaults to the current folder.
+        recursion_depth: number of levels to traverse. None is infinite.
+
+    Output: a list of absolute names of subfolders.
+
+    Examples:
+        >>> find_subdirs('dir',0)  # returns just ['dir']
+
+        >>> find_subdirs('dir',1)  # returns all direct (first-level) subdirs
+                                   # of 'dir'.
+    """
+    startdir = os.path.expanduser(startdir)
+    direct_subdirs = [os.path.join(startdir, x) for x in os.listdir(startdir) if os.path.isdir(os.path.join(startdir, x))]
+    if recursion_depth is None:
+        next_recursion_depth = None
+    else:
+        next_recursion_depth = recursion_depth - 1
+    if (recursion_depth <= 1) and (recursion_depth is not None):
+        return [startdir] + direct_subdirs
+    else:
+        subdirs = []
+        for d in direct_subdirs:
+            subdirs.extend(find_subdirs(d, next_recursion_depth))
+        return [startdir] + subdirs
+

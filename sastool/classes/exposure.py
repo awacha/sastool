@@ -971,6 +971,9 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             by this. Defaults to +infinity.
         return_matrix: if the transformed, just-plotted matrix is to be
             returned. False by default.
+        vmin, vmax: these are keywords for plt.imshow(). However, they are changed
+            if defined, according to the value of `zscale`.
+            
         All other keywords are forwarded to plt.imshow()
         
         Returns: the image instance returned by imshow()
@@ -1001,11 +1004,16 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             elif kwargs_default['zscale'].upper().startswith('LN'):
                 kwargs_default['zscale'] = np.log
             elif kwargs_default['zscale'].upper().startswith('LIN'):
-                kwargs_default['zscale'] = lambda a:a.copy()
+                kwargs_default['zscale'] = lambda a:a*1.0
             elif kwargs_default['zscale'].upper().startswith('LOG'):
                 kwargs_default['zscale'] = np.log
             else:
                 raise ValueError('Invalid value for zscale: %s' % kwargs_default['zscale'])
+        for v in ['vmin','vmax']:
+            try:
+                kwargs_for_imshow[v]=kwargs_default['zscale'](float(kwargs_for_imshow[v]))
+            except Exception as e:
+                pass
         mat = self.get_matrix(kwargs_default['matrix']).copy()
         mat[mat < kwargs_default['minvalue']] = kwargs_default['minvalue']
         mat[mat > kwargs_default['maxvalue']] = kwargs_default['maxvalue']
