@@ -73,6 +73,9 @@ class PathEditor(gtk.Dialog):
         b = gtk.Button(stock=gtk.STOCK_CLEAR)
         b.connect('clicked', self.callback_clear)
         bb.add(b)
+        b = gtk.Button(stock=gtk.STOCK_SAVE)
+        b.connect('clicked', self.callback_savedefault)
+        bb.add(b)
 
 
         self.update_from_search_path()
@@ -156,7 +159,13 @@ class PathEditor(gtk.Dialog):
             else:
                 self.pathstore.prepend([folder])
         self._filechooser_for_add.hide()
-
+    def callback_savedefault(self, button=None):
+        it = self.pathstore.get_iter_first()
+        mypath = []
+        while it is not None:
+            mypath.append(self.pathstore.get_value(it, 0))
+            it = self.pathstore.iter_next(it)
+        misc.sastoolrc.set('misc.searchpath', mypath)
 def pathedit(mainwindow=None, searchpath=None):
     pe = PathEditor(mainwindow, searchpath)
     if pe.run() == gtk.RESPONSE_OK:

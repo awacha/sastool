@@ -10,6 +10,13 @@ import patheditor
 import sasimagegui
 
 from maskmaker import makemask
-from saspreview2d import SAS2DGUI_run
 from patheditor import pathedit
 from sasimagegui import *
+
+def SAS2DGUI_run():
+    w = sasimagegui.SASImageGuiMain()
+    def f(widget, event, *args, **kwargs):    #IGNORE:W0613
+        widget.destroy()
+        del widget
+    w.connect('delete-event', f)
+    w.show()

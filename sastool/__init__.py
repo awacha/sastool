@@ -1,6 +1,6 @@
 """
 ======================================================
- SASTool: a Python package for small-angle scattering 
+ SASTool: a Python package for small-angle scattering
 ======================================================
 
 Written by Andras Wacha (awacha at gmail dot com)
@@ -9,7 +9,7 @@ This library is intended for small-angle scatterers working at large-scale
 facilities (synchrotron beamlines or neutrons) and at smaller laboratories. The
 aim of this project is to create a toolchain for quick on-site data analysis,
 data post-processing and fitting. I wrote (write) this with the requirement of
-readability in mind, learning from an older project of mine (``B1python``, 
+readability in mind, learning from an older project of mine (``B1python``,
 http://github.com/awacha/B1python). Much of the code in this has been simply
 taken over from ``B1python`` and ``py_scidatatools``, with refactoring, simplifying
 and restructuring.
@@ -50,7 +50,7 @@ try:
     import gtk
     gtk.init_check() # returns None if OK, raises an exception (RuntimeError) if not.
     try:
-        matplotlib.use('GTKAgg', warn = False)
+        matplotlib.use('GTKAgg', warn=False)
     except TypeError:
         # older versions of IPython monkey-patch matplotlib.use(). That patch does not
         # support the 'warn' keyword argument
@@ -74,7 +74,7 @@ import classes
 def _sas2dgui_main_program():
     """Entry point for the `sas2dutil` GUI script."""
     import gui
-    a = gui.saspreview2d.SAS2DGUI()
+    a = gui.sasimagegui.SASImageGuiMain()
     def delete_handler(*args, **kwargs):
         gtk.main_quit()
     a.connect('delete-event', delete_handler)

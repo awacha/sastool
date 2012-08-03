@@ -34,18 +34,18 @@ HC = scipy.constants.codata.value('Planck constant in eV s') * \
 class SASExposure(ArithmeticBase):
     """A class for holding SAS exposure data, i.e. intensity, error, metadata
     and mask.
-    
+
     A SASExposure has the following special attributes:
-    
+
     Intensity: scattered intensity matrix (np.ndarray).
     Error: error of scattered intensity (np.ndarray).
     header: metadata dictionary (SASHeader instance).
-    mask: mask matrix in the form of a SASMask instance. 
-    
+    mask: mask matrix in the form of a SASMask instance.
+
     any of the above attributes can be missing, a value of None signifies
     this situation.
 
-    
+
     """
     matrix_names = ['Intensity', 'Error']
     matrices = dict([('Intensity', 'Scattered intensity'),
@@ -155,35 +155,35 @@ class SASExposure(ArithmeticBase):
                 except AttributeError as ae:
                     raise AttributeError(str(ae) + '; possibly bad experiment type given')
                 #other exceptions such as IOError on read failure are propagated.
-            if kwargs['maskfile'] is not None:
-                self.set_mask(SASMask(kwargs['maskfile'], dirs = kwargs['dirs']))
+            if kwargs['maskfile'] is not None and kwargs['load_mask']:
+                self.set_mask(SASMask(kwargs['maskfile'], dirs=kwargs['dirs']))
         else:
             raise ValueError('Too many positional arguments!')
         if self.mask is None:
             self.set_mask(SASMask(np.ones_like(self.Intensity)))
     def __new__(cls, *args, **kwargs):
         """Load files or just create an empty instance or copy.
-        
-        This function serves as a general method for instantiating 
+
+        This function serves as a general method for instantiating
         `SASExposure`, i.e. handles calls, like
         ::
             >>> SASExposure(...)
-        
+
         Three ways of working (note that positional arguments *cannot be given
         as keyword ones*!):
-        
+
         0) ``SASExposure()``: create an empty object.
-        
+
         1) ``SASExposure(<instance-of-SASExposure>)``: copy-constructor
             **One positional argument**, which is an instance of `SASExposure`.
             In this case an instance of `SASExposure` is returned. The copy is
             shallow!
-        
+
         2) ``SASExposure(filename, **kwargs)``: load a file
             **One positional argument**, a string
             `filename`:  string
                 file name to load (with path if needed)
-        
+
         3) ``SASExposure(fileformat, fsn, **kwargs)``: load
             one or more files. **Two positional arguments**.
             `fileformat`: string
@@ -194,7 +194,7 @@ class SASExposure(ArithmeticBase):
                 file sequence number. If a scalar, the corresponding file will
                 be loaded. If a sequence of numbers, each file will be opened
                 and a list of SASExposure instances will be returned.
-        
+
         4) ``SASExposure(hdf_group, [fsn,] **kwargs)``: load exposures from a HDF5 file
             produced by `sastool`. **One positional argument**, a hdf5 filename
             or a hdf5 group (instance of ``h5py.highlevel.Group``). Supported
@@ -202,7 +202,7 @@ class SASExposure(ArithmeticBase):
             `HDF5_Groupnameformat`: a regular expression pattern compatible with
                 the `re` module to match and parse group names. Should contain a
                 parsed regular expression group for the FSN. For example the
-                default value is ``r"FSN(\d+)"``. Typically the pattern should 
+                default value is ``r"FSN(\d+)"``. Typically the pattern should
                 contain a construct like ``(\d+)`` to match file sequence numbers.
             `HDF5_Intensityname`: the name of the dataset in each group which
                 corresponds to the scattered intensity. Defaults to
@@ -210,10 +210,10 @@ class SASExposure(ArithmeticBase):
             `HDF5_Errorname`: the name of the dataset in each group which
                 corresponds to the error of the scattered intensity. Defaults
                 to ``Error``.
-        
+
         For signatures 2), 3) and 4) the following optional keyword arguments
         are supported:
-        
+
             `experiment_type`: string
                 the origin of the file, which determines its format. It is
                 normally auto-guessed, but in case that fails, one can forcibly
@@ -235,7 +235,7 @@ class SASExposure(ArithmeticBase):
         """
         kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
         if not args:
-            return super(SASExposure,cls).__new__(cls)
+            return super(SASExposure, cls).__new__(cls)
         if len(args) < 2: #scheme 0) 1) and 2) can be handled in the same way 
             if isinstance(args[0], h5py.highlevel.Group) or \
               (isinstance(args[0], basestring) and any([args[0].upper().endswith(k) for k in ['.HDF5', '.HDF', '.H5']])) or \
@@ -301,14 +301,14 @@ class SASExposure(ArithmeticBase):
                     return obj #delegate the job to the __init__ method
         else:
             raise ValueError('Invalid number of positional arguments.')
-    def check_for_mask(self, isfatal = True):
+    def check_for_mask(self, isfatal=True):
         if self.mask is None:
             if isfatal:
                 raise SASExposureException('mask not defined') #IGNORE:W0710
             else:
                 return False
         return True
-    def check_for_q(self, isfatal = True):
+    def check_for_q(self, isfatal=True):
         "Check if needed header elements are present for calculating q values for pixels. If not, raise a SASAverageException."
         #Note, that we check for 'Dist' and 'Energy' instead of 'DistCalibrated'
         # and 'EnergyCalibrated', because if the latter are missing, they
@@ -332,32 +332,32 @@ class SASExposure(ArithmeticBase):
         self.header[key] = value
 
     def __getitem__(self, key):
-        if isinstance(key,basestring):
+        if isinstance(key, basestring):
             return self.header[key]
         else:
-            obj=self.__class__()
-            obj.Intensity=self.Intensity[key]
+            obj = self.__class__()
+            obj.Intensity = self.Intensity[key]
             try:
-                obj.Error=self.Error[key]
+                obj.Error = self.Error[key]
             except:
                 pass
             try:
-                obj.mask=self.mask[key]
+                obj.mask = self.mask[key]
             except:
                 pass
-            obj.header=SASHeader(self.header)
+            obj.header = SASHeader(self.header)
             return obj
 
     def __delitem__(self, key):
         del self.header[key]
 
-    def sum(self, masked = True):
+    def sum(self, masked=True):
         if self.check_for_mask(False) and masked:
             indices = np.array(self.mask) != 0
         else:
             indices = slice(None)
         return ErrorValue(self.Intensity[indices].sum(), self.Error[indices].sum())
-    def max(self, masked = True):
+    def max(self, masked=True):
         if self.check_for_mask(False) and masked:
             indices = np.array(self.mask) != 0
         else:
@@ -366,7 +366,7 @@ class SASExposure(ArithmeticBase):
         E = self.Error[indices]
         return ErrorValue(I.max(), E[I == I.max()].max())
 
-    def min(self, masked = True):
+    def min(self, masked=True):
         if self.check_for_mask(False) and masked:
             indices = np.array(self.mask) != 0
         else:
@@ -374,21 +374,21 @@ class SASExposure(ArithmeticBase):
         I = self.Intensity[indices]
         E = self.Error[indices]
         return ErrorValue(I.min(), E[I == I.min()].max())
-    
+
     def trimpix(self, rowmin, rowmax, columnmin, columnmax):
-        obj=self[rowmin:rowmax,columnmin:columnmax]
+        obj = self[rowmin:rowmax, columnmin:columnmax]
         if 'BeamPosX' in obj.header:
-            obj.header['BeamPosX']-=rowmin
+            obj.header['BeamPosX'] -= rowmin
         if 'BeamPosY' in obj.header:
-            obj.header['BeamPosY']-=columnmin
+            obj.header['BeamPosY'] -= columnmin
         return obj
-    
+
     def trimq(self, qrowmin, qrowmax, qcolmin, qcolmax):
-        rowmin=self.header['DistCalibrated']*np.tan(2*np.arcsin(qrowmin*HC/self.header['EnergyCalibrated']/(4*np.pi)))/self.header['XPixel']+self.header['BeamPosX']
-        rowmax=self.header['DistCalibrated']*np.tan(2*np.arcsin(qrowmax*HC/self.header['EnergyCalibrated']/(4*np.pi)))/self.header['XPixel']+self.header['BeamPosX']
-        colmin=self.header['DistCalibrated']*np.tan(2*np.arcsin(qcolmin*HC/self.header['EnergyCalibrated']/(4*np.pi)))/self.header['YPixel']+self.header['BeamPosY']
-        colmax=self.header['DistCalibrated']*np.tan(2*np.arcsin(qcolmax*HC/self.header['EnergyCalibrated']/(4*np.pi)))/self.header['YPixel']+self.header['BeamPosY']
-        return self.trimpix(int(np.floor(rowmin)),int(np.ceil(rowmax)),int(np.floor(colmin)),int(np.ceil(colmax)))
+        rowmin = self.header['DistCalibrated'] * np.tan(2 * np.arcsin(qrowmin * HC / self.header['EnergyCalibrated'] / (4 * np.pi))) / self.header['XPixel'] + self.header['BeamPosX']
+        rowmax = self.header['DistCalibrated'] * np.tan(2 * np.arcsin(qrowmax * HC / self.header['EnergyCalibrated'] / (4 * np.pi))) / self.header['XPixel'] + self.header['BeamPosX']
+        colmin = self.header['DistCalibrated'] * np.tan(2 * np.arcsin(qcolmin * HC / self.header['EnergyCalibrated'] / (4 * np.pi))) / self.header['YPixel'] + self.header['BeamPosY']
+        colmax = self.header['DistCalibrated'] * np.tan(2 * np.arcsin(qcolmax * HC / self.header['EnergyCalibrated'] / (4 * np.pi))) / self.header['YPixel'] + self.header['BeamPosY']
+        return self.trimpix(int(np.floor(rowmin)), int(np.ceil(rowmax)), int(np.floor(colmin)), int(np.ceil(colmax)))
 ### -------------- Loading routines (new_from_xyz) ------------------------
 
     @classmethod
@@ -402,11 +402,11 @@ class SASExposure(ArithmeticBase):
                 hdfgroups = [x for x in hpg.keys() if x.startswith('FSN')]
             for g in hdfgroups:
                 ret.append(cls())
-                ret[-1].read_from_hdf5(hpg[g], load_mask = False)
+                ret[-1].read_from_hdf5(hpg[g], load_mask=False)
             # adding masks later, thus only one copy of each mask will exist in
             # the memory 
             masknames = set([r.header['maskid'] for r in ret])
-            masks = dict([(mn, SASMask(hpg, maskid = mn)) for mn in masknames])
+            masks = dict([(mn, SASMask(hpg, maskid=mn)) for mn in masknames])
             for r in ret:
                 r.set_mask(masks[r.header['maskid']])
         return ret
@@ -429,7 +429,7 @@ class SASExposure(ArithmeticBase):
 
     def read_from_ESRF_ID02(self, filename, **kwargs):
         """Read an EDF file (ESRF beamline ID02 SAXS pattern)
-        
+
         Inputs:
             filename: the name of the file to be loaded
             estimate_errors: error matrices are usually not saved, but they can
@@ -468,11 +468,11 @@ class SASExposure(ArithmeticBase):
 
     def read_from_B1_org(self, filename, **kwargs):
         """Read an original exposition (beamline B1, HASYLAB/DESY, Hamburg)
-        
+
         Inputs:
             filename: the name of the file to be loaded
             dirs: folders to look for files in
-        
+
         Notes:
             We first try to load the header file. If the file name has no
                 extension, extensions .header, .DAT,
@@ -482,7 +482,7 @@ class SASExposure(ArithmeticBase):
                 tried in this sequence.
             If either the header or the data cannot be loaded, an IOError is
                 raised.
-            
+
         """
         kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
         #try to load header file
@@ -594,11 +594,11 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             self.header = SASHeader()
             self.header.read_from_hdf5(hdf_group)
             if self.header['maskid'] is not None and kwargs['load_mask']:
-                self.mask = SASMask(hdf_group.parent, maskid = self.header['maskid'])
+                self.mask = SASMask(hdf_group.parent, maskid=self.header['maskid'])
 
     def read_from_PAXE(self, filename, **kwargs):
         kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
-        paxe = twodim.readPAXE(misc.findfileindirs(filename, dirs = kwargs['dirs']))
+        paxe = twodim.readPAXE(misc.findfileindirs(filename, dirs=kwargs['dirs']))
         self.header = SASHeader(paxe[0])
         self.Intensity = paxe[1]
         if kwargs['estimate_errors']:
@@ -637,7 +637,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 dirs = [path] + kwargs['dirs']
             else:
                 dirs = kwargs['dirs']
-            self.set_mask(SASMask(filename, dirs = dirs))
+            self.set_mask(SASMask(filename, dirs=dirs))
         return self
 ### ------------------- Interface routines ------------------------------------
     def set_mask(self, mask):
@@ -645,11 +645,11 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         self.header['maskid'] = self.mask.maskid
         self.header.add_history('Mask %s associated to exposure.' % self.mask.maskid)
 
-    def get_matrix(self, name = 'Intensity', othernames = None):
+    def get_matrix(self, name='Intensity', othernames=None):
         name = self.get_matrix_name(name, othernames)
         return getattr(self, name)
 
-    def get_matrix_name(self, name = 'Intensity', othernames = None):
+    def get_matrix_name(self, name='Intensity', othernames=None):
         if name in self.matrices.values():
             name = [k for k in self.matrices if self.matrices[k] == name][0]
         if hasattr(self, name) and (getattr(self, name) is not None):
@@ -718,9 +718,9 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         return self.Intensity
 ### ------------------- Routines for radial integration -----------------------
 
-    def get_qrange(self, N = None, spacing = 'linear'):
+    def get_qrange(self, N=None, spacing='linear'):
         """Calculate the available q-range.
-        
+
         Inputs:
             N: if integer: the number of bins
                if float: the distance between bins (equidistant bins)
@@ -728,7 +728,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             spacing: only effective if N is an integer. 'linear' means linearly
                 equidistant spacing (as in np.linspace), 'logarithmic' means
                 logarithmic spacing (as in np.logspace).
-        
+
         Returns:
             the q-scale in a numpy array.
         """
@@ -754,13 +754,13 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
     @classmethod
     def common_qrange(cls, *exps):
         """Find a common q-range for several exposures
-        
+
         Usage:
-        
+
         >>> SASExposure.common_qrange(exp1, exp2, exp3, ...)
-        
+
         where exp1, exp2, exp3... are instances of the SASExposure class.
-        
+
         Returns:
             the estimated common q-range in a np.ndarray (ndim=1).
         """
@@ -772,10 +772,10 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         N = min([len(qr) for qr in qranges])
         return np.linspace(qmin, qmax, N)
 
-    def radial_average(self, qrange = None, pixel = False, matrix = 'Intensity',
-                       errormatrix = 'Error', q_average = True):
+    def radial_average(self, qrange=None, pixel=False, matrix='Intensity',
+                       errormatrix='Error', q_average=True):
         """Do a radial averaging
-        
+
         Inputs:
             qrange: the q-range. If None, auto-determine.
             pixel: do a pixel-integration (instead of q)
@@ -783,7 +783,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             errormatrix: error matrix to use for averaging (or None)
             q_average: if the averaged abscissa values are to be returned
                 instead of the nominal ones
-                
+
         Outputs:
             the one-dimensional curve as an instance of SASCurve (if pixel is
                 False) or SASPixelCurve (if pixel is True)
@@ -802,34 +802,34 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                self.header['BeamPosX'],
                                                self.header['BeamPosY'],
                                                1 - self.mask.mask, qrange,
-                                               returnavgq = q_average,
-                                               returnpixel = True)
+                                               returnavgq=q_average,
+                                               returnpixel=True)
             if err is not None:
                 q, I, E, A, p = res
             else:
                 q, I, A, p = res
                 E = np.zeros_like(q)
-            ds = SASCurve(q, I, E, pixel = p, area = A)
+            ds = SASCurve(q, I, E, pixel=p, area=A)
         else:
             res = utils2d.integrate.radintpix(mat, err,
                                                      self.header['BeamPosX'],
                                                      self.header['BeamPosY'],
                                                      1 - self.mask.mask, qrange,
-                                                     returnavgpix = q_average)
+                                                     returnavgpix=q_average)
             if err is not None:
                 p, I, E, A = res
             else:
                 p, I, A = res
                 E = np.zeros_like(p)
-            ds = SASPixelCurve(p, I, E, area = A)
+            ds = SASPixelCurve(p, I, E, area=A)
         ds.header = SASHeader(self.header)
         return ds
 
-    def sector_average(self, phi0, dphi, qrange = None, pixel = False,
-                       matrix = 'Intensity', errormatrix = 'Error',
-                       symmetric_sector = False, q_average = True):
+    def sector_average(self, phi0, dphi, qrange=None, pixel=False,
+                       matrix='Intensity', errormatrix='Error',
+                       symmetric_sector=False, q_average=True):
         """Do a radial averaging restricted to one sector.
-        
+
         Inputs:
             phi0: start of the sector (radians).
             dphi: sector width (radians)
@@ -845,7 +845,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         Outputs:
             the one-dimensional curve as an instance of SASCurve (if pixel is
                 False) or SASPixelCurve (if pixel is True)
-    
+
         Notes:
             x is row direction, y is column. 0 degree is +x, 90 degree is +y.
         """
@@ -863,44 +863,44 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                self.header['BeamPosX'],
                                                self.header['BeamPosY'],
                                                1 - self.mask.mask, qrange,
-                                               returnavgq = q_average,
-                                               returnpixel = True,
-                                               phi0 = phi0, dphi = dphi, symmetric_sector = symmetric_sector)
+                                               returnavgq=q_average,
+                                               returnpixel=True,
+                                               phi0=phi0, dphi=dphi, symmetric_sector=symmetric_sector)
             if err is not None:
                 q, I, E, A, p = res
             else:
                 q, I, A, p = res
                 E = np.zeros_like(q)
-            ds = SASCurve(q, I, E, pixel = p, area = A)
+            ds = SASCurve(q, I, E, pixel=p, area=A)
         else:
             res = utils2d.integrate.radintpix(mat, err,
                                                      self.header['BeamPosX'],
                                                      self.header['BeamPosY'],
                                                      1 - self.mask.mask, qrange,
-                                                     returnavgpix = q_average, phi0 = phi0,
-                                                     dphi = dphi, symmetric_sector = symmetric_sector)
+                                                     returnavgpix=q_average, phi0=phi0,
+                                                     dphi=dphi, symmetric_sector=symmetric_sector)
             if err is not None:
                 p, I, E, A = res
             else:
                 p, I, A = res
                 E = np.zeros_like(p)
-            ds = SASPixelCurve(p, I, E, area = A)
+            ds = SASPixelCurve(p, I, E, area=A)
         ds.header = SASHeader(self.header)
         return ds
 
-    def azimuthal_average(self, qmin, qmax, Ntheta = 100, pixel = False, matrix = 'Intensity', errormatrix = 'Error'):
+    def azimuthal_average(self, qmin, qmax, Ntheta=100, pixel=False, matrix='Intensity', errormatrix='Error'):
         """Do an azimuthal averaging restricted to a ring.
-        
+
         Inputs:
             qmin, qmax: lower and upper bounds of the ring (q or pixel)
             Ntheta: number of points in the output.
             pixel: do a pixel-integration (instead of q)
             matrix: matrix to use for averaging
             errormatrix: error matrix to use for averaging (or None)
-        
+
         Outputs:
             the one-dimensional curve as an instance of SASAzimuthalCurve
-    
+
         Notes:
             x is row direction, y is column. 0 degree is +x, 90 degree is +y.
         """
@@ -918,25 +918,25 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                self.header['BeamPosX'],
                                                self.header['BeamPosY'],
                                                1 - self.mask.mask, Ntheta,
-                                               qmin = qmin, qmax = qmax)
+                                               qmin=qmin, qmax=qmax)
             if err is not None:
                 theta, I, E, A = res
             else:
                 theta, I, A = res
                 E = np.zeros_like(theta)
-            ds = SASAzimuthalCurve(theta, I, E, area = A)
+            ds = SASAzimuthalCurve(theta, I, E, area=A)
         else:
             res = utils2d.integrate.azimintpix(mat, err,
                                                      self.header['BeamPosX'],
                                                      self.header['BeamPosY'],
                                                      1 - self.mask.mask, Ntheta,
-                                                     pixmin = qmin, pixmax = qmax)
+                                                     pixmin=qmin, pixmax=qmax)
             if err is not None:
                 theta, I, E, A = res
             else:
                 theta, I, A = res
                 E = np.zeros_like(theta)
-            ds = SASAzimuthalCurve(theta, I, E, area = A)
+            ds = SASAzimuthalCurve(theta, I, E, area=A)
         ds.header = SASHeader(self.header)
         return ds
 
@@ -945,9 +945,9 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
 
     def plot2d(self, **kwargs):
         """Plot the matrix (imshow)
-        
+
         Allowed keyword arguments [and their default values]:
-        
+
         zscale ['linear']: colour scaling of the image. Either a string ('log',
             'log10' or 'linear', case insensitive), or an unary function which
             operates on a numpy array and returns a numpy array of the same
@@ -960,8 +960,8 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             mask is attached to this SASExposure instance, defaults to False
         matrix ['Intensity']: the matrix which is to be plotted. If this is not
             present, another one will be chosen quietly
-        axis [None]: the axis into which the image should be plotted. If None,
-            defaults to the currently active axis (returned by plt.gca())
+        axes [None]: the axes into which the image should be plotted. If None,
+            defaults to the currently active axes (returned by plt.gca())
         invalid_color ['black']: the color for invalid (NaN or infinite) pixels
         mask_opacity [0.8]: the opacity of the overlaid mask (1 is fully opaque,
             0 is fully transparent)
@@ -973,9 +973,9 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             returned. False by default.
         vmin, vmax: these are keywords for plt.imshow(). However, they are changed
             if defined, according to the value of `zscale`.
-            
+
         All other keywords are forwarded to plt.imshow()
-        
+
         Returns: the image instance returned by imshow()
         """
         kwargs_default = {'zscale':'linear',
@@ -983,7 +983,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                         'drawmask':True,
                         'qrange_on_axis':True,
                         'matrix':'Intensity',
-                        'axis':None,
+                        'axes':None,
                         'invalid_color':'black',
                         'mask_opacity':0.6,
                         'interpolation':'nearest',
@@ -992,7 +992,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                         'maxvalue':np.inf,
                         'return_matrix':False}
         my_kwargs = ['zscale', 'crosshair', 'drawmask', 'qrange_on_axis', 'matrix',
-                   'axis', 'invalid_color', 'mask_opacity', 'minvalue', 'maxvalue',
+                   'axes', 'invalid_color', 'mask_opacity', 'minvalue', 'maxvalue',
                    'return_matrix']
         kwargs_default.update(kwargs)
         return_matrix = kwargs_default['return_matrix'] # save this as this will be removed when kwars_default is fed into imshow()
@@ -1004,14 +1004,14 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             elif kwargs_default['zscale'].upper().startswith('LN'):
                 kwargs_default['zscale'] = np.log
             elif kwargs_default['zscale'].upper().startswith('LIN'):
-                kwargs_default['zscale'] = lambda a:a*1.0
+                kwargs_default['zscale'] = lambda a:a * 1.0
             elif kwargs_default['zscale'].upper().startswith('LOG'):
                 kwargs_default['zscale'] = np.log
             else:
                 raise ValueError('Invalid value for zscale: %s' % kwargs_default['zscale'])
-        for v in ['vmin','vmax']:
+        for v in ['vmin', 'vmax']:
             try:
-                kwargs_for_imshow[v]=kwargs_default['zscale'](float(kwargs_for_imshow[v]))
+                kwargs_for_imshow[v] = kwargs_default['zscale'](float(kwargs_for_imshow[v]))
             except Exception as e:
                 pass
         mat = self.get_matrix(kwargs_default['matrix']).copy()
@@ -1049,9 +1049,9 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 bcx = None; bcy = None
             xmin = 0; xmax = mat.shape[1]; ymin = 0; ymax = mat.shape[0]
 
-        if kwargs_default['axis'] is None:
-            kwargs_default['axis'] = plt.gca()
-        ret = kwargs_default['axis'].imshow(mat, **kwargs_for_imshow) #IGNORE:W0142
+        if kwargs_default['axes'] is None:
+            kwargs_default['axes'] = plt.gca()
+        ret = kwargs_default['axes'].imshow(mat, **kwargs_for_imshow) #IGNORE:W0142
         if kwargs_default['drawmask']:
             #workaround: because of the colour-scaling we do here, full one and
             #   full zero masks look the SAME, i.e. all the image is shaded.
@@ -1064,17 +1064,17 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 _colormap_for_mask._lut[:, -1] = 0 #IGNORE:W0212
                 _colormap_for_mask._lut[0, -1] = kwargs_default['mask_opacity'] #IGNORE:W0212
                 kwargs_for_imshow['cmap'] = _colormap_for_mask
-                kwargs_default['axis'].imshow(self.mask.mask, **kwargs_for_imshow) #IGNORE:W0142
+                kwargs_default['axes'].imshow(self.mask.mask, **kwargs_for_imshow) #IGNORE:W0142
         if kwargs_default['crosshair']:
             if bcx is not None and bcy is not None:
-                ax = kwargs_default['axis'].axis()
-                kwargs_default['axis'].plot([xmin, xmax], [bcx] * 2, 'w-')
-                kwargs_default['axis'].plot([bcy] * 2, [ymin, ymax], 'w-')
-                kwargs_default['axis'].axis(ax)
+                ax = kwargs_default['axes'].axis()
+                kwargs_default['axes'].plot([xmin, xmax], [bcx] * 2, 'w-')
+                kwargs_default['axes'].plot([bcy] * 2, [ymin, ymax], 'w-')
+                kwargs_default['axes'].axis(ax)
             else:
                 warnings.warn('Cross-hair was requested but beam center was not found.')
-        kwargs_default['axis'].set_axis_bgcolor(kwargs_default['invalid_color'])
-        kwargs_default['axis'].figure.canvas.draw()
+        kwargs_default['axes'].set_axis_bgcolor(kwargs_default['invalid_color'])
+        kwargs_default['axes'].figure.canvas.draw()
         if return_matrix:
             return ret, mat
         else:
@@ -1082,9 +1082,9 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
 
 ###  ------------------------ Beam center finding -----------------------------
 
-    def update_beampos(self, bc, source = None):
+    def update_beampos(self, bc, source=None):
         """Update the beam position in the header.
-        
+
         Inputs:
             bc: beam position coordinates (row, col; starting from 0).
             source: name of the beam finding algorithm.
@@ -1094,28 +1094,28 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             self.header.add_history('Beam position updated to:' + str(tuple(bc)))
         else:
             self.header.add_history('Beam found by *%s*: %s' % (source, str(tuple(bc))))
-    def find_beam_semitransparent(self, bs_area, update = True):
+    def find_beam_semitransparent(self, bs_area, update=True):
         """Find the beam position from the area under the semitransparent
         beamstop.
-        
+
         Inputs:
             bs_area: sequence of the coordinates of the beam-stop area rect.:
                 [row_min, row_max, column_min, column_max]
             update: if the new value should be written in the header (default).
                 If False, the newly found beam position is only returned.
-        
+
         Outputs:
             the beam position (row,col).
         """
         bs_area = [min(bs_area[2:]), max(bs_area[2:]), min(bs_area[:2]), max(bs_area[:2])]
         bc = utils2d.centering.findbeam_semitransparent(self.get_matrix(), bs_area)
         if update:
-            self.update_beampos(bc, source = 'semitransparent')
+            self.update_beampos(bc, source='semitransparent')
         return bc
-    def find_beam_slices(self, pixmin = 0, pixmax = np.inf, sector_width = np.pi / 9.,
-                         update = True, callback = None):
+    def find_beam_slices(self, pixmin=0, pixmax=np.inf, sector_width=np.pi / 9.,
+                         update=True, callback=None):
         """Find the beam position by matching diagonal sectors.
-        
+
         Inputs:
             pixmin, pixmax: lower and upper thresholds in the distance from the
                 origin in the radial averaging [in pixel units]
@@ -1124,7 +1124,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 If False, the newly found beam position is only returned.
             callback: a function (accepting no arguments) to be called in each
                 iteration of the fitting procedure.
-        
+
         Outputs:
             the beam position (row,col).
         """
@@ -1132,35 +1132,35 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         bc = utils2d.centering.findbeam_slices(self.get_matrix(),
                                              (self.header['BeamPosX'],
                                               self.header['BeamPosY']),
-                                             self.mask.mask, dmin = pixmin,
-                                             dmax = pixmax,
-                                             sector_width = sector_width,
-                                             callback = callback)
+                                             self.mask.mask, dmin=pixmin,
+                                             dmax=pixmax,
+                                             sector_width=sector_width,
+                                             callback=callback)
         if update:
-            self.update_beampos(bc, source = 'slices')
+            self.update_beampos(bc, source='slices')
         return bc
-    def find_beam_gravity(self, update = True):
+    def find_beam_gravity(self, update=True):
         """Find the beam position by finding the center of gravity in each row
         and column.
-        
+
         Inputs:
             update: if the new value should be written in the header (default).
                 If False, the newly found beam position is only returned.
-        
+
         Outputs:
             the beam position (row,col).
         """
         self.check_for_mask()
         bc = utils2d.centering.findbeam_gravity(self.get_matrix(), self.mask.mask)
         if update:
-            self.update_beampos(bc, source = 'gravity')
+            self.update_beampos(bc, source='gravity')
         return bc
 
-    def find_beam_azimuthal_fold(self, Ntheta = 50, dmin = 0, dmax = np.inf,
-                                 update = True, callback = None):
+    def find_beam_azimuthal_fold(self, Ntheta=50, dmin=0, dmax=np.inf,
+                                 update=True, callback=None):
         """Find the beam position by matching an azimuthal scattering curve
         and its counterpart shifted by pi radians.
-        
+
         Inputs:
             Ntheta: number of bins in the azimuthal scattering curve
             dmin, dmax: lower and upper thresholds in the distance from the
@@ -1169,7 +1169,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 If False, the newly found beam position is only returned.
             callback: a function (accepting no arguments) to be called in each
                 iteration of the fitting procedure.
-        
+
         Outputs:
             the beam position (row,col).
         """
@@ -1178,16 +1178,16 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                      (self.header['BeamPosX'],
                                                       self.header['BeamPosY']),
                                                      self.mask.mask,
-                                                     Ntheta = Ntheta, dmin = dmin,
-                                                     dmax = dmax, callback = callback)
+                                                     Ntheta=Ntheta, dmin=dmin,
+                                                     dmax=dmax, callback=callback)
         if update:
-            self.update_beampos(bc, source = 'azimuthal_fold')
+            self.update_beampos(bc, source='azimuthal_fold')
         return bc
 
-    def find_beam_radialpeak(self, pixmin, pixmax, drive_by = 'amplitude', extent = 10, update = True, callback = None):
+    def find_beam_radialpeak(self, pixmin, pixmax, drive_by='amplitude', extent=10, update=True, callback=None):
         """Find the beam position by optimizing a peak in the radial scattering
         curve.
-        
+
         Inputs:
             pixmin, pixmax: lower and upper thresholds in the distance from the
                 origin in the radial averaging [in pixel units]. Should be a
@@ -1200,7 +1200,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 If False, the newly found beam position is only returned.
             callback: a function (accepting no arguments) to be called in each
                 iteration of the fitting procedure.
-        
+
         Outputs:
             the beam position (row,col).
         """
@@ -1209,28 +1209,28 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                  (self.header['BeamPosX'],
                                                   self.header['BeamPosY']),
                                                  self.mask.mask, pixmin,
-                                                 pixmax, drive_by = drive_by,
-                                                 extent = extent, callback = callback)
+                                                 pixmax, drive_by=drive_by,
+                                                 extent=extent, callback=callback)
         if update:
-            self.update_beampos(bc, source = 'radialpeak')
+            self.update_beampos(bc, source='radialpeak')
         return bc
 
 ### ----------------------- Writing routines ----------------------------------
 
     def write_to_HDF5(self, hdf_or_filename, **kwargs):
         """Save exposure to a HDF5 file or group.
-        
+
         Inputs:
-            hdf_or_filename: a file name (string) or an instance of 
+            hdf_or_filename: a file name (string) or an instance of
                 h5py.highlevel.File (equivalent to a HDF5 root group) or
                 h5py.highlevel.Group.
             other keyword arguments are passed on as keyword arguments to the
                 h5py.highlevel.Group.create_dataset() method.
-                
+
         A HDF5 group will be created with the name FSN<fsn> and the available
         matrices (Intensity, Error) will be saved. Header data is saved
         as attributes to the HDF5 group.
-        
+
         If a mask is associated to this exposure, it is saved as well as a
         sibling group of FSN<fsn> with the name <maskid>.
         """
@@ -1244,7 +1244,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             for k in self.matrix_names:
                 if k is None:
                     continue
-                hpg[groupname].create_dataset(k, data = getattr(self, k), **kwargs)
+                hpg[groupname].create_dataset(k, data=getattr(self, k), **kwargs)
             self.header.write_to_hdf5(hpg[groupname])
             if self.mask is not None:
                 self.mask.write_to_hdf5(hpg)
