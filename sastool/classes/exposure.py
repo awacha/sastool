@@ -307,6 +307,11 @@ class SASExposure(ArithmeticBase):
                 raise SASExposureException('mask not defined') #IGNORE:W0710
             else:
                 return False
+        if self.mask.shape != self.shape:
+            if isfatal:
+                raise SASExposureException('mask is of incompatible shape!')
+            else:
+                return False
         return True
     def check_for_q(self, isfatal=True):
         "Check if needed header elements are present for calculating q values for pixels. If not, raise a SASAverageException."
@@ -320,6 +325,7 @@ class SASExposure(ArithmeticBase):
                 raise SASExposureException('Fields missing from header: ' + str(missing)) #IGNORE:W0710
             else:
                 return missing
+        return []
     def __del__(self):
         for x in ['Intensity', 'Error', 'header', 'mask']:
             if hasattr(self, x):
@@ -384,11 +390,18 @@ class SASExposure(ArithmeticBase):
         return obj
 
     def trimq(self, qrowmin, qrowmax, qcolmin, qcolmax):
-        rowmin = self.header['DistCalibrated'] * np.tan(2 * np.arcsin(qrowmin * HC / self.header['EnergyCalibrated'] / (4 * np.pi))) / self.header['XPixel'] + self.header['BeamPosX']
-        rowmax = self.header['DistCalibrated'] * np.tan(2 * np.arcsin(qrowmax * HC / self.header['EnergyCalibrated'] / (4 * np.pi))) / self.header['XPixel'] + self.header['BeamPosX']
-        colmin = self.header['DistCalibrated'] * np.tan(2 * np.arcsin(qcolmin * HC / self.header['EnergyCalibrated'] / (4 * np.pi))) / self.header['YPixel'] + self.header['BeamPosY']
-        colmax = self.header['DistCalibrated'] * np.tan(2 * np.arcsin(qcolmax * HC / self.header['EnergyCalibrated'] / (4 * np.pi))) / self.header['YPixel'] + self.header['BeamPosY']
+        rowmin, colmin = self.qtopixel(qrowmin, qcolmin)
+        rowmax, colmax = self.qtopixel(qrowmax, qcolmax)
         return self.trimpix(int(np.floor(rowmin)), int(np.ceil(rowmax)), int(np.floor(colmin)), int(np.ceil(colmax)))
+
+    def pixeltoq(self, row, col):
+        return(4 * np.pi * np.sin(0.5 * np.arctan((row - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC,
+               4 * np.pi * np.sin(0.5 * np.arctan((col - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC)
+
+
+    def qtopixel(self, qrow, qcol):
+        return (self.header['DistCalibrated'] * np.tan(2 * np.arcsin(qrow * HC / self.header['EnergyCalibrated'] / (4 * np.pi))) / self.header['XPixel'] + self.header['BeamPosX'],
+                self.header['DistCalibrated'] * np.tan(2 * np.arcsin(qcol * HC / self.header['EnergyCalibrated'] / (4 * np.pi))) / self.header['YPixel'] + self.header['BeamPosY'])
 ### -------------- Loading routines (new_from_xyz) ------------------------
 
     @classmethod
@@ -641,7 +654,10 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         return self
 ### ------------------- Interface routines ------------------------------------
     def set_mask(self, mask):
-        self.mask = SASMask(mask)
+        mask1 = SASMask(mask)
+        if self.shape != mask1.shape:
+            raise SASExposureException('Invalid shape for mask: %s instead of %s.' % (str(mask1.shape), str(self.shape)))
+        self.mask = mask1
         self.header['maskid'] = self.mask.maskid
         self.header.add_history('Mask %s associated to exposure.' % self.mask.maskid)
 
@@ -740,14 +756,44 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                             self.header['BeamPosX'],
                                             self.header['BeamPosY'], 1 - self.mask.mask)
         if N is None:
-            return qrange
-        elif isinstance(N, numbers.Integral):
+            N = len(qrange)
+        elif isinstance(N, numbers.Real):
+            return np.arange(qrange.min(), qrange.max(), N)
+        if isinstance(N, numbers.Integral):
             if spacing.upper().startswith('LIN'):
                 return np.linspace(qrange.min(), qrange.max(), N)
             elif spacing.upper().startswith('LOG'):
                 return np.logspace(np.log10(qrange.min()), np.log10(qrange.max()), N)
+        else:
+            raise NotImplementedError
+
+    def get_pixrange(self, N=None, spacing='linear'):
+        """Calculate the available pixel-range.
+
+        Inputs:
+            N: if integer: the number of bins
+               if float: the distance between bins (equidistant bins)
+               if None: automatic determination of the number of bins
+            spacing: only effective if N is an integer. 'linear' means linearly
+                equidistant spacing (as in np.linspace), 'logarithmic' means
+                logarithmic spacing (as in np.logspace).
+
+        Returns:
+            the q-scale in a numpy array.
+        """
+        self.check_for_mask()
+        dp = self.Dpix[self.mask.mask != 0]
+        pixmin, pixmax, npix = dp.min(), dp.max(), np.absolute(np.ceil(dp.max() - dp.min()))
+
+        if N is None:
+            N = npix
         elif isinstance(N, numbers.Real):
-            return np.arange(qrange.min(), qrange.max(), N)
+            return np.arange(pixmin, pixmax, N)
+        if isinstance(N, numbers.Integral):
+            if spacing.upper().startswith('LIN'):
+                return np.linspace(pixmin, pixmax, N)
+            elif spacing.upper().startswith('LOG'):
+                return np.logspace(np.log10(pixmin), np.log10(pixmax), N)
         else:
             raise NotImplementedError
 
@@ -771,6 +817,27 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         qmax = min([qr.max() for qr in qranges])
         N = min([len(qr) for qr in qranges])
         return np.linspace(qmin, qmax, N)
+
+    @classmethod
+    def common_pixrange(cls, *exps):
+        """Find a common pixel-range for several exposures
+
+        Usage:
+
+        >>> SASExposure.common_pixrange(exp1, exp2, exp3, ...)
+
+        where exp1, exp2, exp3... are instances of the SASExposure class.
+
+        Returns:
+            the estimated common pixel-range in a np.ndarray (ndim=1).
+        """
+        if not all([isinstance(e, cls) for e in exps]):
+            raise ValueError('All arguments should be SASExposure instances.')
+        pixranges = [e.get_pixrange() for e in exps]
+        pixmin = max([pr.min() for pr in pixranges])
+        pixmax = min([pr.max() for pr in pixranges])
+        N = min([len(pr) for pr in pixranges])
+        return np.linspace(pixmin, pixmax, N)
 
     def radial_average(self, qrange=None, pixel=False, matrix='Intensity',
                        errormatrix='Error', q_average=True):
@@ -949,8 +1016,8 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         Allowed keyword arguments [and their default values]:
 
         zscale ['linear']: colour scaling of the image. Either a string ('log',
-            'log10' or 'linear', case insensitive), or an unary function which
-            operates on a numpy array and returns a numpy array of the same
+            'log10', 'sqrt' or 'linear', case insensitive), or an unary function
+            which operates on a numpy array and returns a numpy array of the same
             shape, e.g. np.log, np.sqrt etc.
         crosshair [True]: if a cross-hair marking the beam position is to be
             plotted.
@@ -973,10 +1040,21 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             returned. False by default.
         vmin, vmax: these are keywords for plt.imshow(). However, they are changed
             if defined, according to the value of `zscale`.
+        fallback [True]: if errors such as qrange not found or mask not found or the
+            like should be suppressed.
+        drawcolorbar [True]: if a colorbar is to be added. Can be a boolean value
+            (True or False) or an instance of matplotlib.axes.Axes, into which the
+            color bar should be drawn.
 
         All other keywords are forwarded to plt.imshow()
 
         Returns: the image instance returned by imshow()
+
+        Notes:
+            Using minvalue and maxvalue results in a clipping of the matrix before
+            z-scaling and imshow()-ing. On the other hand, vmin and vmax do the
+            luminance scaling in imshow(). However, vmin and vmax are adjusted with
+            the same z-scaling as the matrix before invoking imshow().
         """
         kwargs_default = {'zscale':'linear',
                         'crosshair':True,
@@ -990,10 +1068,12 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                         'origin':'upper',
                         'minvalue':-np.inf,
                         'maxvalue':np.inf,
-                        'return_matrix':False}
+                        'return_matrix':False,
+                        'fallback':True,
+                        'drawcolorbar':True}
         my_kwargs = ['zscale', 'crosshair', 'drawmask', 'qrange_on_axis', 'matrix',
                    'axes', 'invalid_color', 'mask_opacity', 'minvalue', 'maxvalue',
-                   'return_matrix']
+                   'return_matrix', 'fallback', 'drawcolorbar']
         kwargs_default.update(kwargs)
         return_matrix = kwargs_default['return_matrix'] # save this as this will be removed when kwars_default is fed into imshow()
 
@@ -1007,6 +1087,8 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 kwargs_default['zscale'] = lambda a:a * 1.0
             elif kwargs_default['zscale'].upper().startswith('LOG'):
                 kwargs_default['zscale'] = np.log
+            elif kwargs_default['zscale'].upper().startswith('SQRT'):
+                kwargs_default['zscale'] = np.sqrt
             else:
                 raise ValueError('Invalid value for zscale: %s' % kwargs_default['zscale'])
         for v in ['vmin', 'vmax']:
@@ -1020,17 +1102,23 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         mat = kwargs_default['zscale'](mat)
 
         if kwargs_default['drawmask']:
-            if not self.check_for_mask(False):
-                warnings.warn('Drawing of mask was requested, but mask is not present!')
-                kwargs_default['drawmask'] = False
+            try:
+                self.check_for_mask()
+            except SASExposureException:
+                if kwargs_default['fallback']:
+                    warnings.warn('Drawing of mask was requested, but mask is not present!')
+                    kwargs_default['drawmask'] = False
         if kwargs_default['qrange_on_axis']:
-            missing = self.check_for_q(False)
-            if missing:
-                warnings.warn('Q scaling on the axes was requested, but the following fields are missing: ' + repr(missing))
-                kwargs_default['qrange_on_axis'] = False
+            try:
+                self.check_for_q()
+            except SASExposureException:
+                if kwargs_default['fallback']:
+                    missing = self.check_for_q(False)
+                    if missing:
+                        warnings.warn('Q scaling on the axes was requested, but the following fields are missing: ' + repr(missing))
+                        kwargs_default['qrange_on_axis'] = False
 
         if kwargs_default['qrange_on_axis']:
-            self.check_for_q()
             xmin = 4 * np.pi * np.sin(0.5 * np.arctan((0 - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC
             xmax = 4 * np.pi * np.sin(0.5 * np.arctan((mat.shape[1] - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC
             ymin = 4 * np.pi * np.sin(0.5 * np.arctan((0 - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC
@@ -1074,6 +1162,11 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             else:
                 warnings.warn('Cross-hair was requested but beam center was not found.')
         kwargs_default['axes'].set_axis_bgcolor(kwargs_default['invalid_color'])
+        if kwargs_default['drawcolorbar']:
+            if isinstance(kwargs_default['drawcolorbar'], matplotlib.axes.Axes):
+                kwargs_default['axes'].figure.colorbar(ret, cax=kwargs_default['drawcolorbar'])
+            else:
+                kwargs_default['axes'].figure.colorbar(ret, ax=kwargs_default['axes'])
         kwargs_default['axes'].figure.canvas.draw()
         if return_matrix:
             return ret, mat

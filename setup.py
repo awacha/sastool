@@ -55,5 +55,6 @@ setup(name = 'sastool', version = VERSION, author = 'Andras Wacha',
       entry_points = {'gui_scripts':['sas2dutil = sastool:_sas2dgui_main_program'],
                     },
       keywords = "saxs sans sas small-angle scattering x-ray neutron",
-      license = ""
+      license = "",
+      package_data = {'sastool': ['resource/*/*']},
       )

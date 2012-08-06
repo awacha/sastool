@@ -15,7 +15,6 @@ class FileTab(gtk.HBox):
         self.oldexptype = None
         if searchpath is None:
             searchpath = misc.sastoolrc.get('misc.searchpath')
-            print searchpath, type(searchpath)
         self.searchpath = misc.searchpath.SearchPath(searchpath)
         self.data = None
 
@@ -132,7 +131,8 @@ class FileTab(gtk.HBox):
                                             load_mask=self.loadmask_checkbox.get_active(),
                                             experiment_type=self.exptype_entry.get_active_text().replace(' ', '_'),
                                             fileformat=os.path.splitext(os.path.split(self.filenameformat_entry.get_text())[-1])[0],
-                                            logfileformat=os.path.splitext(self.headernameformat_entry.get_text()))
+                                            logfileformat=os.path.splitext(self.headernameformat_entry.get_text())[0],
+                                            logfileextn=os.path.splitext(self.headernameformat_entry.get_text())[1])
         except IOError as ioe:
             self.emit('error', ioe)
         else:

@@ -9,6 +9,9 @@ from masktab import MaskTab
 from centeringtab import CenteringTab
 from integratetab import IntegrateTab
 
+from .. import maskmaker
+from ...classes import SASExposure, SASMask
+
 class SASImageGuiMain(gtk.Window):
     _instances = []
     def __init__(self):
@@ -16,6 +19,8 @@ class SASImageGuiMain(gtk.Window):
         gtk.Window.__init__(self, gtk.WINDOW_TOPLEVEL)
 
         self.connect('delete-event', self.on_delete)
+        self.fig = Figure(figsize=(0.5, 0.4), dpi=72)
+        self.axes = self.fig.add_subplot(111)
 
         vbox = gtk.VBox()
         self.add(vbox)
@@ -35,13 +40,19 @@ class SASImageGuiMain(gtk.Window):
         self.ribbon_Plot = PlotTab()
         self.ribbon.append_page(self.ribbon_Plot, gtk.Label('Plot'))
         self.ribbon_Plot.connect('clear-graph', self.on_plot, 'clear-graph')
+        self.ribbon_Plot.connect('refresh-graph', self.on_plot, 'refresh-graph')
+        self.ribbon_Plot.connect('plotparams-changed', self.on_plot, 'refresh-graph')
 
         self.ribbon_Mask = MaskTab()
         self.ribbon.append_page(self.ribbon_Mask, gtk.Label('Mask'))
+        self.ribbon_Mask.connect('new-mask', self.on_mask, 'new-mask')
+        self.ribbon_Mask.connect('edit-mask', self.on_mask, 'edit-mask')
 
         self.ribbon_Centering = CenteringTab()
         self.ribbon.append_page(self.ribbon_Centering, gtk.Label('Centering'))
-
+        self.ribbon_Centering.connect('crosshair', self.on_center)
+        self.ribbon_Centering.connect('docentering', self.on_center)
+        self.ribbon_Centering.connect('manual-beampos', self.on_center)
         self.ribbon_Integrate = IntegrateTab()
         self.ribbon.append_page(self.ribbon_Integrate, gtk.Label('Integrate'))
 
@@ -49,8 +60,6 @@ class SASImageGuiMain(gtk.Window):
             self.ribbon.set_tab_detachable(k, True)
             self.ribbon.set_tab_reorderable(k, True)
             k.connect('error', self.on_error)
-        self.fig = Figure(figsize=(0.5, 0.4), dpi=72)
-        self.axes = self.fig.add_subplot(111)
 
         self.canvas = FigureCanvasGTKAgg(self.fig)
         self.canvas.set_size_request(800, 300)
@@ -82,6 +91,8 @@ class SASImageGuiMain(gtk.Window):
     def on_file_opened(self, widget, data):
         self.statusbar.remove_all(self.statusbar.get_context_id('sastool'))
         self.statusbar.push(self.statusbar.get_context_id('sastool'), 'File opened.')
+        self.ribbon_Plot.update_from_data(data)
+        self.ribbon_Integrate.update_from_data(data)
         self.on_plot(None, 'refresh-graph')
         return True
     def on_error(self, widget, error):
@@ -94,9 +105,42 @@ class SASImageGuiMain(gtk.Window):
             self.axes = self.fig.add_subplot(1, 1, 1)
         if argument == 'refresh-graph':
             self.axes.cla()
-            self.data.plot2d(axes=self.axes)
+            self.ribbon_Plot.plot2d(self.data, axes=self.axes)
         self.canvas.draw_idle()
         return True
     def get_data(self):
         return self.ribbon_File.data
+    def on_mask(self, widget, argument):
+        if self.data is None:
+            return False
+        if argument == 'new-mask':
+            self.data.set_mask(self.data.Intensity * 0 + 1)
+        elif argument == 'edit-mask':
+            mm = maskmaker.MaskMaker(parent=self, matrix=self.ribbon_Plot.lastplotraw, mask=self.data.mask)
+            if mm.run() == gtk.RESPONSE_OK:
+                self.data.set_mask(SASMask(mm.get_mask(), maskid=mm.maskid))
+            mm.destroy()
+        self.ribbon_Integrate.update_from_data(data)
+        self.on_plot(None, 'refresh-graph')
+    def on_center(self, widget, method, *args):
+        print widget
+        print method
+        print args
+        if method == 'crosshair':
+            ax = self.axes.axis()
+            centercoords = (0.5 * (ax[2] + ax[3]), 0.5 * (ax[0] + ax[1]))
+            if self.ribbon_Plot.get_axesunits() == 'q':
+                centercoords = self.data.qtopixel(*centercoords)
+            method = 'manual clicking'
+        elif method == 'manual-beampos':
+            centercoords = args[:2]
+            method = 'manual setting'
+        elif hasattr(self.data, 'find_beam_' + method):
+            centercoords = self.data.__getattribute__('find_beam_' + method).__call__(*args)
+        else:
+            raise ValueError('Invalid beam finding mode: ' + method)
+        self.data.update_beampos(centercoords, method)
+        self.ribbon_Centering.set_beampos(centercoords)
+        self.ribbon_Integrate.update_from_data(data)
+        self.on_plot(None, 'refresh-graph')
     data = property(get_data)

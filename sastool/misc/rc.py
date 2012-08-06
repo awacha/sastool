@@ -12,6 +12,7 @@ defaults = {'gui.sasimagegui.file.fileformat_B1_org':'org_%05d.cbf',
           'gui.sasimagegui.file.headerformat_BDF':'s%07d_001.bhf',
           'gui.sasimagegui.file.fileformat_PAXE':'XE%04d.DAT',
           'gui.sasimagegui.file.headerformat_PAXE':'XE%04.DAT',
+          'gui.sasimagegui.plot.palette':'jet',
           'misc.searchpath':['.'],
           }
 

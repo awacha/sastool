@@ -36,7 +36,6 @@ def parse_number(val):
     """
     funcs = [int, float, parse_list_from_string, unicode]
     if (val.strip().startswith("'") and val.strip().endswith("'")) or (val.strip().startswith('"') and val.strip().endswith('"')):
-        print val, " ---> ", val[1:-1]
         return val[1:-1]
     for f in funcs:
         try:
