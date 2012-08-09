@@ -52,10 +52,10 @@ def findbeam_gravity(data, mask):
     # return the mean values as the centers.
     return [xcent.mean(), ycent.mean()]
 
-def findbeam_slices(data, orig_initial, mask = None, maxiter = 0, epsfcn = 0.001,
-                    dmin = 0, dmax = np.inf, sector_width = np.pi / 9.0, callback = None):
+def findbeam_slices(data, orig_initial, mask=None, maxiter=0, epsfcn=0.001,
+                    dmin=0, dmax=np.inf, sector_width=np.pi / 9.0, extent=10, callback=None):
     """Find beam center with the "slices" method
-    
+
     Inputs:
         data: scattering matrix
         orig_initial: estimated value for x (row) and y (column)
@@ -67,8 +67,11 @@ def findbeam_slices(data, orig_initial, mask = None, maxiter = 0, epsfcn = 0.001
         dmin: disregard pixels nearer to the origin than this
         dmax: disregard pixels farther from the origin than this
         sector_width: width of sectors in radians
+        extent: approximate distance of the current and the real origin in pixels.
+            Too high a value makes the fitting procedure unstable. Too low a value
+            does not permit to move away the current origin.
         callback: callback function (expects no arguments)
-        
+
     Output:
         a vector of length 2 with the x (row) and y (column) coordinates
          of the origin.
@@ -76,12 +79,12 @@ def findbeam_slices(data, orig_initial, mask = None, maxiter = 0, epsfcn = 0.001
     if mask is None:
         mask = np.ones(data.shape)
     data = data.astype(np.double)
-    def targetfunc(orig, data, mask, callback):
+    def targetfunc(orig, data, mask, orig_orig, callback):
         #integrate four sectors
         I = [None] * 4;
-        p, Ints, A = radint_nsector(data, None, -1, -1, -1, orig[0], orig[1], mask = mask,
-                             phi0 = np.pi / 4 - 0.5 * sector_width, dphi = sector_width,
-                             Nsector = 4);
+        p, Ints, A = radint_nsector(data, None, -1, -1, -1, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask=mask,
+                             phi0=np.pi / 4 - 0.5 * sector_width, dphi=sector_width,
+                             Nsector=4);
         minpix = max(max(p.min(0).tolist()), dmin)
         maxpix = min(min(p.max(0).tolist()), dmax)
         if (maxpix < minpix):
@@ -93,13 +96,16 @@ def findbeam_slices(data, orig_initial, mask = None, maxiter = 0, epsfcn = 0.001
         if callback is not None:
             callback()
         return ret
-    orig = scipy.optimize.leastsq(targetfunc, np.array(orig_initial), args = (data, 1 - mask.astype(np.uint8), callback), maxfev = maxiter, epsfcn = 0.01)
-    return orig[0]
+    orig = scipy.optimize.leastsq(targetfunc, np.array([extent, extent]),
+                                  args=(data, 1 - mask.astype(np.uint8),
+                                         np.array(orig_initial) - extent, callback),
+                                  maxfev=maxiter, epsfcn=0.01)
+    return orig[0] + np.array(orig_initial) - extent
 
-def findbeam_azimuthal(data, orig_initial, mask = None, maxiter = 100, Ntheta = 50,
-                         dmin = 0, dmax = np.inf, callback = None):
+def findbeam_azimuthal(data, orig_initial, mask=None, maxiter=100, Ntheta=50,
+                         dmin=0, dmax=np.inf, extent=10, callback=None):
     """Find beam center using azimuthal integration
-    
+
     Inputs:
         data: scattering matrix
         orig_initial: estimated value for x (row) and y (column)
@@ -112,6 +118,9 @@ def findbeam_azimuthal(data, orig_initial, mask = None, maxiter = 100, Ntheta = 
             the azimuthal integration
         dmax: pixels farther from the origin than this will be excluded from
             the azimuthal integration
+        extent: approximate distance of the current and the real origin in pixels.
+            Too high a value makes the fitting procedure unstable. Too low a value
+            does not permit to move away the current origin.
         callback: callback function (expects no arguments)
     Output:
         a vector of length 2 with the x and y coordinates of the origin,
@@ -120,10 +129,10 @@ def findbeam_azimuthal(data, orig_initial, mask = None, maxiter = 100, Ntheta = 
     if mask is None:
         mask = np.ones(data.shape)
     data = data.astype(np.double)
-    def targetfunc(orig, data, mask, callback):
+    def targetfunc(orig, data, mask, orig_orig, callback):
         def sinfun(p, x, y):
             return (y - np.sin(x + p[1]) * p[0] - p[2]) / np.sqrt(len(x))
-        t, I, a = azimintpix(data, None, orig[0], orig[1], mask.astype('uint8'), Ntheta, dmin, dmax)
+        t, I, a = azimintpix(data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask.astype('uint8'), Ntheta, dmin, dmax)
         if len(a) > (a > 0).sum():
             raise ValueError, 'findbeam_azimuthal: non-complete azimuthal average, please consider changing dmin, dmax and/or orig_initial!'
         p = ((I.max() - I.min()) / 2.0, t[I == I.max()][0], I.mean())
@@ -132,13 +141,15 @@ def findbeam_azimuthal(data, orig_initial, mask = None, maxiter = 100, Ntheta = 
         if callback is not None:
             callback()
         return abs(p[0])
-    orig1 = scipy.optimize.fmin(targetfunc, np.array(orig_initial), args = (data, 1 - mask, callback), maxiter = maxiter, disp = 0)
-    return orig1
+    orig1 = scipy.optimize.fmin(targetfunc, np.array([extent, extent]),
+                                args=(data, 1 - mask, np.array(orig_initial) - extent,
+                                      callback), maxiter=maxiter, disp=0)
+    return orig1 + np.array(orig_initial) - extent
 
-def findbeam_azimuthal_fold(data, orig_initial, mask = None, maxiter = 100,
-                               Ntheta = 50, dmin = 0, dmax = np.inf, callback = None):
+def findbeam_azimuthal_fold(data, orig_initial, mask=None, maxiter=100,
+                               Ntheta=50, dmin=0, dmax=np.inf, extent=10, callback=None):
     """Find beam center using azimuthal integration and folding
-    
+
     Inputs:
         data: scattering matrix
         orig_initial: estimated value for x (row) and y (column)
@@ -152,6 +163,9 @@ def findbeam_azimuthal_fold(data, orig_initial, mask = None, maxiter = 100,
             the azimuthal integration
         dmax: pixels farther from the origin than this will be excluded from
             the azimuthal integration
+        extent: approximate distance of the current and the real origin in pixels.
+            Too high a value makes the fitting procedure unstable. Too low a value
+            does not permit to move away the current origin.
         callback: callback function (expects no arguments)
     Output:
         a vector of length 2 with the x and y coordinates of the origin,
@@ -164,13 +178,14 @@ def findbeam_azimuthal_fold(data, orig_initial, mask = None, maxiter = 100,
     data = data.astype(np.double)
     #the function to minimize is the sum of squared difference of two halves of
     # the azimuthal integral.
-    def targetfunc(orig, data, mask, callback):
-        I = azimintpix(data, None, orig[0], orig[1], mask, Ntheta, dmin, dmax)[1]
+    def targetfunc(orig, data, mask, orig_orig, callback):
+        I = azimintpix(data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask, Ntheta, dmin, dmax)[1]
         if callback is not None:
             callback()
         return np.sum((I[:Ntheta / 2] - I[Ntheta / 2:]) ** 2) / Ntheta
-    orig1 = scipy.optimize.fmin(targetfunc, np.array(orig_initial), args = (data, 1 - mask, callback), maxiter = maxiter, disp = 0)
-    return orig1
+    orig1 = scipy.optimize.fmin(targetfunc, np.array([extent, extent]),
+                                args=(data, 1 - mask, np.array(orig_initial) - extent, callback), maxiter=maxiter, disp=0)
+    return orig1 + np.array(orig_initial) - extent
 
 def findbeam_semitransparent(data, pri):
     """Find beam with 2D weighting of semitransparent beamstop area
@@ -179,7 +194,7 @@ def findbeam_semitransparent(data, pri):
         data: scattering matrix
         pri: list of four: [xmin,xmax,ymin,ymax] for the borders of the beam
             area under the semitransparent beamstop. X corresponds to the column
-            index (ie. A[Y,X] is the element of A from the Xth column and the 
+            index (ie. A[Y,X] is the element of A from the Xth column and the
             Yth row). You can get these by zooming on the figure and retrieving
             the result of axis() (like in Matlab)
 
@@ -193,12 +208,12 @@ def findbeam_semitransparent(data, pri):
     colmax = np.ceil(max(pri[:2]))
     #beam area on the scattering image
     B = data[rowmin:rowmax, colmin:colmax];
-    print B.shape
+    #print B.shape
     #row and column indices
     Ri = np.arange(rowmin, rowmax)
     Ci = np.arange(colmin, colmax)
-    print len(Ri)
-    print len(Ci)
+    #print len(Ri)
+    #print len(Ci)
     Ravg = np.mean(B, 1)    #average over column index, will be a concave curve
     Cavg = np.mean(B, 0)    #average over row index, will be a concave curve
     #find the maxima im both directions and their positions
@@ -216,10 +231,10 @@ def findbeam_semitransparent(data, pri):
     bcy = np.sum(np.sum(d, 0) * y) / np.sum(d)
     return bcx, bcy
 
-def findbeam_radialpeak(data, orig_initial, mask, rmin, rmax, maxiter = 100,
-                          drive_by = 'amplitude', extent = 10, callback = None):
+def findbeam_radialpeak(data, orig_initial, mask, rmin, rmax, maxiter=100,
+                          drive_by='amplitude', extent=10, callback=None):
     """Find the beam by minimizing the width of a peak in the radial average.
-    
+
     Inputs:
         data: scattering matrix
         orig_initial: first guess for the origin
@@ -227,13 +242,13 @@ def findbeam_radialpeak(data, orig_initial, mask, rmin, rmax, maxiter = 100,
         rmin,rmax: distance from the origin (in pixels) of the peak range.
         drive_by: 'hwhm' to minimize the hwhm of the peak or 'amplitude' to
             maximize the peak amplitude
-        extent: approximate distance of the current and the real origin. Too
-            high a value makes the fitting procedure unstable. Too low a value
-            does not permit to move avay the current origin. 
+        extent: approximate distance of the current and the real origin in pixels.
+            Too high a value makes the fitting procedure unstable. Too low a value
+            does not permit to move away the current origin.
         callback: callback function (expects no arguments)
     Outputs:
         the beam coordinates
-    
+
     Notes:
         A Gaussian will be fitted.
     """
@@ -245,7 +260,7 @@ def findbeam_radialpeak(data, orig_initial, mask, rmin, rmax, maxiter = 100,
         def targetfunc(orig, data, mask, orig_orig, callback):
             I = radintpix(data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask, pix)[1]
             p = misc.findpeak(pix, I)[2]
-            print orig[0] + orig_orig[0], orig[1] + orig_orig[1], p
+            #print orig[0] + orig_orig[0], orig[1] + orig_orig[1], p
             if callback is not None:
                 callback()
             return abs(p)
@@ -254,13 +269,13 @@ def findbeam_radialpeak(data, orig_initial, mask, rmin, rmax, maxiter = 100,
             I = radintpix(data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask, pix)[1]
             fp = misc.findpeak(pix, I)
             p = -(fp[6] + fp[4])
-            print orig[0] + orig_orig[0], orig[1] + orig_orig[1], p
+            #print orig[0] + orig_orig[0], orig[1] + orig_orig[1], p
             if callback is not None:
                 callback()
             return p
     else:
         raise ValueError('Invalid argument for drive_by %s' % drive_by)
     orig1 = scipy.optimize.fmin(targetfunc, np.array([extent, extent]),
-                              args = (data, mask, orig_initial - extent, callback),
-                              maxiter = maxiter, disp = 0)
+                              args=(data, mask, orig_initial - extent, callback),
+                              maxiter=maxiter, disp=0)
     return np.array(orig_initial) - extent + orig1

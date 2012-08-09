@@ -1,4 +1,5 @@
 import gtk
+import numpy as np
 
 from PyGTKCallback import PyGTKCallback
 @PyGTKCallback
@@ -13,6 +14,10 @@ class IntegrateTab(gtk.HBox):
         b = gtk.ToolButton(gtk.STOCK_EXECUTE)
         tb.insert(b, -1)
         b.connect('clicked', self.on_button_clicked, 'execute')
+
+        b = gtk.ToolButton(gtk.STOCK_REFRESH)
+        tb.insert(b, -1)
+        b.connect('clicked', self.on_button_clicked, 'refresh')
 
         frame = gtk.Frame()
         self.pack_start(frame, False)
@@ -77,9 +82,27 @@ class IntegrateTab(gtk.HBox):
             tab.attach(self.extraentries[-1], 5, 6, i, i + 1)
         self.extracb = gtk.CheckButton()
         self.extracb.set_alignment(0, 0.5)
+        self.extracb.connect('toggled', self.on_extracb_toggled)
         tab.attach(self.extracb, 4, 6, 2, 3)
 
         self.intmethod_combo.set_active(0)
+    def on_extracb_toggled(self, cb):
+        if self.intmethod_combo.get_active_text() != 'Azimuthal':
+            return False
+        try:
+            minradius = float(self.extraentries[0].get_text())
+            maxradius = float(self.extraentries[1].get_text())
+        except ValueError:
+            return False
+        if self.extracb.get_active():
+            minradius = self.get_toplevel().data.pixeltoq_radius(minradius)
+            maxradius = self.get_toplevel().data.pixeltoq_radius(maxradius)
+        else:
+            minradius = self.get_toplevel().data.qtopixel_radius(minradius)
+            maxradius = self.get_toplevel().data.qtopixel_radius(maxradius)
+        self.extraentries[0].set_text(unicode(minradius))
+        self.extraentries[1].set_text(unicode(maxradius))
+        return True
     def on_intmethod_changed(self, combo):
         if combo.get_active_text() == 'Full radial':
             for i in range(2):
@@ -136,6 +159,43 @@ class IntegrateTab(gtk.HBox):
         entry.set_sensitive(cb.get_active())
         return True
     def on_button_clicked(self, button, argument):
+        data = self.get_toplevel().data
+        if data is None:
+            return False
+        if argument == 'refresh':
+            self.update_from_data(data)
+        if argument == 'execute':
+            if self.intmethod_combo.get_active_text() == 'Azimuthal':
+                minradius = float(self.extraentries[0].get_text())
+                maxradius = float(self.extraentries[1].get_text())
+                radii_in_q = self.extracb.get_active()
+                Nbins = int(self.Nbins_entry.get_text())
+                curve, retmask = data.azimuthal_average(minradius, maxradius, Nbins, not radii_in_q,
+                                                       returnmask=True)
+            else:
+                minval = float(self.minabscissa_entry.get_text())
+                maxval = float(self.maxabscissa_entry.get_text())
+                Nbins = int(self.Nbins_entry.get_text())
+                spacing = self.abscissascaling_combo.get_active_text()
+                if spacing == 'linear':
+                    abscissa = np.linspace(minval, maxval, Nbins)
+                else:
+                    abscissa = np.logspace(np.log10(minval), np.log10(maxval), Nbins)
+                radii_in_q = self.abscissa_combo.get_active_text() == 'q'
+                if self.intmethod_combo.get_active_text() == 'Full radial':
+                    curve, retmask = data.radial_average(abscissa, not radii_in_q, returnmask=True)
+                elif self.intmethod_combo.get_active_text() == 'Sector':
+                    phi0 = float(self.extraentries[0].get_text()) * np.pi / 180.0
+                    dphi = float(self.extraentries[1].get_text()) * np.pi / 180.0
+                    curve, retmask = data.sector_average(phi0, dphi, abscissa, not radii_in_q,
+                                                symmetric_sector=self.extracb.get_active(), returnmask=True)
+                elif self.intmethod_combo.get_active_text() == 'Slice':
+                    phi0 = float(self.extraentries[0].get_text()) * np.pi / 180.0
+                    width = float(self.extraentries[1].get_text())
+                    curve, retmask = data.slice_average(phi0, width, abscissa, not radii_in_q,
+                                               symmetric_slice=self.extracb.get_active(), returnmask=True)
+            self.emit('integration-done', curve, retmask, self.intmethod_combo.get_active_text(),
+                      radii_in_q)
         return True
     def update_from_data(self, data=None):
         if data is None:

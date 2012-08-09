@@ -74,6 +74,16 @@ class ErrorValue(ArithmeticBase):
             else:
                 return str(round(self.val, Ndigits)) + ' +/- ' + str(round(self.err, Ndigits))
         return str(self.val) + ' +/- ' + str(self.err)
+    def __pow__(self,other,modulo=None):
+        if modulo is not None:
+            raise NotImplementedError('Power operation with three arguments is not implemented between types '+type(self)+', '+type(other)+' and '+type(modulo))
+        try:
+            other = ErrorValue(other)
+        except ValueError:
+            return NotImplemented
+        err=((self.val**(other.val-1)*other.val*self.err)**2+(np.log(self.val)*self.val**other.val*other.err)**2)**0.5
+        val=self.val**other.val
+        return ErrorValue(val,err)
     def __repr__(self):
         return 'ErrorValue(' + repr(self.val) + ' +/- ' + repr(self.err) + ')'
     def __float__(self):
