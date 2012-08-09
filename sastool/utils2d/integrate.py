@@ -2,11 +2,11 @@ from _integrate import radint, azimint, bin2D, autoqscale, calculateDmatrix, \
 polartransform, twodimfromonedim, radint_fullq, radint_nsector
 import numpy as np
 
-def radintpix(data, dataerr, bcx, bcy, mask = None, pix = None, returnavgpix = False,
-              phi0 = 0, dphi = 0, returnmask = False, symmetric_sector = False,
-              doslice = False):
+def radintpix(data, dataerr, bcx, bcy, mask=None, pix=None, returnavgpix=False,
+              phi0=0, dphi=0, returnmask=False, symmetric_sector=False,
+              doslice=False):
     """Radial integration (averaging) on the detector plane
-    
+
     Inputs:
         data: scattering pattern matrix (np.ndarray, dtype: np.double)
         dataerr: error matrix (np.ndarray, dtype: np.double; or None)
@@ -23,11 +23,11 @@ def radintpix(data, dataerr, bcx, bcy, mask = None, pix = None, returnavgpix = F
         symmetric_sector: the sector defined by phi0+pi is also to be used for
             integration.
         doslice: if slicing is to be done instead of sector averaging.
-    
+
     Outputs: pix, Intensity, [Error], Area, [mask]
         Error is only returned if dataerr is not None
         mask is only returned if returnmask is True
-    
+
     Relies heavily (completely) on radint().
     """
     if isinstance(data, np.ndarray):
@@ -41,10 +41,10 @@ def radintpix(data, dataerr, bcx, bcy, mask = None, pix = None, returnavgpix = F
                   phi0, dphi, returnmask, symmetric_sector, doslice, False)
 
 
-def azimintpix(data, dataerr, bcx, bcy, mask = None, Ntheta = 100, pixmin = 0,
-               pixmax = np.inf, returnmask = False):
+def azimintpix(data, dataerr, bcx, bcy, mask=None, Ntheta=100, pixmin=0,
+               pixmax=np.inf, returnmask=False):
     """Azimuthal integration (averaging) on the detector plane
-    
+
     Inputs:
         data: scattering pattern matrix (np.ndarray, dtype: np.double)
         dataerr: error matrix (np.ndarray, dtype: np.double; or None)
@@ -54,11 +54,11 @@ def azimintpix(data, dataerr, bcx, bcy, mask = None, Ntheta = 100, pixmin = 0,
         pixmin: smallest distance from the origin in pixels
         pixmax: largest distance from the origin in pixels
         returnmask: if the effective mask matrix is to be returned
-    
+
     Outputs: theta, Intensity, [Error], Area, [mask]
         Error is only returned if dataerr is not None
         mask is only returned if returnmask is True
-    
+
     Relies heavily (completely) on azimint().
     """
     if isinstance(data, np.ndarray):

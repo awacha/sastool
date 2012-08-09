@@ -24,7 +24,7 @@ def errtrapz(x, yerr):
     Inputs:
         x: the abscissa
         yerr: the error of the dependent variable
-        
+
     Outputs:
         the error of the integral
     """
@@ -36,7 +36,7 @@ def errtrapz(x, yerr):
 
 
 class ControlledVectorAttribute(object):
-    def __init__(self, value = None, name = None, obj = None):
+    def __init__(self, value=None, name=None, obj=None):
         if isinstance(value, type(self)):
             self.value = value.value
             self.name = value.name
@@ -45,7 +45,7 @@ class ControlledVectorAttribute(object):
             if not isinstance(value, np.ndarray):
                 raise TypeError("Cannot instantiate a ControlledVectorAttribute with a type %s" % type(value))
             self.value = obj.check_compatibility(value, self.name)
-    def __get__(self, obj, type = None):
+    def __get__(self, obj, type=None):
         return self.value
     def __set__(self, obj, value):
         self.value = obj.check_compatibility(value, self.name)
@@ -55,6 +55,7 @@ class ControlledVectorAttribute(object):
 
 class GeneralCurve(ArithmeticBase):
     _xtol = 1e-3
+    _dxepsilon = 1e-6
     _default_special_names = [('x', 'X'), ('y', 'Y'), ('dy', 'DY'), ('dx', 'DX')]
     def __init__(self, *args, **kwargs):
         kwargs = self._initialize_kwargs_for_readers(kwargs)
@@ -151,7 +152,6 @@ class GeneralCurve(ArithmeticBase):
     dx = property(_get_dx, _set_dx)
     dy = property(_get_dy, _set_dy)
 
-
     def set_specialname(self, specname, newname):
         if newname == specname:
             raise ValueError('Name `%s` not supported for %s. Try `%s`.' % (newname, specname, specname.upper()))
@@ -178,8 +178,6 @@ class GeneralCurve(ArithmeticBase):
     def remove_dataset(self, name):
         if hasattr(self, name):
             self.__delattr__(name)
-#        else:
-#            print "Skipping removing ", name
     def __len__(self):
         for name in ['x', 'y', 'dx', 'dy']:
             try:
@@ -193,14 +191,16 @@ class GeneralCurve(ArithmeticBase):
         elif isinstance(other, numbers.Number):
             return ErrorValue(other)
         elif isinstance(other, np.ndarray):
-            if len(other) == len(self):
+            if len(other) == 1:
+                return ErrorValue(other[0])
+            elif len(other) == len(self):
                 return ErrorValue(other.flatten())
             else:
                 raise ValueError('Incompatible shape!')
         elif isinstance(other, type(self)):
             if not len(other) == len(self):
                 raise ValueError('Incompatible shape!')
-            if hasattr(other, 'dx') and hasattr(self, 'dx') and ((self.dx ** 2 + other.dx ** 2).sum() > 0):
+            if hasattr(other, 'dx') and hasattr(self, 'dx') and ((self.dx ** 2 + other.dx ** 2).mean() > max(self._dxepsilon, other._dxepsilon)):
                 if (((self.dx ** 2 + other.dx ** 2) ** 0.5 - np.absolute(self.x - other.x)) <= 0).all():
                     return other
                 else:
@@ -271,6 +271,30 @@ class GeneralCurve(ArithmeticBase):
             obj.dy = (1.0 * obj.dy) / (obj.y * obj.y)
         obj.y = 1.0 / obj.y
         return obj
+    def __pow__(self, other, modulo=None):
+        if modulo is not None:
+            return NotImplemented
+        try:
+            other = self.check_arithmetic_compatibility(other)
+        except NotImplementedError:
+            return NotImplemented
+        obj = type(self)(self)
+        if isinstance(other, GeneralCurve):
+            if not hasattr(obj, 'dy'):
+                obj.dy = np.zeros_like(obj.y)
+            other = GeneralCurve(other) #avoid modifying other by making a copy of it.
+            if not hasattr(other, 'dy'):
+                other.dy = np.zeros_like(other.dy)
+            obj.dy = ((obj.y ** (other.y - 1) * other.y * obj.dy) ** 2 + (np.log(obj.y) * obj.y ** other.y * other.dy) ** 2) ** 0.5
+            obj.y = obj.y ** other.y
+        elif isinstance(other, ErrorValue):
+            if not hasattr(obj, 'dy'):
+                obj.dy = np.zeros_like(obj.y)
+            obj.dy = ((obj.y ** (other.val - 1) * other.val * obj.dy) ** 2 + (np.log(obj.y) * obj.y ** other.val * other.err) ** 2) ** 0.5
+            obj.y = obj.y ** other.val
+        else:
+            return NotImplemented
+        return obj
     def __getitem__(self, name):
         if isinstance(name, numbers.Integral) or isinstance(name, slice):
             d = dict()
@@ -283,16 +307,36 @@ class GeneralCurve(ArithmeticBase):
         else:
             raise TypeError('indices must be integers, not %s' % type(name))
     def loglog(self, *args, **kwargs):
+        if 'axes' in kwargs:
+            ax = kwargs['axes']
+            del kwargs['axes']
+        else:
+            ax = plt
         idx = np.isfinite(self.y) & np.isfinite(self.x) & (self.y > 0) & (self.x > 0)
-        return plt.loglog(self.x[idx], self.y[idx], *args, **kwargs)
+        return ax.loglog(self.x[idx], self.y[idx], *args, **kwargs)
     def plot(self, *args, **kwargs):
-        return plt.plot(self.x, self.y, *args, **kwargs)
+        if 'axes' in kwargs:
+            ax = kwargs['axes']
+            del kwargs['axes']
+        else:
+            ax = plt
+        return ax.plot(self.x, self.y, *args, **kwargs)
     def semilogx(self, *args, **kwargs):
+        if 'axes' in kwargs:
+            ax = kwargs['axes']
+            del kwargs['axes']
+        else:
+            ax = plt
         idx = np.isfinite(self.y) & np.isfinite(self.x) & (self.x > 0)
-        return plt.semilogx(self.x, self.y, *args, **kwargs)
+        return ax.semilogx(self.x, self.y, *args, **kwargs)
     def semilogy(self, *args, **kwargs):
         idx = np.isfinite(self.y) & np.isfinite(self.x) & (self.y > 0)
-        return plt.semilogy(self.x, self.y, *args, **kwargs)
+        if 'axes' in kwargs:
+            ax = kwargs['axes']
+            del kwargs['axes']
+        else:
+            ax = plt
+        return ax.semilogy(self.x, self.y, *args, **kwargs)
     def errorbar(self, *args, **kwargs):
         if hasattr(self, 'dx'):
             dx = self.dx
@@ -302,8 +346,13 @@ class GeneralCurve(ArithmeticBase):
             dy = self.dy
         else:
             dy = None
-        return plt.errorbar(self.x, self.y, dy, dx, *args, **kwargs)
-    def trim(self, xmin = -np.inf, xmax = np.inf, ymin = -np.inf, ymax = np.inf):
+        if 'axes' in kwargs:
+            ax = kwargs['axes']
+            del kwargs['axes']
+        else:
+            ax = plt
+        return ax.errorbar(self.x, self.y, dy, dx, *args, **kwargs)
+    def trim(self, xmin= -np.inf, xmax=np.inf, ymin= -np.inf, ymax=np.inf):
         idx = (self.x <= xmax) & (self.x >= xmin) & (self.y >= ymin) & (self.y <= ymax)
         d = dict()
         for k in self._controlled_attributes:
@@ -312,7 +361,7 @@ class GeneralCurve(ArithmeticBase):
     def trimzoomed(self):
         axis = plt.axis()
         return self.trim(*axis)
-    def sanitize(self, minval = -np.inf, maxval = np.inf, fieldname = 'y', discard_nonfinite = True):
+    def sanitize(self, minval= -np.inf, maxval=np.inf, fieldname='y', discard_nonfinite=True):
         self_as_array = np.array(self)
         indices = (getattr(self, fieldname) > minval) & \
             (getattr(self, fieldname) < maxval)
@@ -354,18 +403,18 @@ class GeneralCurve(ArithmeticBase):
             d[k] = np.interp(newx, self.x, getattr(self, k), **kwargs)
         return type(self)(d)
     @classmethod
-    def merge(cls, first, last, xsep = None):
+    def merge(cls, first, last, xsep=None):
         if not (isinstance(first, cls) and isinstance(last, cls)):
             raise ValueError('Cannot merge types %s and %s together, only %s is supported.' % (type(first), type(last), cls))
         if xsep is not None:
-            first = first.trim(xmax = xsep)
-            last = last.trim(xmin = xsep)
+            first = first.trim(xmax=xsep)
+            last = last.trim(xmin=xsep)
         d = dict()
         for a in set(first.get_controlled_attributes()).intersection(set(last.get_controlled_attributes())):
             d[a] = np.concatenate((getattr(first, a), getattr(last, a)))
         return cls(d)
-    def unite(self, other, xmin = None, xmax = None, xsep = None,
-              Npoints = None, scaleother = True, verbose = False, return_factor = False):
+    def unite(self, other, xmin=None, xmax=None, xsep=None,
+              Npoints=None, scaleother=True, verbose=False, return_factor=False):
         if not isinstance(other, type(self)):
             raise ValueError('Argument `other` should be an instance of class %s' % type(self))
         if xmin is None:
@@ -398,10 +447,10 @@ class GeneralCurve(ArithmeticBase):
             return retval, factor
         else:
             return retval
-    def momentum(self, exponent = 1, errorrequested = True):
+    def momentum(self, exponent=1, errorrequested=True):
         """Calculate momenta (integral of y times x^exponent)
         The integration is done by the trapezoid formula (np.trapz).
-        
+
         Inputs:
             exponent: the exponent of q in the integration.
             errorrequested: True if error should be returned (true Gaussian
@@ -420,18 +469,18 @@ class GeneralCurve(ArithmeticBase):
             [x for x in self._controlled_attributes \
              if x not in self._special_names.keys() and \
              x not in self._special_names.values()])
-    def __array__(self, attrs = None):
+    def __array__(self, attrs=None):
         """Make a structured numpy array from the current dataset.
         """
         if attrs == None:
             attrs = self.get_controlled_attributes()
         values = [getattr(self, k) for k in attrs]
-        return np.array(zip(*values), dtype = zip(attrs, [v.dtype for v in values]))
-    def sorted(self, order = 'x'):
+        return np.array(zip(*values), dtype=zip(attrs, [v.dtype for v in values]))
+    def sorted(self, order='x'):
         """Sort the current dataset according to 'order' (defaults to '_x').
         """
         a = np.array(self)
-        self_as_array = np.sort(a, order = order)
+        self_as_array = np.sort(a, order=order)
         for k in self_as_array.dtype.names:
             setattr(self, k, self_as_array[k])
         return self

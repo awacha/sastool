@@ -362,7 +362,10 @@ class SASExposure(ArithmeticBase):
             indices = np.array(self.mask) != 0
         else:
             indices = slice(None)
-        return ErrorValue(self.Intensity[indices].sum(), self.Error[indices].sum())
+        try:
+            return ErrorValue(self.Intensity[indices].sum(), self.Error[indices].sum())
+        except ValueError: # this can occur if everything is masked
+            return ErrorValue(np.nan, np.nan)
     def max(self, masked=True):
         if self.check_for_mask(False) and masked:
             indices = np.array(self.mask) != 0
@@ -370,7 +373,10 @@ class SASExposure(ArithmeticBase):
             indices = slice(None)
         I = self.Intensity[indices]
         E = self.Error[indices]
-        return ErrorValue(I.max(), E[I == I.max()].max())
+        try:
+            return ErrorValue(I.max(), E[I == I.max()].max())
+        except ValueError: # this can occur if everything is masked
+            return ErrorValue(np.nan, np.nan)
 
     def min(self, masked=True):
         if self.check_for_mask(False) and masked:
@@ -379,7 +385,10 @@ class SASExposure(ArithmeticBase):
             indices = slice(None)
         I = self.Intensity[indices]
         E = self.Error[indices]
-        return ErrorValue(I.min(), E[I == I.min()].max())
+        try:
+            return ErrorValue(I.min(), E[I == I.min()].max())
+        except ValueError: # this can occur if everything is masked
+            return ErrorValue(np.nan, np.nan)
 
     def trimpix(self, rowmin, rowmax, columnmin, columnmax):
         obj = self[rowmin:rowmax, columnmin:columnmax]
@@ -402,6 +411,10 @@ class SASExposure(ArithmeticBase):
     def qtopixel(self, qrow, qcol):
         return (self.header['DistCalibrated'] * np.tan(2 * np.arcsin(qrow * HC / self.header['EnergyCalibrated'] / (4 * np.pi))) / self.header['XPixel'] + self.header['BeamPosX'],
                 self.header['DistCalibrated'] * np.tan(2 * np.arcsin(qcol * HC / self.header['EnergyCalibrated'] / (4 * np.pi))) / self.header['YPixel'] + self.header['BeamPosY'])
+    def qtopixel_radius(self, q):
+        return (self.header['DistCalibrated'] * np.tan(2 * np.arcsin(q * HC / self.header['EnergyCalibrated'] / (4 * np.pi))) / self.header['PixelSize'])
+    def pixeltoq_radius(self, pix):
+        return 4 * np.pi * np.sin(0.5 * np.arctan(pix * self.header['PixelSize'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC
 ### -------------- Loading routines (new_from_xyz) ------------------------
 
     @classmethod
@@ -687,7 +700,9 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         if isinstance(other, numbers.Number):
             return ErrorValue(other)
         elif isinstance(other, np.ndarray):
-            if other.shape == self.shape:
+            if len(other) == 1:
+                return ErrorValue(other[0])
+            elif other.shape == self.shape:
                 return ErrorValue(other)
             else:
                 raise ValueError('Incompatible shape!')
@@ -729,7 +744,19 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         self.Intensity = self.Intensity * other.val
         self.Error = np.sqrt((self.Intensity * other.err) ** 2 + (self.Error * other.val) ** 2)
         return self
-
+    def __pow__(self, other, modulo=None):
+        if modulo is not None:
+            return NotImplemented
+        try:
+            other = self._check_arithmetic_compatibility(other)
+        except NotImplementedError:
+            return NotImplemented
+        obj = SASExposure(self)
+        if obj.Error is None:
+            obj.Error = np.zeros_like(self.Intensity)
+        obj.Error = ((obj.Intensity ** (other.val - 1) * other.val * obj.Error) ** 2 + (np.log(obj.Intensity) * obj.Intensity ** other.val * other.err) ** 2) ** 0.5
+        obj.Intensity = obj.Intensity ** other.val
+        return obj
     def __array__(self):
         return self.Intensity
 ### ------------------- Routines for radial integration -----------------------
@@ -757,13 +784,13 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                             self.header['BeamPosY'], 1 - self.mask.mask)
         if N is None:
             N = len(qrange)
-        elif isinstance(N, numbers.Real):
-            return np.arange(qrange.min(), qrange.max(), N)
         if isinstance(N, numbers.Integral):
             if spacing.upper().startswith('LIN'):
                 return np.linspace(qrange.min(), qrange.max(), N)
             elif spacing.upper().startswith('LOG'):
                 return np.logspace(np.log10(qrange.min()), np.log10(qrange.max()), N)
+        elif isinstance(N, numbers.Real):
+            return np.arange(qrange.min(), qrange.max(), N)
         else:
             raise NotImplementedError
 
@@ -784,16 +811,16 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         self.check_for_mask()
         dp = self.Dpix[self.mask.mask != 0]
         pixmin, pixmax, npix = dp.min(), dp.max(), np.absolute(np.ceil(dp.max() - dp.min()))
-
+        npix = int(npix)
         if N is None:
             N = npix
-        elif isinstance(N, numbers.Real):
-            return np.arange(pixmin, pixmax, N)
         if isinstance(N, numbers.Integral):
             if spacing.upper().startswith('LIN'):
                 return np.linspace(pixmin, pixmax, N)
             elif spacing.upper().startswith('LOG'):
                 return np.logspace(np.log10(pixmin), np.log10(pixmax), N)
+        elif isinstance(N, numbers.Real):
+            return np.arange(pixmin, pixmax, N)
         else:
             raise NotImplementedError
 
@@ -840,7 +867,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         return np.linspace(pixmin, pixmax, N)
 
     def radial_average(self, qrange=None, pixel=False, matrix='Intensity',
-                       errormatrix='Error', q_average=True):
+                       errormatrix='Error', q_average=True, returnmask=False):
         """Do a radial averaging
 
         Inputs:
@@ -850,10 +877,12 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             errormatrix: error matrix to use for averaging (or None)
             q_average: if the averaged abscissa values are to be returned
                 instead of the nominal ones
+            returnmask: if the effective mask matrix is to be returned.
 
         Outputs:
             the one-dimensional curve as an instance of SASCurve (if pixel is
                 False) or SASPixelCurve (if pixel is True)
+            the mask matrix (if returnmask was True)
         """
         self.check_for_mask()
         mat = getattr(self, matrix).astype(np.double)
@@ -862,39 +891,53 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         else:
             err = None
         if not pixel:
-            res = utils2d.integrate.radint(mat, err,
-                                               self.header['EnergyCalibrated'],
+            res = utils2d.integrate.radint_fullq(mat, err, self.header['EnergyCalibrated'],
                                                self.header['DistCalibrated'],
                                                (self.header['XPixel'], self.header['YPixel']),
-                                               self.header['BeamPosX'],
-                                               self.header['BeamPosY'],
-                                               1 - self.mask.mask, qrange,
-                                               returnavgq=q_average,
-                                               returnpixel=True)
+                                               self.header['BeamPosX'], self.header['BeamPosY'],
+                                               (self.mask.mask == 0).astype(np.uint8),
+                                               qrange, returnavgq=q_average,
+                                               returnmask=returnmask);
+            i = 0;
+            q = res[i]; i += 1
+            I = res[i]; i += 1
             if err is not None:
-                q, I, E, A, p = res
+                E = res[i]; i += 1
             else:
-                q, I, A, p = res
                 E = np.zeros_like(q)
+            A = res[i]; i += 1
+            if returnmask:
+                retmask = res[i]; i += 1
+            p = self.qtopixel_radius(q)
             ds = SASCurve(q, I, E, pixel=p, area=A)
         else:
             res = utils2d.integrate.radintpix(mat, err,
                                                      self.header['BeamPosX'],
                                                      self.header['BeamPosY'],
                                                      1 - self.mask.mask, qrange,
+                                                     returnmask=returnmask,
                                                      returnavgpix=q_average)
+            i = 0;
+            p = res[i]; i += 1
+            I = res[i]; i += 1
             if err is not None:
-                p, I, E, A = res
+                E = res[i]; i += 1
             else:
-                p, I, A = res
                 E = np.zeros_like(p)
+            A = res[i]; i += 1
+            if returnmask:
+                retmask = res[i]; i += 1
             ds = SASPixelCurve(p, I, E, area=A)
         ds.header = SASHeader(self.header)
-        return ds
+        if returnmask:
+            return ds, retmask
+        else:
+            return ds
 
     def sector_average(self, phi0, dphi, qrange=None, pixel=False,
                        matrix='Intensity', errormatrix='Error',
-                       symmetric_sector=False, q_average=True):
+                       symmetric_sector=False, q_average=True,
+                       returnmask=False):
         """Do a radial averaging restricted to one sector.
 
         Inputs:
@@ -908,10 +951,12 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 also be taken into account)
             q_average: if the averaged abscissa values are to be returned
                 instead of the nominal ones
+            returnmask: if the effective mask matrix is to be returned.
 
         Outputs:
             the one-dimensional curve as an instance of SASCurve (if pixel is
                 False) or SASPixelCurve (if pixel is True)
+            the mask matrix (if returnmask was True)
 
         Notes:
             x is row direction, y is column. 0 degree is +x, 90 degree is +y.
@@ -932,12 +977,19 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                1 - self.mask.mask, qrange,
                                                returnavgq=q_average,
                                                returnpixel=True,
+                                               returnmask=returnmask,
                                                phi0=phi0, dphi=dphi, symmetric_sector=symmetric_sector)
+            i = 0;
+            q = res[i]; i += 1
+            I = res[i]; i += 1
             if err is not None:
-                q, I, E, A, p = res
+                E = res[i]; i += 1
             else:
-                q, I, A, p = res
                 E = np.zeros_like(q)
+            A = res[i]; i += 1
+            if returnmask:
+                retmask = res[i]; i += 1
+            p = res[i]; i += 1
             ds = SASCurve(q, I, E, pixel=p, area=A)
         else:
             res = utils2d.integrate.radintpix(mat, err,
@@ -945,17 +997,113 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                      self.header['BeamPosY'],
                                                      1 - self.mask.mask, qrange,
                                                      returnavgpix=q_average, phi0=phi0,
+                                                     returnmask=returnmask,
                                                      dphi=dphi, symmetric_sector=symmetric_sector)
+            i = 0;
+            p = res[i]; i += 1
+            I = res[i]; i += 1
             if err is not None:
-                p, I, E, A = res
+                E = res[i]; i += 1
             else:
-                p, I, A = res
                 E = np.zeros_like(p)
+            A = res[i]; i += 1
+            if returnmask:
+                retmask = res[i]; i += 1
             ds = SASPixelCurve(p, I, E, area=A)
         ds.header = SASHeader(self.header)
-        return ds
+        if returnmask:
+            return ds, retmask
+        else:
+            return ds
 
-    def azimuthal_average(self, qmin, qmax, Ntheta=100, pixel=False, matrix='Intensity', errormatrix='Error'):
+    def slice_average(self, phi0, width, qrange=None, pixel=False,
+                        matrix='Intensity', errormatrix='Error',
+                        symmetric_slice=False, q_average=True,
+                        returnmask=False):
+        """Do a radial averaging restricted to one sector.
+
+        Inputs:
+            phi0: direction of the slice (radians).
+            width: slice width (pixels)
+            qrange: the q-range. If None, auto-determine.
+            pixel: do a pixel-integration (instead of q)
+            matrix: matrix to use for averaging
+            errormatrix: error matrix to use for averaging (or None)
+            symmetric_slice: if the slice should be symmetric (phi0+pi needs
+                also be taken into account)
+            q_average: if the averaged abscissa values are to be returned
+                instead of the nominal ones
+            returnmask: if the effective mask matrix is to be returned.
+
+        Outputs:
+            the one-dimensional curve as an instance of SASCurve (if pixel is
+                False) or SASPixelCurve (if pixel is True)
+            the mask matrix (if returnmask was True)
+
+        Notes:
+            x is row direction, y is column. 0 degree is +x, 90 degree is +y.
+        """
+        self.check_for_mask()
+        mat = getattr(self, matrix).astype(np.double)
+        if errormatrix is not None:
+            err = getattr(self, errormatrix).astype(np.double)
+        else:
+            err = None
+        if not pixel:
+            res = utils2d.integrate.radint(mat, err,
+                                               self.header['EnergyCalibrated'],
+                                               self.header['DistCalibrated'],
+                                               (self.header['XPixel'], self.header['YPixel']),
+                                               self.header['BeamPosX'],
+                                               self.header['BeamPosY'],
+                                               1 - self.mask.mask, qrange,
+                                               returnavgq=q_average,
+                                               returnpixel=True,
+                                               returnmask=returnmask,
+                                               phi0=phi0, dphi=width,
+                                               doslice=True,
+                                               symmetric_sector=symmetric_slice)
+            i = 0;
+            q = res[i]; i += 1
+            I = res[i]; i += 1
+            if err is not None:
+                E = res[i]; i += 1
+            else:
+                E = np.zeros_like(q)
+            A = res[i]; i += 1
+            if returnmask:
+                retmask = res[i]; i += 1
+            p = res[i]; i += 1
+            ds = SASCurve(q, I, E, pixel=p, area=A)
+        else:
+            res = utils2d.integrate.radintpix(mat, err,
+                                                     self.header['BeamPosX'],
+                                                     self.header['BeamPosY'],
+                                                     1 - self.mask.mask, qrange,
+                                                     returnavgpix=q_average, phi0=phi0,
+                                                     dphi=width, symmetric_sector=symmetric_slice,
+                                                     returnmask=returnmask,
+                                                     doslice=True)
+            i = 0;
+            p = res[i]; i += 1
+            I = res[i]; i += 1
+            if err is not None:
+                E = res[i]; i += 1
+            else:
+                E = np.zeros_like(p)
+            A = res[i]; i += 1
+            if returnmask:
+                retmask = res[i]; i += 1
+            ds = SASPixelCurve(p, I, E, area=A)
+        ds.header = SASHeader(self.header)
+        if returnmask:
+            return ds, retmask
+        else:
+            return ds
+
+
+    def azimuthal_average(self, qmin, qmax, Ntheta=100, pixel=False,
+                          matrix='Intensity', errormatrix='Error', returnmask=False):
         """Do an azimuthal averaging restricted to a ring.
 
         Inputs:
@@ -964,9 +1112,11 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             pixel: do a pixel-integration (instead of q)
             matrix: matrix to use for averaging
             errormatrix: error matrix to use for averaging (or None)
+            returnmask: if the effective mask matrix is to be returned.
 
         Outputs:
             the one-dimensional curve as an instance of SASAzimuthalCurve
+            the mask matrix (if returnmask was True)
 
         Notes:
             x is row direction, y is column. 0 degree is +x, 90 degree is +y.
@@ -984,28 +1134,32 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                (self.header['XPixel'], self.header['YPixel']),
                                                self.header['BeamPosX'],
                                                self.header['BeamPosY'],
-                                               1 - self.mask.mask, Ntheta,
+                                               self.mask.mask == 0, Ntheta,
+                                               returnmask=returnmask,
                                                qmin=qmin, qmax=qmax)
-            if err is not None:
-                theta, I, E, A = res
-            else:
-                theta, I, A = res
-                E = np.zeros_like(theta)
-            ds = SASAzimuthalCurve(theta, I, E, area=A)
         else:
             res = utils2d.integrate.azimintpix(mat, err,
                                                      self.header['BeamPosX'],
                                                      self.header['BeamPosY'],
-                                                     1 - self.mask.mask, Ntheta,
+                                                     self.mask.mask == 0, Ntheta,
+                                                     returnmask=returnmask,
                                                      pixmin=qmin, pixmax=qmax)
-            if err is not None:
-                theta, I, E, A = res
-            else:
-                theta, I, A = res
-                E = np.zeros_like(theta)
-            ds = SASAzimuthalCurve(theta, I, E, area=A)
+        i = 0;
+        theta = res[i]; i += 1
+        I = res[i]; i += 1
+        if err is not None:
+            E = res[i]; i += 1
+        else:
+            E = np.zeros_like(theta)
+        A = res[i]; i += 1
+        if returnmask:
+            retmask = res[i]; i += 1
+        ds = SASAzimuthalCurve(theta, I, E, area=A)
         ds.header = SASHeader(self.header)
-        return ds
+        if returnmask:
+            return ds, retmask
+        else:
+            return ds
 
 
 ### ---------------------- Plotting -------------------------------------------
@@ -1187,7 +1341,8 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             self.header.add_history('Beam position updated to:' + str(tuple(bc)))
         else:
             self.header.add_history('Beam found by *%s*: %s' % (source, str(tuple(bc))))
-    def find_beam_semitransparent(self, bs_area, update=True):
+
+    def find_beam_semitransparent(self, bs_area, update=True, callback=None):
         """Find the beam position from the area under the semitransparent
         beamstop.
 
@@ -1196,6 +1351,8 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 [row_min, row_max, column_min, column_max]
             update: if the new value should be written in the header (default).
                 If False, the newly found beam position is only returned.
+            callback: dummy parameter, kept for similar appearence as the other
+                find_beam_*() functions.
 
         Outputs:
             the beam position (row,col).
@@ -1205,14 +1362,17 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         if update:
             self.update_beampos(bc, source='semitransparent')
         return bc
+
     def find_beam_slices(self, pixmin=0, pixmax=np.inf, sector_width=np.pi / 9.,
-                         update=True, callback=None):
+                           extent=10, update=True, callback=None):
         """Find the beam position by matching diagonal sectors.
 
         Inputs:
             pixmin, pixmax: lower and upper thresholds in the distance from the
                 origin in the radial averaging [in pixel units]
             sector_width: width of sectors in radian.
+            extent: expected distance of the true beam position from the current
+                one. Just the magnitude of it counts.
             update: if the new value should be written in the header (default).
                 If False, the newly found beam position is only returned.
             callback: a function (accepting no arguments) to be called in each
@@ -1228,17 +1388,20 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                              self.mask.mask, dmin=pixmin,
                                              dmax=pixmax,
                                              sector_width=sector_width,
+                                             extent=extent,
                                              callback=callback)
         if update:
             self.update_beampos(bc, source='slices')
         return bc
-    def find_beam_gravity(self, update=True):
+    def find_beam_gravity(self, update=True, callback=None):
         """Find the beam position by finding the center of gravity in each row
         and column.
 
         Inputs:
             update: if the new value should be written in the header (default).
                 If False, the newly found beam position is only returned.
+            callback: dummy parameter, not used. It is only there to have a
+                similar signature of all find_beam_*() functions
 
         Outputs:
             the beam position (row,col).
@@ -1250,7 +1413,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         return bc
 
     def find_beam_azimuthal_fold(self, Ntheta=50, dmin=0, dmax=np.inf,
-                                 update=True, callback=None):
+                                    extent=10, update=True, callback=None):
         """Find the beam position by matching an azimuthal scattering curve
         and its counterpart shifted by pi radians.
 
@@ -1258,6 +1421,8 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             Ntheta: number of bins in the azimuthal scattering curve
             dmin, dmax: lower and upper thresholds in the distance from the
                 origin in the radial averaging [in pixel units]
+            extent: expected distance of the true beam position from the current
+                one. Just the magnitude of it counts.
             update: if the new value should be written in the header (default).
                 If False, the newly found beam position is only returned.
             callback: a function (accepting no arguments) to be called in each
@@ -1272,12 +1437,14 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                       self.header['BeamPosY']),
                                                      self.mask.mask,
                                                      Ntheta=Ntheta, dmin=dmin,
-                                                     dmax=dmax, callback=callback)
+                                                     dmax=dmax,
+                                                     extent=extent, callback=callback)
         if update:
             self.update_beampos(bc, source='azimuthal_fold')
         return bc
 
-    def find_beam_radialpeak(self, pixmin, pixmax, drive_by='amplitude', extent=10, update=True, callback=None):
+    def find_beam_radialpeak(self, pixmin, pixmax, drive_by='amplitude', extent=10,
+                                update=True, callback=None):
         """Find the beam position by optimizing a peak in the radial scattering
         curve.
 
@@ -1288,7 +1455,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             drive_by: 'amplitude' if the amplitude of the peak has to be maximized
                 or 'hwhm' if the hwhm should be minimized.
             extent: expected distance of the true beam position from the current
-                one. Just the magnitude counts.
+                one. Just the magnitude of it counts.
             update: if the new value should be written in the header (default).
                 If False, the newly found beam position is only returned.
             callback: a function (accepting no arguments) to be called in each
