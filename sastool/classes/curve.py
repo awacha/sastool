@@ -290,6 +290,9 @@ class GeneralCurve(ArithmeticBase):
         elif isinstance(other, ErrorValue):
             if not hasattr(obj, 'dy'):
                 obj.dy = np.zeros_like(obj.y)
+            obj.dy = ((obj.y ** (other.y - 1) * other.y * obj.dy) ** 2 + (np.log(obj.y) * obj.y ** other.y * other.dy) ** 2) ** 0.5
+            obj.y = obj.y ** other.y
+        elif isinstance(other, ErrorValue):
             obj.dy = ((obj.y ** (other.val - 1) * other.val * obj.dy) ** 2 + (np.log(obj.y) * obj.y ** other.val * other.err) ** 2) ** 0.5
             obj.y = obj.y ** other.val
         else:
