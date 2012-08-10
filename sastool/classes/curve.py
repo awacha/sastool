@@ -16,7 +16,7 @@ import itertools
 import operator
 
 from .arithmetic import ArithmeticBase
-from .errorvalue import ErrorValue
+from misc.errorvalue import ErrorValue
 from ..misc.easylsq import nlsq_fit
 
 def errtrapz(x, yerr):
@@ -45,7 +45,7 @@ class ControlledVectorAttribute(object):
             if not isinstance(value, np.ndarray):
                 raise TypeError("Cannot instantiate a ControlledVectorAttribute with a type %s" % type(value))
             self.value = obj.check_compatibility(value, self.name)
-    def __get__(self, obj, type=None):
+    def __get__(self, obj, type_=None):
         return self.value
     def __set__(self, obj, value):
         self.value = obj.check_compatibility(value, self.name)
@@ -331,7 +331,7 @@ class GeneralCurve(ArithmeticBase):
         else:
             ax = plt
         idx = np.isfinite(self.y) & np.isfinite(self.x) & (self.x > 0)
-        return ax.semilogx(self.x, self.y, *args, **kwargs)
+        return ax.semilogx(self.x[idx], self.y[idx], *args, **kwargs)
     def semilogy(self, *args, **kwargs):
         idx = np.isfinite(self.y) & np.isfinite(self.x) & (self.y > 0)
         if 'axes' in kwargs:
@@ -339,7 +339,7 @@ class GeneralCurve(ArithmeticBase):
             del kwargs['axes']
         else:
             ax = plt
-        return ax.semilogy(self.x, self.y, *args, **kwargs)
+        return ax.semilogy(self.x[idx], self.y[idx], *args, **kwargs)
     def errorbar(self, *args, **kwargs):
         if hasattr(self, 'dx'):
             dx = self.dx
@@ -472,13 +472,17 @@ class GeneralCurve(ArithmeticBase):
             [x for x in self._controlled_attributes \
              if x not in self._special_names.keys() and \
              x not in self._special_names.values()])
-    def __array__(self, attrs=None):
+    def __array__(self, dtype=None, attrs=None):
         """Make a structured numpy array from the current dataset.
         """
         if attrs == None:
             attrs = self.get_controlled_attributes()
         values = [getattr(self, k) for k in attrs]
-        return np.array(zip(*values), dtype=zip(attrs, [v.dtype for v in values]))
+        if dtype is None:
+            return np.array(zip(*values), dtype=zip(attrs, [v.dtype for v in values]))
+        else:
+            return np.array(zip(*values), dtype=zip(attrs, [dtype for v in values]))
+
     def sorted(self, order='x'):
         """Sort the current dataset according to 'order' (defaults to '_x').
         """

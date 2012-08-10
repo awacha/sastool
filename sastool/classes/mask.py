@@ -308,8 +308,8 @@ and maskid argument was omitted.')
         """Plot the mask matrix with matplotlib.pyplot.spy()
         """
         plt.spy(self.mask, *args, **kwargs)
-    def __array__(self):
-        return self.mask.astype(np.uint8)
+    def __array__(self,dt=np.uint8):
+        return self.mask.astype(dt)
     @property
     def shape(self):
         return self.mask.shape

@@ -76,7 +76,7 @@ class ErrorValue(ArithmeticBase):
         return str(self.val) + ' +/- ' + str(self.err)
     def __pow__(self,other,modulo=None):
         if modulo is not None:
-            raise NotImplementedError('Power operation with three arguments is not implemented between types '+type(self)+', '+type(other)+' and '+type(modulo))
+            return NotImplemented
         try:
             other = ErrorValue(other)
         except ValueError:
@@ -90,6 +90,8 @@ class ErrorValue(ArithmeticBase):
         return float(self.val)
     def __trunc__(self):
         return long(self.val)
-    def __array__(self):
-        return np.array(self.val)
-
+    def __array__(self,dt=None):
+        if dt is None:
+            return np.array(self.val)
+        else:
+            return np.array(self.val,dt)

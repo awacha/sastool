@@ -12,10 +12,12 @@ Chi^2, covariance matrix, R^2 etc.
 from scipy.optimize import leastsq
 import numpy as np
 import collections
+from errorvalue import ErrorValue
 
-def nlsq_fit(x, y, dy, func, params_init, **kwargs):
-    """Perform a non-linear least squares fit
-    
+def nonlinear_leastsquares(x, y, dy, func, params_init, **kwargs):
+    """Perform a non-linear least squares fit, return the results as
+    ErrorValue() instances.
+
     Inputs:
         x: one-dimensional numpy array of the independent variable
         y: one-dimensional numpy array of the dependent variable
@@ -25,9 +27,77 @@ def nlsq_fit(x, y, dy, func, params_init, **kwargs):
             func(x,par1,par2,par3,...)
         params_init: list or tuple of the first estimates of the
             parameters par1, par2, par3 etc. to be fitted
-        
+
         other optional keyword arguments will be passed to leastsq().
-                
+
+    Outputs: par1, par2, par3, ... , statdict
+        par1, par2, par3, ...: fitted values of par1, par2, par3 etc
+            as instances of ErrorValue.
+        statdict: dictionary of various statistical parameters:
+            'DoF': Degrees of freedom
+            'Chi2': Chi-squared
+            'Chi2_reduced': Reduced Chi-squared
+            'R2': Coefficient of determination
+            'num_func_eval': number of function evaluations during fit.
+            'func_value': the function evaluated in the best fitting parameters
+            'message': status message from leastsq()
+            'error_flag': integer status flag from leastsq() ('ier')
+            'Covariance': covariance matrix (variances in the diagonal)
+            'Correlation_coeffs': Pearson's correlation coefficients (usually
+                denoted by 'r') in a matrix. The diagonal is unity.
+
+    Notes:
+        for the actual fitting, nlsq_fit() is used, which in turn delegates the
+            job to scipy.optimize.leastsq().
+    """
+    p, dp, statdict = nlsq_fit(x, y, dy, func, params_init, **kwargs)
+    return tuple([ErrorValue(p_, dp_) for (p_, dp_) in zip(p, dp)] + [statdict])
+
+def simultaneous_nonlinear_leastsquares(xs, ys, dys, func, params_inits, **kwargs):
+    """Do a simultaneous nonlinear least-squares fit and return the fitted
+    parameters as instances of ErrorValue.
+
+    Input:
+    ------
+    `xs`: tuple of abscissa vectors (1d numpy ndarrays)
+    `ys`: tuple of ordinate vectors (1d numpy ndarrays)
+    `dys`: tuple of the errors of ordinate vectors (1d numpy ndarrays)
+    `func`: fitting function (the same for all the datasets)
+    `params_init`: tuples of *lists* or *tuples* (not numpy ndarrays!) of the
+        initial values of the parameters to be fitted. The special value `None`
+        signifies that the corresponding parameter is the same as in the
+        previous dataset. Of course, none of the parameters of the first dataset
+        can be None.
+    additional keyword arguments get forwarded to nlsq_fit()
+
+    Output:
+    -------
+    `parset1, parset2 ...`: tuples of fitted parameters corresponding to curve1,
+        curve2, etc. Each tuple contains the values of the fitted parameters
+        as instances of ErrorValue, in the same order as they are in `params_init`.
+    `statdict`: statistics dictionary. This is of the same form as in `nlsq_fit`,
+        except that func_value is a sequence of one-dimensional np.ndarrays containing
+        the best-fitting function values for each curve.
+    """
+    p, dp, statdict = simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, **kwargs)
+    params = [[ErrorValue(p_, dp_) for (p_, dp_) in zip(pcurrent, dpcurrent)] for (pcurrent, dpcurrent) in zip(p, dp)]
+    return tuple(params + [statdict])
+
+def nlsq_fit(x, y, dy, func, params_init, **kwargs):
+    """Perform a non-linear least squares fit
+
+    Inputs:
+        x: one-dimensional numpy array of the independent variable
+        y: one-dimensional numpy array of the dependent variable
+        dy: absolute error (square root of the variance) of the dependent
+            variable
+        func: a callable with the signature
+            func(x,par1,par2,par3,...)
+        params_init: list or tuple of the first estimates of the
+            parameters par1, par2, par3 etc. to be fitted
+
+        other optional keyword arguments will be passed to leastsq().
+
     Outputs: p, dp, statdict where
         p: list of fitted values of par1, par2 etc.
         dp: list of estimated errors
@@ -42,8 +112,8 @@ def nlsq_fit(x, y, dy, func, params_init, **kwargs):
             'error_flag': integer status flag from leastsq() ('ier')
             'Covariance': covariance matrix (variances in the diagonal)
             'Correlation_coeffs': Pearson's correlation coefficients (usually
-                denoted by 'r') in a matrix. The diagonal is unity. 
-    
+                denoted by 'r') in a matrix. The diagonal is unity.
+
     Notes:
         for the actual fitting, scipy.optimize.leastsq() is used.
     """
@@ -52,11 +122,11 @@ def nlsq_fit(x, y, dy, func, params_init, **kwargs):
         return (func(x, *(params.tolist())) - y) / dy
     #do the fitting
     par, cov, infodict, mesg, ier = leastsq(objectivefunc, np.array(params_init),
-                                         (x, y, dy), full_output = True,
+                                         (x, y, dy), full_output=True,
                                          **kwargs)
     #test if the covariance was singular (cov is None)
     if cov is None:
-        cov = np.ones((len(par), len(par))) * np.nan; #set it to a NaN matrix
+        cov = np.ones((len(par), len(par))) * np.nan #set it to a NaN matrix
     #calculate the Pearson's R^2 parameter (coefficient of determination)
     sserr = np.sum(((func(x, *(par.tolist())) - y) / dy) ** 2)
     sstot = np.sum((y - np.mean(y)) ** 2 / dy ** 2)
@@ -80,7 +150,7 @@ def nlsq_fit(x, y, dy, func, params_init, **kwargs):
 
 def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, **kwargs):
     """Do a simultaneous nonlinear least-squares fit
-    
+
     Input:
     ------
     `xs`: tuple of abscissa vectors (1d numpy ndarrays)
@@ -93,12 +163,14 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, **kwargs):
         previous dataset. Of course, none of the parameters of the first dataset
         can be None.
     additional keyword arguments get forwarded to nlsq_fit()
-        
+
     Output:
     -------
     `p`: tuple of a list of fitted parameters
     `dp`: tuple of a list of errors of the fitted parameters
-    `statdict`: statistics dictionary
+    `statdict`: statistics dictionary. This is of the same form as in `nlsq_fit`,
+        except that func_value is a sequence of one-dimensional np.ndarrays containing
+        the best-fitting function values for each curve.
     """
     if not isinstance(xs, collections.Sequence) or \
         not isinstance(ys, collections.Sequence) or \

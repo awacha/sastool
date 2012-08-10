@@ -24,7 +24,7 @@ from .. import misc
 from ..io import twodim
 from .. import utils2d
 from .arithmetic import ArithmeticBase
-from .errorvalue import ErrorValue
+from misc.errorvalue import ErrorValue
 
 import scipy.constants
 #Planck constant times speed of light in eV*Angstroem units
@@ -757,8 +757,11 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         obj.Error = ((obj.Intensity ** (other.val - 1) * other.val * obj.Error) ** 2 + (np.log(obj.Intensity) * obj.Intensity ** other.val * other.err) ** 2) ** 0.5
         obj.Intensity = obj.Intensity ** other.val
         return obj
-    def __array__(self):
-        return self.Intensity
+    def __array__(self, dt=None):
+        if dt is None:
+            return self.Intensity
+        else:
+            return self.Intensity.astype(dt)
 ### ------------------- Routines for radial integration -----------------------
 
     def get_qrange(self, N=None, spacing='linear'):
