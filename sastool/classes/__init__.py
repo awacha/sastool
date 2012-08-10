@@ -13,13 +13,13 @@ import common
 import exposure
 import header
 import mask
-import arithmetic
 import curve
-import misc.errorvalue as errorvalue
+from ..misc import errorvalue
+from ..misc import arithmetic
 
-from misc.errorvalue import ErrorValue
+from errorvalue import ErrorValue
 from .exposure import SASExposure, SASExposureException
 from .mask import SASMask, SASMaskException
 from .header import SASHeader
 from .curve import SASCurve
-from .arithmetic import ArithmeticBase
+from arithmetic import ArithmeticBase

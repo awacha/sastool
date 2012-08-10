@@ -16,7 +16,7 @@ import itertools
 import operator
 
 from .arithmetic import ArithmeticBase
-from misc.errorvalue import ErrorValue
+from .errorvalue import ErrorValue
 from ..misc.easylsq import nlsq_fit
 
 def errtrapz(x, yerr):

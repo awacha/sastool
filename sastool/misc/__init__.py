@@ -8,6 +8,7 @@ import easylsq
 import basicfit
 import rc
 import errorvalue
+import arithmetic
 
 from searchpath import *
 from pathutils import *
@@ -16,6 +17,7 @@ from utils import *
 from easylsq import *
 from basicfit import *
 from errorvalue import *
+from arithmetic import *
 from rc import sastoolrc
 HC = 12398.419 #Planck's constant times speed of light, in eV*Angstrom units
 

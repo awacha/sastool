@@ -18,4 +18,4 @@ import saspolymer
 import basic
 import bilayers
 import sasspecial
-from misc import easylsq
+from ..misc import easylsq
