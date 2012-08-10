@@ -15,9 +15,9 @@ import gzip
 import itertools
 import operator
 
-from .arithmetic import ArithmeticBase
-from .errorvalue import ErrorValue
-from ..misc.easylsq import nlsq_fit
+from ..misc.arithmetic import ArithmeticBase
+from ..misc.errorvalue import ErrorValue
+from ..misc.easylsq import nonlinear_leastsquares, simultaneous_nonlinear_leastsquares
 
 def errtrapz(x, yerr):
     """Error of the trapezoid formula
@@ -30,8 +30,8 @@ def errtrapz(x, yerr):
     """
     x = np.array(x)
     yerr = np.array(yerr)
-    return 0.5 * np.sqrt((x[1] - x[0]) ** 2 * yerr[0] ** 2 +
-                        np.sum((x[2:] - x[:-2]) ** 2 * yerr[1:-1] ** 2) +
+    return 0.5 * np.sqrt((x[1] - x[0]) ** 2 * yerr[0] ** 2 + 
+                        np.sum((x[2:] - x[:-2]) ** 2 * yerr[1:-1] ** 2) + 
                         (x[-1] - x[-2]) ** 2 * yerr[-1] ** 2)
 
 
@@ -172,8 +172,22 @@ class GeneralCurve(ArithmeticBase):
     def add_dataset(self, name, value):
         if value is None:
             return self.remove_dataset(name)
-        retval = object.__setattr__(self, name, ControlledVectorAttribute(value, name, self))
-        self._controlled_attributes.append(name)
+        if isinstance(value, ErrorValue) and not name.lower().startswith('d'):
+            if name == name.upper():
+                errprefix = 'D'
+            elif name == name.lower():
+                errprefix = 'd'
+            else:
+                retval = object.__setattr__(self, name, ControlledVectorAttribute(value.val, name, self))
+                self._controlled_attributes.append(name)
+                return retval
+            retval = object.__setattr__(self, name, ControlledVectorAttribute(value.val, name, self))
+            self._controlled_attributes.append(name)
+            object.__setattr__(self, errprefix + name, ControlledVectorAttribute(value.err, 'd' + name, self))
+            self._controlled_attributes.append(errprefix + name)
+        else:
+            retval = object.__setattr__(self, name, ControlledVectorAttribute(value, name, self))
+            self._controlled_attributes.append(name)
         return retval
     def remove_dataset(self, name):
         if hasattr(self, name):
@@ -290,9 +304,6 @@ class GeneralCurve(ArithmeticBase):
         elif isinstance(other, ErrorValue):
             if not hasattr(obj, 'dy'):
                 obj.dy = np.zeros_like(obj.y)
-            obj.dy = ((obj.y ** (other.y - 1) * other.y * obj.dy) ** 2 + (np.log(obj.y) * obj.y ** other.y * other.dy) ** 2) ** 0.5
-            obj.y = obj.y ** other.y
-        elif isinstance(other, ErrorValue):
             obj.dy = ((obj.y ** (other.val - 1) * other.val * obj.dy) ** 2 + (np.log(obj.y) * obj.y ** other.val * other.err) ** 2) ** 0.5
             obj.y = obj.y ** other.val
         else:
@@ -468,7 +479,7 @@ class GeneralCurve(ArithmeticBase):
         else:
             return m
     def get_controlled_attributes(self):
-        return ([x for x in self._special_names.values() if hasattr(self, x)] +
+        return ([x for x in self._special_names.values() if hasattr(self, x)] + 
             [x for x in self._controlled_attributes \
              if x not in self._special_names.keys() and \
              x not in self._special_names.values()])
@@ -492,8 +503,53 @@ class GeneralCurve(ArithmeticBase):
             setattr(self, k, self_as_array[k])
         return self
     def fit(self, function, parameters_init, **kwargs):
-        pars, dpars, statdict = nlsq_fit(self.x, self.y, self.dy, function, parameters_init, **kwargs)
-        return [ErrorValue(p, dp) for p, dp in zip(pars, dpars)], statdict
+        """Non-linear least-squares fit to the dataset.
+        
+        Inputs:
+        -------
+            `function`: a callable, corresponding to the function to be fitted.
+                Should have the following signature::
+                
+                    >>> function(x, par1, par2, par3, ...)
+                
+                where ``par1``, ``par2``, etc. are the values of the parameters
+                to be fitted.
+                
+            `parameters_init`: a sequence (tuple or list) of the initial values
+                for the parameters to be fitted. Their ordering should be the
+                same as that of the arguments of `function`
+            
+            other keyword arguments are given to `nonlinear_leastsquares()`
+                without any modification.
+        
+        Outputs:
+        --------
+            `par1_fit`, `par2_fit`, etc.: the best fitting values of the parameters.
+            `statdict`: a dictionary with various status data, such as `R2`, `DoF`,
+                `Chi2_reduced`, `Covariance`, `Correlation_coeffs` etc. For a full
+                list, see the help of `sastool.misc.easylsq.nlsq_fit()`
+            `func_value`: the value of the function at the best fitting parameters,
+                represented as an instance of the same class as this curve.
+        
+        Notes:
+        ------
+            The fitting itself is done via sastool.misc.easylsq.nonlinear_leastsquares()
+        """
+        ret = nonlinear_leastsquares(self.x, self.y, self.dy, function, parameters_init, **kwargs)
+        funcvalue = type(self)(self.x, ret[-1]['func_value'])
+        return ret + tuple([funcvalue])
+    @classmethod
+    def simultaneous_fit(cls, list_of_curves, function, params_init, **kwargs):
+        if not all(isinstance(x, cls) for x in list_of_curves):
+            raise ValueError('All curves should be an instance of ' + type(self) + ', not ' + ', '.join([type(x) for x in list_of_curves]))
+        ret = simultaneous_nonlinear_leastsquares(tuple([a.x for a in list_of_curves]),
+                                                  tuple([a.y for a in list_of_curves]),
+                                                  tuple([a.dy for a in list_of_curves]),
+                                                  function, params_init, **kwargs)
+        funcvalues=tuple([type(self)(c.x,fv) for (c,fv) in zip(list_of_curves, ret[-1]['func_value'])])
+        return ret+funcvalues
+        
+    
     @classmethod
     def average(cls, *args):
         args = list(args)

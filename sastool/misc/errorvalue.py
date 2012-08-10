@@ -8,6 +8,7 @@ from arithmetic import ArithmeticBase
 import numpy as np
 import numbers
 import math
+import collections
 
 class ErrorValue(ArithmeticBase):
     """Class to hold a value and its absolute error. Basic arithmetic
@@ -36,6 +37,15 @@ class ErrorValue(ArithmeticBase):
             elif isinstance(val.val, numbers.Number):
                 self.val = val.val
                 self.err = val.err
+        elif isinstance(val, collections.Sequence):
+            if all(isinstance(v,ErrorValue) for v in val):
+                self.val=np.array([v.val for v in val])
+                self.err=np.array([v.err for v in val])
+            elif all(isinstance(v,numbers.Number) for v in val):
+                self.val=np.array(val)
+                self.err=np.zeros_like(self.val)
+            else:
+                raise ValueError('If instantiated with a sequence, all elements of it must either be ErrorValues or numbers.')
         else:
             raise ValueError('ErrorValue class can hold only Python numbers or numpy ndarrays, got %s!' % type(val))
     def copy(self):
@@ -69,7 +79,7 @@ class ErrorValue(ArithmeticBase):
         if isinstance(self.val, numbers.Real):
             try:
                 Ndigits = -int(math.floor(math.log10(self.err)))
-            except OverflowError:
+            except (OverflowError, ValueError):
                 return str(self.val) + ' +/- ' + str(self.err)
             else:
                 return str(round(self.val, Ndigits)) + ' +/- ' + str(round(self.err, Ndigits))

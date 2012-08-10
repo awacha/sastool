@@ -1,4 +1,4 @@
 include *.py
 include README*
 recursive-include sastool *.py *.pyx
-recursive-include sastool/resource
+recursive-include sastool/resource *

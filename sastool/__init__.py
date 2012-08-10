@@ -33,10 +33,11 @@ Please notice that this code is under development. The API is still subject to
 changes, until the first major release (expected maybe in the second half of
 2012). Please be patient (or help me out... ;-))
 """
+import pkg_resources
+
+__version__ = pkg_resources.get_distribution('sastool').version
 
 __docformat__ = "restructuredtext en"
-
-from _version import __version__
 
 __all__ = ['io', 'misc', 'utils2d', 'fitting', 'sim', 'classes']
 

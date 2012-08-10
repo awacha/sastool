@@ -23,8 +23,8 @@ from .mask import SASMask
 from .. import misc
 from ..io import twodim
 from .. import utils2d
-from .arithmetic import ArithmeticBase
-from .errorvalue import ErrorValue
+from ..misc.arithmetic import ArithmeticBase
+from ..misc.errorvalue import ErrorValue
 
 import scipy.constants
 #Planck constant times speed of light in eV*Angstroem units
