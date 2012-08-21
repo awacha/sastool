@@ -24,9 +24,6 @@ The library consists of the following sub-packages:
 - `utils2d`: utilities for treating two-dimensional scattering data (integrating,
   finding the beam center, plotting etc.)
 - `fitting`: framework for nonlinear least-squares fitting
-- `gui`: Utilities requiring graphical user interface. GUI is implemented in ``pygtk``,
-  this subpackage depends therefore on the GTK backend of ``matplotlib``, therefore
-  this subpackage is not imported by default.
 - `sim`: Simulation routines
 
 Please notice that this code is under development. The API is still subject to
@@ -41,43 +38,9 @@ __docformat__ = "restructuredtext en"
 
 __all__ = ['io', 'misc', 'utils2d', 'fitting', 'sim', 'classes']
 
-import warnings
-import matplotlib
-#check if GTK library is present
-
-try:
-    # if we can import gtk and gtk can be initialized, we use that backend of 
-    # matplotlib
-    import gtk
-    gtk.init_check() # returns None if OK, raises an exception (RuntimeError) if not.
-    try:
-        matplotlib.use('GTKAgg', warn=False)
-    except TypeError:
-        # older versions of IPython monkey-patch matplotlib.use(). That patch does not
-        # support the 'warn' keyword argument
-        matplotlib.use('GTKAgg')
-except ImportError:
-    # if gtk could not be imported, we still can use matplotlib but with a different backend
-    warnings.warn('could not import gtk, GUI utilities won\'t work.')
-except RuntimeError: # raised if we are on a terminal without a graphic display
-    # gtk found but a graphical display has not been found: don't force GTKAgg
-    # backend of matplotlib, as off-gui plotting (file-writing backends) can
-    # work.
-    warnings.warn('could not initialize graphic display, plotting won\'t work.')
-
 import misc
 import utils2d
 import io
 import fitting
 import sim
 import classes
-
-def _sas2dgui_main_program():
-    """Entry point for the `sas2dutil` GUI script."""
-    import gui
-    a = gui.sasimagegui.SASImageGuiMain()
-    def delete_handler(*args, **kwargs):
-        gtk.main_quit()
-    a.connect('delete-event', delete_handler)
-    a.show_all()
-    gtk.main()

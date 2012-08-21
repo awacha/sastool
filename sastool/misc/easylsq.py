@@ -16,26 +16,24 @@ from errorvalue import ErrorValue
 
 class FixedParameter(float):
     def __str__(self):
-        return 'FixedParameter('+float.__str__(self)+')'
-    def __unicode__(self):
-        return 'FixedParameter('+float.__unicode__(self)+')'
+        return 'FixedParameter(' + float.__str__(self) + ')'
+    __unicode__ = __str__
     def __repr__(self):
-        return 'FixedParameter('+float.__repr__(self)+')'
-    pass
+        return 'FixedParameter(' + float.__repr__(self) + ')'
 
-def hide_fixedparams(function,params):
-    def newfunc(x,*pars,**kwargs):
-        return function(x,*resubstitute_fixedparams(pars,params),**kwargs)
-    return newfunc,[p for p in params if not isinstance(p,FixedParameter)]
+def hide_fixedparams(function, params):
+    def newfunc(x, *pars, **kwargs):
+        return function(x, *resubstitute_fixedparams(pars, params), **kwargs)
+    return newfunc, [p for p in params if not isinstance(p, FixedParameter)]
 
-def resubstitute_fixedparams(params,paramsorig):
-    if isinstance(paramsorig,tuple):
-        paramsorig=list(paramsorig)
-    elif isinstance(paramsorig,np.ndarray):
-        paramsorig=paramsorig.tolist()
-    paramsorig=paramsorig[:]
-    for j,p in zip([i for i in range(len(paramsorig)) if not isinstance(paramsorig[i],FixedParameter)],params):
-        paramsorig[j]=p
+def resubstitute_fixedparams(params, paramsorig):
+    if isinstance(paramsorig, tuple):
+        paramsorig = list(paramsorig)
+    elif isinstance(paramsorig, np.ndarray):
+        paramsorig = paramsorig.tolist()
+    paramsorig = paramsorig[:]
+    for j, p in zip([i for i in range(len(paramsorig)) if not isinstance(paramsorig[i], FixedParameter)], params):
+        paramsorig[j] = p
     return paramsorig
 
 def nonlinear_leastsquares(x, y, dy, func, params_init, **kwargs):
@@ -74,15 +72,15 @@ def nonlinear_leastsquares(x, y, dy, func, params_init, **kwargs):
         for the actual fitting, nlsq_fit() is used, which in turn delegates the
             job to scipy.optimize.leastsq().
     """
-    newfunc,newparinit=hide_fixedparams(func,params_init)
+    newfunc, newparinit = hide_fixedparams(func, params_init)
     p, dp, statdict = nlsq_fit(x, y, dy, newfunc, newparinit, **kwargs)
-    p=resubstitute_fixedparams(p,params_init)
-    dp=resubstitute_fixedparams(dp,[type(p_)(0) for p_ in params_init])
-    def convert(p_,dp_):
-        if isinstance(p_,FixedParameter) or isinstance(dp_, FixedParameter):
+    p = resubstitute_fixedparams(p, params_init)
+    dp = resubstitute_fixedparams(dp, [type(p_)(0) for p_ in params_init])
+    def convert(p_, dp_):
+        if isinstance(p_, FixedParameter) or isinstance(dp_, FixedParameter):
             return p_
         else:
-            return ErrorValue(p_,dp_)
+            return ErrorValue(p_, dp_)
     return tuple([convert(p_, dp_) for (p_, dp_) in zip(p, dp)] + [statdict])
 
 def simultaneous_nonlinear_leastsquares(xs, ys, dys, func, params_inits, **kwargs):
@@ -149,10 +147,10 @@ def nlsq_fit(x, y, dy, func, params_init, **kwargs):
     Notes:
         for the actual fitting, scipy.optimize.leastsq() is used.
     """
-    func_orig=func
-    params_init_orig=params_init
-    func,params_init=hide_fixedparams(func_orig,params_init_orig)
-    
+    func_orig = func
+    params_init_orig = params_init
+    func, params_init = hide_fixedparams(func_orig, params_init_orig)
+
     def objectivefunc(params, x, y, dy):
         """The target function for leastsq()."""
         return (func(x, *(params.tolist())) - y) / dy
@@ -182,8 +180,8 @@ def nlsq_fit(x, y, dy, func, params_init, **kwargs):
     dpar = np.sqrt(statdict['Covariance'].diagonal())
     #Pearson's correlation coefficients (usually 'r') in a matrix.
     statdict['Correlation_coeffs'] = statdict['Covariance'] / np.outer(dpar, dpar)
-    par=resubstitute_fixedparams(par,params_init_orig)
-    dpar=resubstitute_fixedparams(dpar,[type(p)(0) for p in params_init_orig])
+    par = resubstitute_fixedparams(par, params_init_orig)
+    dpar = resubstitute_fixedparams(dpar, [type(p)(0) for p in params_init_orig])
     return par, dpar, statdict
 
 def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, **kwargs):

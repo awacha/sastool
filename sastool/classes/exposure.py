@@ -302,6 +302,16 @@ class SASExposure(ArithmeticBase):
         else:
             raise ValueError('Invalid number of positional arguments.')
     def check_for_mask(self, isfatal=True):
+        """Check if a valid mask is defined.
+
+        Inputs:
+        -------
+            isfatal: boolean [True]
+                if this is True and self.mask is not an instance of
+                SASMask, raises a SASExposureException. If False,
+                the error state is returned (True if we have a valid
+                mask and False if not).
+        """
         if self.mask is None:
             if isfatal:
                 raise SASExposureException('mask not defined') #IGNORE:W0710
@@ -314,7 +324,16 @@ class SASExposure(ArithmeticBase):
                 return False
         return True
     def check_for_q(self, isfatal=True):
-        "Check if needed header elements are present for calculating q values for pixels. If not, raise a SASAverageException."
+        """Check if needed header elements are present for calculating q values
+        for pixels.
+
+        Inputs:
+        -------
+            isfatal: boolean, True
+                if missing header data should raise an exception. If this is
+                False, the list of missing field names is returned (an empty
+                list signifies that every required field is present).
+        """
         #Note, that we check for 'Dist' and 'Energy' instead of 'DistCalibrated'
         # and 'EnergyCalibrated', because if the latter are missing, they
         # default to the values of the uncalibrated ones.
@@ -327,17 +346,28 @@ class SASExposure(ArithmeticBase):
                 return missing
         return []
     def __del__(self):
+        """respond to `del object` calls."""
         for x in ['Intensity', 'Error', 'header', 'mask']:
             if hasattr(self, x):
                 delattr(self, x)
+        super(self, SASExposure).__del__(self)
     @property
     def shape(self):
         return self.Intensity.shape
 
     def __setitem__(self, key, value):
+        """respond to `obj[key] = value` calls. Delegate requests to self.header."""
         self.header[key] = value
 
     def __getitem__(self, key):
+        """respond to `obj[key]` requests. The result depends on the type of ``key``:
+
+        1) If ``key`` is a string, the call is delegated to self.header, i.e.
+            get a header item.
+
+        2) otherwise a copy is made of this instance with the Intensity, Error and
+            mask matrices sliced accordingly.
+        """
         if isinstance(key, basestring):
             return self.header[key]
         else:
@@ -355,17 +385,28 @@ class SASExposure(ArithmeticBase):
             return obj
 
     def __delitem__(self, key):
+        """Respond to `del object[key]` calls. Delegate calls to self.header."""
         del self.header[key]
 
     def sum(self, masked=True):
+        """Calculate the sum of the pixels.
+
+        Inputs:
+            masked:
+        """
         if self.check_for_mask(False) and masked:
             indices = np.array(self.mask) != 0
         else:
             indices = slice(None)
+        isum = 0
+        esum = 0
         try:
-            return ErrorValue(self.Intensity[indices].sum(), self.Error[indices].sum())
+            isum = self.Intensity[indices].sum()
+            esum = self.Error[indices].sum()
+        except TypeError: #NoneType object has no attribute __getitem__: if self.Error is None
+            return isum
         except ValueError: # this can occur if everything is masked
-            return ErrorValue(np.nan, np.nan)
+            return ErrorValue(0, 0)
     def max(self, masked=True):
         if self.check_for_mask(False) and masked:
             indices = np.array(self.mask) != 0
