@@ -19,6 +19,8 @@ from ..misc.arithmetic import ArithmeticBase
 from ..misc.errorvalue import ErrorValue
 from ..misc.easylsq import nonlinear_leastsquares, simultaneous_nonlinear_leastsquares
 
+#TODO: fitting with no errorbars present
+
 def errtrapz(x, yerr):
     """Error of the trapezoid formula
     Inputs:
@@ -30,8 +32,8 @@ def errtrapz(x, yerr):
     """
     x = np.array(x)
     yerr = np.array(yerr)
-    return 0.5 * np.sqrt((x[1] - x[0]) ** 2 * yerr[0] ** 2 + 
-                        np.sum((x[2:] - x[:-2]) ** 2 * yerr[1:-1] ** 2) + 
+    return 0.5 * np.sqrt((x[1] - x[0]) ** 2 * yerr[0] ** 2 +
+                        np.sum((x[2:] - x[:-2]) ** 2 * yerr[1:-1] ** 2) +
                         (x[-1] - x[-2]) ** 2 * yerr[-1] ** 2)
 
 
@@ -42,7 +44,8 @@ class ControlledVectorAttribute(object):
             self.name = value.name
         else:
             self.name = name
-            if not isinstance(value, np.ndarray):
+            value=np.array(value)
+            if value.dtype.kind.lower() not in 'biuf':
                 raise TypeError("Cannot instantiate a ControlledVectorAttribute with a type %s" % type(value))
             self.value = obj.check_compatibility(value, self.name)
     def __get__(self, obj, type_=None):
@@ -151,7 +154,19 @@ class GeneralCurve(ArithmeticBase):
     y = property(_get_y, _set_y)
     dx = property(_get_dx, _set_dx)
     dy = property(_get_dy, _set_dy)
-
+    def __gt__(self, other):
+        return self.y>other
+    def __lt__(self, other):
+        return self.y<other
+    def __eq__(self, other):
+        return self.y==other
+    def __ge__(self, other):
+        return self.y>=other
+    def __le__(self, other):
+        return self.y<=other
+    def __ne__(self, other):
+        return self.y!=other
+        
     def set_specialname(self, specname, newname):
         if newname == specname:
             raise ValueError('Name `%s` not supported for %s. Try `%s`.' % (newname, specname, specname.upper()))
@@ -310,7 +325,7 @@ class GeneralCurve(ArithmeticBase):
             return NotImplemented
         return obj
     def __getitem__(self, name):
-        if isinstance(name, numbers.Integral) or isinstance(name, slice):
+        if isinstance(name, numbers.Integral) or isinstance(name, slice) or isinstance(name, np.ndarray):
             d = dict()
             for k in self._controlled_attributes:
                 d[k] = self.__getattribute__(k)[name]
@@ -479,7 +494,7 @@ class GeneralCurve(ArithmeticBase):
         else:
             return m
     def get_controlled_attributes(self):
-        return ([x for x in self._special_names.values() if hasattr(self, x)] + 
+        return ([x for x in self._special_names.values() if hasattr(self, x)] +
             [x for x in self._controlled_attributes \
              if x not in self._special_names.keys() and \
              x not in self._special_names.values()])
@@ -504,24 +519,24 @@ class GeneralCurve(ArithmeticBase):
         return self
     def fit(self, function, parameters_init, **kwargs):
         """Non-linear least-squares fit to the dataset.
-        
+
         Inputs:
         -------
             `function`: a callable, corresponding to the function to be fitted.
                 Should have the following signature::
-                
+
                     >>> function(x, par1, par2, par3, ...)
-                
+
                 where ``par1``, ``par2``, etc. are the values of the parameters
                 to be fitted.
-                
+
             `parameters_init`: a sequence (tuple or list) of the initial values
                 for the parameters to be fitted. Their ordering should be the
                 same as that of the arguments of `function`
-            
+
             other keyword arguments are given to `nonlinear_leastsquares()`
                 without any modification.
-        
+
         Outputs:
         --------
             `par1_fit`, `par2_fit`, etc.: the best fitting values of the parameters.
@@ -530,26 +545,70 @@ class GeneralCurve(ArithmeticBase):
                 list, see the help of `sastool.misc.easylsq.nlsq_fit()`
             `func_value`: the value of the function at the best fitting parameters,
                 represented as an instance of the same class as this curve.
-        
+
         Notes:
         ------
             The fitting itself is done via sastool.misc.easylsq.nonlinear_leastsquares()
         """
-        ret = nonlinear_leastsquares(self.x, self.y, self.dy, function, parameters_init, **kwargs)
-        funcvalue = type(self)(self.x, ret[-1]['func_value'])
+        obj=self.sanitize()
+        ret = nonlinear_leastsquares(obj.x, obj.y, obj.dy, function, parameters_init, **kwargs)
+        funcvalue = type(self)(obj.x, ret[-1]['func_value'])
         return ret + tuple([funcvalue])
     @classmethod
     def simultaneous_fit(cls, list_of_curves, function, params_init, **kwargs):
+        """Non-linear simultaneous least-squares fit to several curves.
+
+        Inputs:
+        -------
+            `list_of_curves`: a sequence of instances of this class for fitting.
+            `function`: a callable, corresponding to the function to be fitted.
+                Should have the following signature::
+
+                    >>> function(x, par1, par2, par3, ...)
+
+                where ``par1``, ``par2``, etc. are the values of the parameters
+                to be fitted.
+
+            `params_init`: a sequence of sequences of the initial values
+                for the parameters to be fitted. Should be laid out as:
+                ((par1_dataset1, par2_dataset1, par3_dataset1, ...),
+                 (par1_dataset2, par2_dataset2, par3_dataset2, ...),
+                 ...)
+                Each parameter can be:
+                    . a float
+                    . an instance of sastool.misc.ErrorValue
+                    . None (means that this parameter is to be held the same
+                        as the corresponding parameter before this; of course
+                        no None-s can occur among the parameters for the first
+                        dataset)
+                    . an instance of sastool.misc.easylsq.FixedParameter (in this
+                        case the parameter will be held fixed and not be fitted.
+                        This is useful if you want the common fitting function to
+                        behave *slightly* differently for each dataset).
+
+            other keyword arguments are given to `nonlinear_leastsquares()`
+                without any modification.
+
+
+        Outputs:
+        --------
+            `par_fits`: a tuple of lists of best-fit parameters
+            `statdict`: a dictionary with various status data, such as `R2`, `DoF`,
+                `Chi2_reduced`, `Covariance`, `Correlation_coeffs` etc. For a full
+                list, see the help of `sastool.misc.easylsq.nlsq_fit()`
+            `func_values`: a tuple of the values of the function at the best fitting
+                parameters, represented as instances of this class.
+        """
         if not all(isinstance(x, cls) for x in list_of_curves):
-            raise ValueError('All curves should be an instance of ' + type(self) + ', not ' + ', '.join([type(x) for x in list_of_curves]))
+            raise ValueError('All curves should be an instance of ' + cls + ', not ' + ', '.join([type(x) for x in list_of_curves]))
         ret = simultaneous_nonlinear_leastsquares(tuple([a.x for a in list_of_curves]),
                                                   tuple([a.y for a in list_of_curves]),
                                                   tuple([a.dy for a in list_of_curves]),
                                                   function, params_init, **kwargs)
-        funcvalues=tuple([type(self)(c.x,fv) for (c,fv) in zip(list_of_curves, ret[-1]['func_value'])])
-        return ret+funcvalues
-        
-    
+        funcvalues = tuple([cls(c.x, fv) for (c, fv) in zip(list_of_curves, ret[-1]['func_value'])])
+        return tuple([ret[:-1]]) + tuple([ret[-1]]) + tuple([funcvalues])
+
+
     @classmethod
     def average(cls, *args):
         args = list(args)

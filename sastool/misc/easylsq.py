@@ -113,7 +113,7 @@ def simultaneous_nonlinear_leastsquares(xs, ys, dys, func, params_inits, **kwarg
     params = [[ErrorValue(p_, dp_) for (p_, dp_) in zip(pcurrent, dpcurrent)] for (pcurrent, dpcurrent) in zip(p, dp)]
     return tuple(params + [statdict])
 
-def nlsq_fit(x, y, dy, func, params_init, **kwargs):
+def nlsq_fit(x, y, dy, func, params_init, autofactor=False, **kwargs):
     """Perform a non-linear least squares fit
 
     Inputs:
@@ -125,7 +125,9 @@ def nlsq_fit(x, y, dy, func, params_init, **kwargs):
             func(x,par1,par2,par3,...)
         params_init: list or tuple of the first estimates of the
             parameters par1, par2, par3 etc. to be fitted
-
+        autofactor: if the 'diag' argument of leastsq() is to be automatically
+            adjusted. Use this if you feel close to the best-fit parameters.
+            
         other optional keyword arguments will be passed to leastsq().
 
     Outputs: p, dp, statdict where
@@ -155,6 +157,8 @@ def nlsq_fit(x, y, dy, func, params_init, **kwargs):
         """The target function for leastsq()."""
         return (func(x, *(params.tolist())) - y) / dy
     #do the fitting
+    if autofactor:
+        kwargs['diag']=[1/np.abs(p) for p in params_init]
     par, cov, infodict, mesg, ier = leastsq(objectivefunc, np.array(params_init),
                                          (x, y, dy), full_output=True,
                                          **kwargs)
@@ -184,7 +188,7 @@ def nlsq_fit(x, y, dy, func, params_init, **kwargs):
     dpar = resubstitute_fixedparams(dpar, [type(p)(0) for p in params_init_orig])
     return par, dpar, statdict
 
-def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, **kwargs):
+def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, verbose=False, **kwargs):
     """Do a simultaneous nonlinear least-squares fit
 
     Input:
@@ -198,6 +202,7 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, **kwargs):
         signifies that the corresponding parameter is the same as in the
         previous dataset. Of course, none of the parameters of the first dataset
         can be None.
+    `verbose`: if various messages useful for debugging should be printed on stdout.
     additional keyword arguments get forwarded to nlsq_fit()
 
     Output:
@@ -214,6 +219,8 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, **kwargs):
         not isinstance(params_inits, collections.Sequence):
         raise ValueError('Parameters `xs`, `ys`, `dys` and `params_inits` should be tuples or lists.')
     Ndata = len(xs)
+    if verbose:
+        print "Number of datasets for simultaneous fitting:", Ndata
     if len(ys) != Ndata or len(dys) != Ndata or len(params_inits) != Ndata:
         raise ValueError('Parameters `xs`, `ys`, `dys` and `params_inits` should have the same length.')
 
@@ -223,7 +230,8 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, **kwargs):
     if len(Ns) != 1:
         raise ValueError('Elements of `params_inits` should have the same length.')
     Npar = Ns.pop()
-
+    if verbose:
+        print "Number of parameters:", Npar
     #concatenate the x, y and dy vectors
     xcat = np.concatenate(xs)
     ycat = np.concatenate(ys)
@@ -261,6 +269,8 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, **kwargs):
     def func_flat(x, *params):
         y = []
         for j in range(Ndata):
+            if verbose:
+                print "Simultaneous fitting: evaluating function for dataset #", j, "/", Ndata
             pars = [params[i] for i in param_indices[j]]
             y.append(func(x[starts[j]:ends[j]], *pars))
         return np.concatenate(tuple(y))
