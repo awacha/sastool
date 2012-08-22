@@ -30,7 +30,7 @@ class ArithmeticBase(object):
         return obj
     def __radd__(self, value):
         retval = self +value
-        if retval == NotImplemented:
+        if retval is NotImplemented:
             raise NotImplementedError('addition is not implemented between %s and %s types' % (type(self), type(value)))
         return retval
     def __isub__(self, value):
@@ -44,7 +44,7 @@ class ArithmeticBase(object):
         return obj
     def __rsub__(self, value):
         retval = (-self) + value
-        if retval == NotImplemented:
+        if retval is NotImplemented:
             raise NotImplementedError('subtraction is not implemented between %s and %s types' % (type(self), type(value)))
         return retval
     def __mul__(self, value):
@@ -60,7 +60,7 @@ class ArithmeticBase(object):
     def __rmul__(self, value):
         #print "arithmetic.__rmul__ starting: ",type(self),type(value)
         retval = self * value
-        if retval == NotImplemented:
+        if retval is NotImplemented:
             #print "arithmetic.__rmul__ not implemented"
             raise NotImplementedError('multiplication is not implemented between %s and %s types' % (type(self), type(value)))
         return retval
@@ -75,7 +75,7 @@ class ArithmeticBase(object):
         return obj
     def __rdiv__(self, value):
         retval = self._recip() * value
-        if retval == NotImplemented:
+        if retval is NotImplemented:
             raise NotImplementedError('division is not implemented between %s and %s types' % (type(self), type(value)))
         return retval
     def __iadd__(self, value):

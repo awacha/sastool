@@ -109,7 +109,6 @@ class SASExposure(ArithmeticBase):
         kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
 
         if not args: #no positional arguments:
-            super(SASExposure, self).__init__()
             self.Intensity = None
             self.Error = None
             self.header = SASHeader()
@@ -350,7 +349,8 @@ class SASExposure(ArithmeticBase):
         for x in ['Intensity', 'Error', 'header', 'mask']:
             if hasattr(self, x):
                 delattr(self, x)
-        super(self, SASExposure).__del__(self)
+        #we do not call the __del__ method of our parent class, since neither it
+        # nor its ancestor has one.
     @property
     def shape(self):
         return self.Intensity.shape

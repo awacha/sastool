@@ -44,7 +44,7 @@ class ControlledVectorAttribute(object):
             self.name = value.name
         else:
             self.name = name
-            value=np.array(value)
+            value = np.array(value)
             if value.dtype.kind.lower() not in 'biuf':
                 raise TypeError("Cannot instantiate a ControlledVectorAttribute with a type %s" % type(value))
             self.value = obj.check_compatibility(value, self.name)
@@ -98,7 +98,8 @@ class GeneralCurve(ArithmeticBase):
         else:
             for a, name in zip(args, self._special_names.values()):
                 self.add_dataset(name, a)
-        for a, name in [(kwargs[k], k) for k in kwargs if isinstance(kwargs[k], np.ndarray) or isinstance(kwargs[k], collections.Sequence)]:
+        for a, name in [(kwargs[k], k) for k in kwargs if isinstance(kwargs[k], np.ndarray) or isinstance(kwargs[k], collections.Sequence)
+                        or isinstance(kwargs[k],ErrorValue)]:
             self.add_dataset(name, a)
     def __getattribute__(self, name):
         #hack to allow instance descriptors. http://blog.brianbeck.com/post/74086029/instance-descriptors
@@ -155,18 +156,18 @@ class GeneralCurve(ArithmeticBase):
     dx = property(_get_dx, _set_dx)
     dy = property(_get_dy, _set_dy)
     def __gt__(self, other):
-        return self.y>other
+        return self.y > other
     def __lt__(self, other):
-        return self.y<other
+        return self.y < other
     def __eq__(self, other):
-        return self.y==other
+        return self.y == other
     def __ge__(self, other):
-        return self.y>=other
+        return self.y >= other
     def __le__(self, other):
-        return self.y<=other
+        return self.y <= other
     def __ne__(self, other):
-        return self.y!=other
-        
+        return self.y != other
+
     def set_specialname(self, specname, newname):
         if newname == specname:
             raise ValueError('Name `%s` not supported for %s. Try `%s`.' % (newname, specname, specname.upper()))
@@ -427,6 +428,12 @@ class GeneralCurve(ArithmeticBase):
         if filetobeclosed:
             fileopened.close()
     def interpolate(self, newx, **kwargs):
+        if isinstance(newx, numbers.Number):
+            if hasattr(self,'dy'):
+                return ErrorValue(np.interp(newx,self.x,self.y,**kwargs),
+                                  np.interp(newx,self.x,self.dy,**kwargs))
+            else:
+                return np.interp(newx,self.x,self.y,**kwargs)
         d = {}
         for k in self.get_controlled_attributes():
             d[k] = np.interp(newx, self.x, getattr(self, k), **kwargs)
@@ -476,6 +483,18 @@ class GeneralCurve(ArithmeticBase):
             return retval, factor
         else:
             return retval
+    def invert(self):
+        """Calculate the inverse (i.e. swap x with y). No check is done if this
+        makes sense! Other fields than x,y,dx,dy are lost from the inverted curve.
+        """
+        d={}
+        d['x']=self.y
+        d['y']=self.x
+        if hasattr(self,'dx'):
+            d['dy']=self.dx
+        if hasattr(self,'dy'):
+            d['dx']=self.dy
+        return type(self)(d)
     def momentum(self, exponent=1, errorrequested=True):
         """Calculate momenta (integral of y times x^exponent)
         The integration is done by the trapezoid formula (np.trapz).
@@ -517,7 +536,7 @@ class GeneralCurve(ArithmeticBase):
         for k in self_as_array.dtype.names:
             setattr(self, k, self_as_array[k])
         return self
-    def fit(self, function, parameters_init, **kwargs):
+    def fit(self, function, parameters_init, xname='x', yname='y', dyname='dy', **kwargs):
         """Non-linear least-squares fit to the dataset.
 
         Inputs:
@@ -550,12 +569,16 @@ class GeneralCurve(ArithmeticBase):
         ------
             The fitting itself is done via sastool.misc.easylsq.nonlinear_leastsquares()
         """
-        obj=self.sanitize()
-        ret = nonlinear_leastsquares(obj.x, obj.y, obj.dy, function, parameters_init, **kwargs)
-        funcvalue = type(self)(obj.x, ret[-1]['func_value'])
+        obj = self.sanitize(fieldname=yname).sanitize(fieldname=xname)
+        if not hasattr(obj, dyname):
+            dy = np.ones(len(obj), np.double) * np.nan
+        else:
+            dy = getattr(obj,dyname)
+        ret = nonlinear_leastsquares(getattr(obj,xname), getattr(obj,yname), dy, function, parameters_init, **kwargs)
+        funcvalue = type(self)(getattr(obj,xname), ret[-1]['func_value'])
         return ret + tuple([funcvalue])
     @classmethod
-    def simultaneous_fit(cls, list_of_curves, function, params_init, **kwargs):
+    def simultaneous_fit(cls, list_of_curves, function, params_init, xname='x', yname='y', dyname='dy', **kwargs):
         """Non-linear simultaneous least-squares fit to several curves.
 
         Inputs:
@@ -601,11 +624,17 @@ class GeneralCurve(ArithmeticBase):
         """
         if not all(isinstance(x, cls) for x in list_of_curves):
             raise ValueError('All curves should be an instance of ' + cls + ', not ' + ', '.join([type(x) for x in list_of_curves]))
-        ret = simultaneous_nonlinear_leastsquares(tuple([a.x for a in list_of_curves]),
-                                                  tuple([a.y for a in list_of_curves]),
-                                                  tuple([a.dy for a in list_of_curves]),
+        def getdy(curve):
+            if hasattr(curve, dyname):
+                return getattr(curve,dyname)
+            else:
+                return np.ones(len(curve), np.double) * np.nan
+        list_of_curves=[a.sanitize(fieldname=yname).sanitize(fieldname=xname) for a in list_of_curves]
+        ret = simultaneous_nonlinear_leastsquares(tuple([getattr(a,xname) for a in list_of_curves]),
+                                                  tuple([getattr(a,yname) for a in list_of_curves]),
+                                                  tuple([getdy(a) for a in list_of_curves]),
                                                   function, params_init, **kwargs)
-        funcvalues = tuple([cls(c.x, fv) for (c, fv) in zip(list_of_curves, ret[-1]['func_value'])])
+        funcvalues = tuple([cls(getattr(c,xname), fv) for (c, fv) in zip(list_of_curves, ret[-1]['func_value'])])
         return tuple([ret[:-1]]) + tuple([ret[-1]]) + tuple([funcvalues])
 
 
