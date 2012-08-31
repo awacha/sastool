@@ -168,7 +168,7 @@ def nlsq_fit(x, y, dy, func, params_init, verbose=False, **kwargs):
     func_orig = func
     params_init_orig = params_init
     func, params_init = hide_fixedparams(func_orig, params_init_orig)
-    if (dy == np.nan).sum() > 0 or (dy<=0).sum()>0:
+    if (dy == np.nan).sum() > 0 or (dy <= 0).sum() > 0:
         if verbose:
             print "nlsq_fit: no weighting"
         dy = None
@@ -225,6 +225,14 @@ def nlsq_fit(x, y, dy, func, params_init, verbose=False, **kwargs):
         print "nlsq_fit: returning with results."
         print "nlsq_fit: total time: %.2f sec." % (time.time() - t0)
     return par, dpar, statdict
+
+def slice_covarmatrix(cov, indices):
+    cov1 = np.zeros((len(indices), len(indices)), np.double)
+    for i in range(len(indices)):
+        for j in range(i, len(indices)):
+            cov1[i, j] = cov[indices[i], indices[j]]
+            cov1[j, i] = cov[indices[j], indices[i]]
+    return cov1
 
 def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, verbose=False,
                              **kwargs):
@@ -307,15 +315,15 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, verbose=False,
 
     if verbose:
         print "Number of datasets for simultaneous fitting:", Ndata
-        print "Total number of data points:",len(xcat)
+        print "Total number of data points:", len(xcat)
         print "Number of parameters in each dataset:", Npar
-        print "Total number of parameters:",Ndata*Npar
-        print "Number of independent parameters:",len(paramcat)
+        print "Total number of parameters:", Ndata * Npar
+        print "Number of independent parameters:", len(paramcat)
     #the flattened function
     def func_flat(x, *params):
         y = []
         for j in range(Ndata):
-            if verbose>1:
+            if verbose > 1:
                 print "Simultaneous fitting: evaluating function for dataset #", j, "/", Ndata
             pars = [params[i] for i in param_indices[j]]
             y.append(func(x[starts[j]:ends[j]], *pars))
@@ -324,13 +332,26 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, verbose=False,
     #Now we reduced the problem to a single least-squares fit. Carry it out and
     # interpret the results.
     pflat, dpflat, statdictflat = nlsq_fit(xcat, ycat, dycat, func_flat, paramcat, verbose, **kwargs)
+    for n in ['func_value', 'R2', 'Chi2', 'Chi2_reduced', 'DoF', 'Covariance', 'Correlation_coeffs']:
+        statdictflat[n + '_global'] = statdictflat[n]
+        statdictflat[n] = []
     p = []
     dp = []
-    fval = []
-    for j in range(Ndata):
+    for j in range(Ndata):  # unpack the results
         p.append([pflat[i] for i in param_indices[j]])
         dp.append([dpflat[i] for i in param_indices[j]])
-        fval.append(statdictflat['func_value'][starts[j]:ends[j]])
-    statdictflat['func_value'] = fval
+        statdictflat['func_value'].append(statdictflat['func_value_global'][starts[j]:ends[j]])
+        if np.isfinite(dys[j]).all():
+            statdictflat['Chi2'].append((((statdictflat['func_value'][-1] - ys[j]) / dys[j]) ** 2).sum())
+            sstot = np.sum((ys[j] - np.mean(ys[j])) ** 2 / dys[j] ** 2)
+        else:
+            statdictflat['Chi2'].append(((statdictflat['func_value'][-1] - ys[j]) ** 2).sum())
+            sstot = np.sum((ys[j] - np.mean(ys[j])) ** 2)
+        sserr = statdictflat['Chi2'][-1]
+        statdictflat['R2'].append(1 - sserr / sstot)
+        statdictflat['DoF'].append(len(xs[j] - len(p[-1])))
+        statdictflat['Covariance'].append(slice_covarmatrix(statdictflat['Covariance_global'], param_indices[j]))
+        statdictflat['Correlation_coeffs'].append(slice_covarmatrix(statdictflat['Correlation_coeffs_global'], param_indices[j]))
+        statdictflat['Chi2_reduced'].append(statdictflat['Chi2'][-1] / statdictflat['DoF'][-1])
     return p, dp, statdictflat
 

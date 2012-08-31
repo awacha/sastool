@@ -647,15 +647,13 @@ class GeneralCurve(ArithmeticBase):
             other keyword arguments are given to `nonlinear_leastsquares()`
                 without any modification.
 
-
         Outputs:
         --------
-            `par_fits`: a tuple of lists of best-fit parameters
-            `statdict`: a dictionary with various status data, such as `R2`, `DoF`,
-                `Chi2_reduced`, `Covariance`, `Correlation_coeffs` etc. For a full
-                list, see the help of `sastool.misc.easylsq.nlsq_fit()`
-            `func_values`: a tuple of the values of the function at the best fitting
-                parameters, represented as instances of this class.
+            a list of fitting results for each curve. Each element of the list
+            is a tuple and has the format as returned by GeneralCurve.fit():
+
+                (par1, par2, par3, ... , statdict, fittedcurve)
+
         """
         if not all(isinstance(x, cls) for x in list_of_curves):
             raise ValueError('All curves should be an instance of ' + cls + ', not ' + ', '.join([type(x) for x in list_of_curves]))
@@ -669,8 +667,14 @@ class GeneralCurve(ArithmeticBase):
                                                   tuple([getattr(a, yname) for a in list_of_curves]),
                                                   tuple([getdy(a) for a in list_of_curves]),
                                                   function, params_init, **kwargs)
-        funcvalues = tuple([cls(getattr(c, xname), fv) for (c, fv) in zip(list_of_curves, ret[-1]['func_value'])])
-        return tuple([ret[:-1]]) + tuple([ret[-1]]) + tuple([funcvalues])
+        results = []
+        for pars, idx in itertools.izip(ret[:-1], itertools.count(0)):
+            statdict = ret[-1].copy()
+            for name in ['R2', 'Chi2', 'Chi2_reduced', 'DoF', 'Covariance', 'Correlation_coeffs', 'func_value']:
+                statdict[name] = statdict[name][idx]
+            funcval = cls(getattr(list_of_curves[idx], xname), statdict['func_value'])
+            results.append(tuple(pars) + (statdict, funcval))
+        return results
 
 
     @classmethod

@@ -76,7 +76,9 @@ class ErrorValue(ArithmeticBase):
         self.val = self.val * value.val
         return self
     def __str__(self):
-        return self.tostring()
+        return self.tostring(plusminus=' +/- ')
+    def __unicode__(self):
+        return self.tostring(plusminus=u' \xb1 ')
     def __pow__(self, other, modulo=None):
         if modulo is not None:
             return NotImplemented
@@ -98,14 +100,14 @@ class ErrorValue(ArithmeticBase):
             return np.array(self.val)
         else:
             return np.array(self.val, dt)
-    def tostring(self, extra_digits=0):
+    def tostring(self, extra_digits=0, plusminus=' +/- '):
         if isinstance(self.val, numbers.Real):
             try:
                 Ndigits = -int(math.floor(math.log10(self.err))) + extra_digits
             except (OverflowError, ValueError):
-                return str(self.val) + ' +/- ' + str(self.err)
+                return str(self.val) + plusminus + str(self.err)
             else:
-                return str(round(self.val, Ndigits)) + ' +/- ' + str(round(self.err, Ndigits))
+                return str(round(self.val, Ndigits)) + plusminus + str(round(self.err, Ndigits))
         return str(self.val) + ' +/- ' + str(self.err)
     def sin(self):
         return ErrorValue(np.sin(self.val), np.abs(np.cos(self.val) * self.err))
