@@ -66,7 +66,6 @@ class GeneralCurve(ArithmeticBase):
         self._special_names = kwargs['special_names']
         if len(args) == 0:
             #empty constructor
-            self._special_names = kwargs['special_names']
             self.x = None
             self.y = None
             self.dy = None
@@ -99,7 +98,7 @@ class GeneralCurve(ArithmeticBase):
             for a, name in zip(args, self._special_names.values()):
                 self.add_dataset(name, a)
         for a, name in [(kwargs[k], k) for k in kwargs if isinstance(kwargs[k], np.ndarray) or isinstance(kwargs[k], collections.Sequence)
-                        or isinstance(kwargs[k],ErrorValue)]:
+                        or isinstance(kwargs[k], ErrorValue)]:
             self.add_dataset(name, a)
     def __getattribute__(self, name):
         #hack to allow instance descriptors. http://blog.brianbeck.com/post/74086029/instance-descriptors
@@ -169,12 +168,27 @@ class GeneralCurve(ArithmeticBase):
         return self.y != other
 
     def set_specialname(self, specname, newname):
+        """Set a new name to a special name
+
+        Inputs:
+        -------
+            specname: string
+                one of 'x', 'y', 'dx', 'dy'
+            newname: string
+                the new alias name (i.e. 'q' for 'x')
+        """
         if newname == specname:
             raise ValueError('Name `%s` not supported for %s. Try `%s`.' % (newname, specname, specname.upper()))
         self._special_names[specname] = newname
     def get_specialname(self, specname):
+        """Get the currently associated name for the special attribute `specname`.
+        """
         return self._special_names[specname]
     def check_compatibility(self, value, name):
+        """Check if `value` is allowed to be added as argument `name`.
+        This currently checks if the length of `value` is the same as the length
+        of the curve given by ``len(self)``.
+        """
         try:
             l = len(self)
         except ValueError:
@@ -186,26 +200,47 @@ class GeneralCurve(ArithmeticBase):
         else:
             raise ValueError('Incompatible length!')
     def add_dataset(self, name, value):
+        """Add a new controlled attribute (such as x, y, dy, dx or their alias
+        names defined in self._special_names).
+
+        Inputs:
+        -------
+            `name`: string
+                the name of the new attribute. For default arguments (x, y, dy,
+                dx) both the canonical name and the alias name can be given.
+            `value`: various types are accepted
+                The actual data set. Depending on the type:
+                    `None`: the data set is removed, i.e. a call is issued to
+                        ``self.remove_dataset(name)``
+                    `ErrorValue`: two (!) controlled attributes are added: one
+                        from the `.val` field and the other from `.err` field,
+                        with the name `'d'+name` or `'D'+name`, the capitalization
+                        depending on the first letter of `name`.
+                    a sequence (instance of `collections.Sequence`) of `ErrorValue`
+                        instances: works the same as if `value` would be an
+                        instance of `ErrorValue`.
+                    other: anything that can be converted to a np.ndarray of a
+                        numeric type by `np.array()`
+        """
         if value is None:
             return self.remove_dataset(name)
-        if isinstance(value, ErrorValue) and not name.lower().startswith('d'):
-            if name == name.upper():
+        if isinstance(value, ErrorValue):
+            if name[0] == name[0].upper():
                 errprefix = 'D'
-            elif name == name.lower():
+            elif name[0] == name[0].lower():
                 errprefix = 'd'
-            else:
-                retval = object.__setattr__(self, name, ControlledVectorAttribute(value.val, name, self))
-                self._controlled_attributes.append(name)
-                return retval
             retval = object.__setattr__(self, name, ControlledVectorAttribute(value.val, name, self))
             self._controlled_attributes.append(name)
             object.__setattr__(self, errprefix + name, ControlledVectorAttribute(value.err, 'd' + name, self))
             self._controlled_attributes.append(errprefix + name)
+        elif isinstance(value, collections.Sequence) and all([isinstance(item, ErrorValue) for item in value]):
+            return self.add_dataset(name, ErrorValue(value))
         else:
             retval = object.__setattr__(self, name, ControlledVectorAttribute(value, name, self))
             self._controlled_attributes.append(name)
         return retval
     def remove_dataset(self, name):
+        """Remove the special dataset `name` if it is present"""
         if hasattr(self, name):
             self.__delattr__(name)
     def __len__(self):
@@ -429,11 +464,11 @@ class GeneralCurve(ArithmeticBase):
             fileopened.close()
     def interpolate(self, newx, **kwargs):
         if isinstance(newx, numbers.Number):
-            if hasattr(self,'dy'):
-                return ErrorValue(np.interp(newx,self.x,self.y,**kwargs),
-                                  np.interp(newx,self.x,self.dy,**kwargs))
+            if hasattr(self, 'dy'):
+                return ErrorValue(np.interp(newx, self.x, self.y, **kwargs),
+                                  np.interp(newx, self.x, self.dy, **kwargs))
             else:
-                return np.interp(newx,self.x,self.y,**kwargs)
+                return np.interp(newx, self.x, self.y, **kwargs)
         d = {}
         for k in self.get_controlled_attributes():
             d[k] = np.interp(newx, self.x, getattr(self, k), **kwargs)
@@ -487,13 +522,13 @@ class GeneralCurve(ArithmeticBase):
         """Calculate the inverse (i.e. swap x with y). No check is done if this
         makes sense! Other fields than x,y,dx,dy are lost from the inverted curve.
         """
-        d={}
-        d['x']=self.y
-        d['y']=self.x
-        if hasattr(self,'dx'):
-            d['dy']=self.dx
-        if hasattr(self,'dy'):
-            d['dx']=self.dy
+        d = {}
+        d['x'] = self.y
+        d['y'] = self.x
+        if hasattr(self, 'dx'):
+            d['dy'] = self.dx
+        if hasattr(self, 'dy'):
+            d['dx'] = self.dy
         return type(self)(d)
     def momentum(self, exponent=1, errorrequested=True):
         """Calculate momenta (integral of y times x^exponent)
@@ -573,9 +608,9 @@ class GeneralCurve(ArithmeticBase):
         if not hasattr(obj, dyname):
             dy = np.ones(len(obj), np.double) * np.nan
         else:
-            dy = getattr(obj,dyname)
-        ret = nonlinear_leastsquares(getattr(obj,xname), getattr(obj,yname), dy, function, parameters_init, **kwargs)
-        funcvalue = type(self)(getattr(obj,xname), ret[-1]['func_value'])
+            dy = getattr(obj, dyname)
+        ret = nonlinear_leastsquares(getattr(obj, xname), getattr(obj, yname), dy, function, parameters_init, **kwargs)
+        funcvalue = type(self)(getattr(obj, xname), ret[-1]['func_value'])
         return ret + tuple([funcvalue])
     @classmethod
     def simultaneous_fit(cls, list_of_curves, function, params_init, xname='x', yname='y', dyname='dy', **kwargs):
@@ -626,15 +661,15 @@ class GeneralCurve(ArithmeticBase):
             raise ValueError('All curves should be an instance of ' + cls + ', not ' + ', '.join([type(x) for x in list_of_curves]))
         def getdy(curve):
             if hasattr(curve, dyname):
-                return getattr(curve,dyname)
+                return getattr(curve, dyname)
             else:
                 return np.ones(len(curve), np.double) * np.nan
-        list_of_curves=[a.sanitize(fieldname=yname).sanitize(fieldname=xname) for a in list_of_curves]
-        ret = simultaneous_nonlinear_leastsquares(tuple([getattr(a,xname) for a in list_of_curves]),
-                                                  tuple([getattr(a,yname) for a in list_of_curves]),
+        list_of_curves = [a.sanitize(fieldname=yname).sanitize(fieldname=xname) for a in list_of_curves]
+        ret = simultaneous_nonlinear_leastsquares(tuple([getattr(a, xname) for a in list_of_curves]),
+                                                  tuple([getattr(a, yname) for a in list_of_curves]),
                                                   tuple([getdy(a) for a in list_of_curves]),
                                                   function, params_init, **kwargs)
-        funcvalues = tuple([cls(getattr(c,xname), fv) for (c, fv) in zip(list_of_curves, ret[-1]['func_value'])])
+        funcvalues = tuple([cls(getattr(c, xname), fv) for (c, fv) in zip(list_of_curves, ret[-1]['func_value'])])
         return tuple([ret[:-1]]) + tuple([ret[-1]]) + tuple([funcvalues])
 
 

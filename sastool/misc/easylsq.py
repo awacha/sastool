@@ -203,7 +203,7 @@ def nlsq_fit(x, y, dy, func, params_init, verbose=False, **kwargs):
         sstot = np.sum((y - np.mean(y)) ** 2 / dy ** 2)
     r2 = 1 - sserr / sstot
     #assemble the statistics dictionary
-    statdict = {'DoF' : len(x) - len(par) - 1, #degrees of freedom
+    statdict = {'DoF' : len(x) - len(par), #degrees of freedom
                 'Chi2' : (infodict['fvec'] ** 2).sum(),
                 'R2' : r2,
                 'num_func_eval' : infodict['nfev'],
@@ -260,8 +260,6 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, verbose=False,
         not isinstance(params_inits, collections.Sequence):
         raise ValueError('Parameters `xs`, `ys`, `dys` and `params_inits` should be tuples or lists.')
     Ndata = len(xs)
-    if verbose:
-        print "Number of datasets for simultaneous fitting:", Ndata
     if len(ys) != Ndata or len(dys) != Ndata or len(params_inits) != Ndata:
         raise ValueError('Parameters `xs`, `ys`, `dys` and `params_inits` should have the same length.')
 
@@ -271,8 +269,6 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, verbose=False,
     if len(Ns) != 1:
         raise ValueError('Elements of `params_inits` should have the same length.')
     Npar = Ns.pop()
-    if verbose:
-        print "Number of parameters:", Npar
     for i in range(Ndata):
         if dys[i] is None:
             dys[i] = np.ones(len(xs[i]), np.double) * np.nan
@@ -309,11 +305,17 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, verbose=False,
             else:
                 param_indices[jorig].append(param_indices[j][i])
 
+    if verbose:
+        print "Number of datasets for simultaneous fitting:", Ndata
+        print "Total number of data points:",len(xcat)
+        print "Number of parameters in each dataset:", Npar
+        print "Total number of parameters:",Ndata*Npar
+        print "Number of independent parameters:",len(paramcat)
     #the flattened function
     def func_flat(x, *params):
         y = []
         for j in range(Ndata):
-            if verbose:
+            if verbose>1:
                 print "Simultaneous fitting: evaluating function for dataset #", j, "/", Ndata
             pars = [params[i] for i in param_indices[j]]
             y.append(func(x[starts[j]:ends[j]], *pars))
