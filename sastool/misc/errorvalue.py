@@ -9,10 +9,31 @@ import numpy as np
 import numbers
 import math
 import collections
+import re
 
 class ErrorValue(ArithmeticBase):
-    """Class to hold a value and its absolute error. Basic arithmetic
-    operations are supported.
+    """Class to hold a value and its uncertainty (1sigma, absolute error etc.).
+
+    Main features:
+        o Easy access to the value and its uncertainty through the `.val` and
+            `.err` fields.
+        o Basic arithmetic operations (+, -, *, /, **) are supported.
+        o Can be instantiated easily by ``ErrorValue(value, [error])`` from:
+            - scalar numbers
+            - numpy ndarrays
+            - other instances of `ErrorValue` (aka. "copy constructor")
+            - homogeneous Python sequences of `ErrorValue` instances or scalar
+                numbers
+        o Intuitive string representation; the number of decimals is determined
+            by the magnitude of the uncertainty (see `.tostring()` method)
+        o Drop-in usage instead of `float` and `int` and `np.ndarray` by the
+            conversion methods.
+        o Basic trigonometric and hyperbolic functions are supported as methods,
+            e.g. ``ev.sin()``, etc.
+        o Sampling of random numbers from the Gaussian distribution described
+            by the value and uncertainty fields by a single call to `.random()`
+        o Evaluating complicated functions by `ErrorValue.evalfunc()`; error
+            propagation is done by a Monte Carlo approach.
     """
     def __init__(self, val, err=None):
         ArithmeticBase.__init__(self)
@@ -100,7 +121,30 @@ class ErrorValue(ArithmeticBase):
             return np.array(self.val)
         else:
             return np.array(self.val, dt)
-    def tostring(self, extra_digits=0, plusminus=' +/- '):
+    def tostring(self, extra_digits=0, plusminus=' +/- ', format=None):
+        """Make a string representation of the value and its uncertainty.
+
+        Inputs:
+        -------
+            ``extra_digits``: integer
+                how many extra digits should be shown (plus or minus, zero means
+                that the number of digits should be defined by the magnitude of
+                the uncertainty).
+            ``plusminus``: string
+                the character sequence to be inserted in place of '+/-'
+                including delimiting whitespace.
+            ``format``: string or None
+                how to format the output. Currently only strings ending in 'tex'
+                are supported, which render ascii-exponentials (i.e. 3.1415e-2)
+                into a format which is more appropriate to TeX.
+
+        Outputs:
+        --------
+            the string representation.
+        """
+        if isinstance(format, basestring) and format.lower().endswith('tex'):
+            return re.subn('(\d*)(\.(\d)*)?[eE]([+-]?\d+)', lambda m:(r'$%s%s\cdot 10^{%s}$' % (m.group(1), m.group(2), m.group(4))).replace('None', ''),
+                           self.tostring(extra_digits=extra_digits, plusminus=plusminus, format=None))[0]
         if isinstance(self.val, numbers.Real):
             try:
                 Ndigits = -int(math.floor(math.log10(self.err))) + extra_digits
@@ -139,3 +183,44 @@ class ErrorValue(ArithmeticBase):
         return ErrorValue(np.log(self.val), np.abs(self.err / self.val))
     def exp(self):
         return ErrorValue(np.exp(self.val), np.abs(self.err * np.exp(self.val)))
+    def random(self):
+        """Sample a random number (array) of the distribution defined by
+        mean=`self.val` and variance=`self.err`^2.
+        """
+        if isinstance(self.val, np.ndarray):
+            return np.random.randn(self.val.shape) * self.err + self.val
+        else:
+            return np.random.randn() * self.err + self.val
+    @classmethod
+    def evalfunc(cls, func, *args, **kwargs):
+        """Evaluate a function with error propagation.
+
+        Inputs:
+        -------
+            ``func``: callable
+                this is the function to be evaluated. Should return either a
+                number or a np.ndarray.
+            ``*args``: other positional arguments of func. Arguments which are
+                not instances of `ErrorValue` are taken as constants.
+
+            keyword arguments supported:
+                ``NMC``: number of Monte-Carlo steps. If not defined, defaults
+                to 1000
+
+        Output:
+        -------
+            ``result``: an `ErrorValue` with the result. The error is estimated
+                via a Monte-Carlo approach to Gaussian error propagation.
+        """
+        def do_random(x):
+            if isinstance(x, cls):
+                return x.random()
+            else:
+                return x
+        if 'NMC' not in kwargs:
+            kwargs['NMC'] = 1000
+        meanvalue = func(*args)
+        stdcollector = meanvalue * 0 # this way we get either a number or a np.array
+        for i in range(kwargs['NMC']):
+            stdcollector += (func(*[do_random(a) for a in args]) - meanvalue) ** 2
+        return cls(meanvalue, stdcollector ** 0.5 / (kwargs['NMC'] - 1))
