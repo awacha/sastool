@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
+__all__ = ['ArithmeticBase']
+
 class ArithmeticBase(object):
     """A mixin class for defining simple arithmetics with minimal user effort.
-    
+
     Usage: subclass this object and define ALL of the following methods:
         __imul__(self, value): in-place multiplication of 'self' by 'value'
         __iadd__(self, value): in-place addition of 'value' to 'self'
@@ -11,11 +13,11 @@ class ArithmeticBase(object):
         _recip(self): reciprocal, i.e. '1.0/self'. Should return an instance of
             the same class
         copy(self): should return a deep copy of the current object.
-        
+
         Note, that __imul__ and __iadd__ too should return the modified version
             of 'self'!
-            
-    Methods __add__, __radd__, __sub__, __isub__, __rsub__, __mul__, __rmul__, 
+
+    Methods __add__, __radd__, __sub__, __isub__, __rsub__, __mul__, __rmul__,
         __div__, __rdiv__ and __idiv__ are constructed automatically from the
         given functions (assuming commutative addition and multiplication)
     """

@@ -25,3 +25,8 @@ class SASException(Exception):
     "General exception class for the package `sastool`"
     pass
 
+__all__ = ['arithmetic', 'basicfit', 'easylsq', 'errorvalue', 'pathutils',
+           'pauser', 'rc', 'searchpath', 'utils']
+
+for k in __all__[:]:
+    __all__.extend(eval('%s.__all__' % k))

@@ -6,8 +6,9 @@ Created on Jul 25, 2012
 import os
 import sys
 from utils import normalize_listargument
-from searchpath import get_search_path, find_subdirs
+from searchpath import sastool_search_path
 
+__all__ = ['findfileindirs']
 
 def findfileindirs(filename, dirs=None, use_pythonpath=True, use_searchpath=True, notfound_is_fatal=True, notfound_val=None):
     """Find file in multiple directories.
@@ -43,7 +44,7 @@ def findfileindirs(filename, dirs=None, use_pythonpath=True, use_searchpath=True
     if use_pythonpath:
         dirs.extend(sys.path)
     if use_searchpath:
-        dirs.extend(get_search_path())
+        dirs.extend(sastool_search_path)
     #expand ~ and ~user constructs
     dirs = [os.path.expanduser(d) for d in dirs]
     for d in dirs:

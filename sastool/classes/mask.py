@@ -17,22 +17,24 @@ from .common import _HDF_parse_group, SASMaskException
 from .. import misc
 from ..io import twodim  #IGNORE:E0611
 
+__all__ = ['SASMask']
+
 class SASMask(object):
     """Class to represent mask matrices.
-    
+
     Each mask matrix should have a mask ID (a string starting with 'mask'),
     which should be unique. If a single pixel changes, a new ID should be
     created.
-    
+
     This class can be instantiated by several ways:
-    
+
     >>> mask=SASMask(<2d numpy array>)
-    
+
     >>> mask=SASMask(<filename>, [<dirs>])
     supported file formats: .mat, .npz, .npy, .edf
-    
+
     >>> mask=SASMask(<other SASMask instance>)
-    
+
     Under the hood:
         the mask matrix is kept with dtype==np.uint8. The elements should only
         be 0-s (masked) or 1-s (unmasked), otherwise unexpected events may
@@ -48,7 +50,7 @@ class SASMask(object):
         if 'maskid' not in kwargs:
             kwargs['maskid'] = 'mask' + misc.random_str(6)
         return kwargs
-    def __init__(self, maskmatrix = None, **kwargs):
+    def __init__(self, maskmatrix=None, **kwargs):
         if maskmatrix is None:
             raise ValueError('Empty SASMasks canot be instantiated!')
         kwargs = self._set_default_kwargs(kwargs)
@@ -74,10 +76,10 @@ class SASMask(object):
              (maskmatrix.lower().endswith('.h5') or maskmatrix.lower().endswith('.hdf5'))):
             self.read_from_hdf5(maskmatrix, **kwargs)
         elif isinstance(maskmatrix, numbers.Integral):
-            self.mask = np.zeros((maskmatrix, maskmatrix), dtype = np.uint8)
+            self.mask = np.zeros((maskmatrix, maskmatrix), dtype=np.uint8)
             self.maskid = kwargs['maskid']
         elif isinstance(maskmatrix, collections.Sequence) and len(maskmatrix) >= 2:
-            self.mask = np.zeros(maskmatrix[:2], dtype = np.uint8)
+            self.mask = np.zeros(maskmatrix[:2], dtype=np.uint8)
             self.maskid = kwargs['maskid']
         else:
             raise NotImplementedError
@@ -90,7 +92,7 @@ class SASMask(object):
         self._mask = (maskmatrix != 0).astype(np.uint8)
     def _getmask(self):
         return self._mask
-    mask = property(_getmask, _setmask, doc = 'Mask matrix')
+    mask = property(_getmask, _setmask, doc='Mask matrix')
     def read_from_edf(self, filename, **kwargs):
         """Read a mask from an EDF file."""
         kwargs = self._set_default_kwargs(kwargs)
@@ -98,9 +100,9 @@ class SASMask(object):
         self.maskid = os.path.splitext(os.path.split(edf['FileName'])[1])[0]
         self.mask = (np.absolute(edf['data'] - edf['Dummy']) > edf['DDummy']).reshape(edf['data'].shape)
         return self
-    def read_from_mat(self, filename, fieldname = None, **kwargs):
+    def read_from_mat(self, filename, fieldname=None, **kwargs):
         """Try to load a maskfile (Matlab(R) matrix file or numpy npz/npy)
-        
+
         Inputs:
             filename: the input file name
             fieldname: field in the mat/npz file. None to autodetect.
@@ -142,7 +144,7 @@ class SASMask(object):
             raise ValueError('File name %s not understood (should end with .mat or .npz).' % filename)
     def write_to_hdf5(self, hdf_entity, **kwargs):
         """Write this mask as a HDF5 dataset.
-        
+
         Input:
             hdf_entity: either a HDF5 filename or an open file (instance of
                 h5py.highlevel.File) or a HDF5 group (instance of
@@ -153,10 +155,10 @@ class SASMask(object):
         with _HDF_parse_group(hdf_entity, kwargs['dirs']) as hpg:
             if self.maskid in hpg.keys():
                 del hpg[self.maskid]
-            hpg.create_dataset(self.maskid, data = self.mask, compression = 'gzip')
-    def read_from_hdf5(self, hdf_entity, maskid = None, **kwargs):
+            hpg.create_dataset(self.maskid, data=self.mask, compression='gzip')
+    def read_from_hdf5(self, hdf_entity, maskid=None, **kwargs):
         """Read mask from a HDF5 entity.
-        
+
         Inputs:
             hdf_entity: either a HDF5 filename or an open h5py.highlevel.File
                 instance or a h5py.highlevel.Group instance.
@@ -180,18 +182,18 @@ and maskid argument was omitted.')
                 self.maskid = maskid
                 self.mask = hpg[maskid].value
         return self
-    def rebin(self, xbin, ybin, enlarge = False):
+    def rebin(self, xbin, ybin, enlarge=False):
         """Re-bin the mask."""
         mask = twodim.rebinmask(self.mask.astype(np.uint8), int(xbin), int(ybin), enlarge)
         maskid = self.maskid + 'bin%dx%d_%s' % (xbin, ybin, ['shrink', 'enlarge'][enlarge])
-        return type(self)(mask, maskid = maskid)
+        return type(self)(mask, maskid=maskid)
     def invert(self):
         """Inverts the whole mask in-place"""
         self.mask = 1 - self.mask
         return self
-    def edit_rectangle(self, x0, y0, x1, y1, whattodo = 'mask'):
+    def edit_rectangle(self, x0, y0, x1, y1, whattodo='mask'):
         """Edit a rectangular part of the mask.
-        
+
         Inputs:
             x0,y0,x1,y1: corners of the rectangle (x: row, y: column index).
             whattodo: 'mask', 'unmask' or 'invert' if the selected area should
@@ -209,9 +211,9 @@ and maskid argument was omitted.')
         else:
             raise ValueError('Invalid value for argument \'whattodo\': ' + whattodo)
         return self
-    def edit_polygon(self, x, y, whattodo = 'mask'):
+    def edit_polygon(self, x, y, whattodo='mask'):
         """Edit points inside a polygon.
-        
+
         Inputs:
             x,y: list of corners of the polygon (x: row, y: column index).
             whattodo: 'mask', 'unmask' or 'invert' if the selected area should
@@ -234,9 +236,9 @@ and maskid argument was omitted.')
         return self
 
 
-    def edit_circle(self, x0, y0, r, whattodo = 'mask'):
+    def edit_circle(self, x0, y0, r, whattodo='mask'):
         """Edit a circular part of the mask.
-        
+
         Inputs:
             x0,y0: center of the circle (x0: row, y0: column coordinate)
             r: radius of the circle
@@ -256,11 +258,11 @@ and maskid argument was omitted.')
             raise ValueError('Invalid value for argument \'whattodo\': ' + whattodo)
         return self
 
-    def edit_from_matrix(self, matrix, valmin = -np.inf, valmax = np.inf,
-                         masknonfinite = True, whattodo = 'mask'):
+    def edit_from_matrix(self, matrix, valmin= -np.inf, valmax=np.inf,
+                         masknonfinite=True, whattodo='mask'):
         """Edit a part of the mask where the values of a given matrix of the
         same shape are between given thresholds
-        
+
         Inputs:
             matrix: a matrix of the same shape as the mask.
             valmin, valmax: lower and upper threshold of the values in 'matrix'
@@ -282,9 +284,9 @@ and maskid argument was omitted.')
         else:
             raise ValueError('Invalid value for argument \'whattodo\': ' + whattodo)
         return self
-    def edit_borders(self, left = 0, right = 0, top = 0, bottom = 0, whattodo = 'mask'):
+    def edit_borders(self, left=0, right=0, top=0, bottom=0, whattodo='mask'):
         """Edit borders of the mask.
-        
+
         Inputs:
             left, right, top, bottom: width at the given direction to cut
                 (directions correspond to those if the mask matrix is plotted
@@ -308,12 +310,12 @@ and maskid argument was omitted.')
         """Plot the mask matrix with matplotlib.pyplot.spy()
         """
         plt.spy(self.mask, *args, **kwargs)
-    def __array__(self,dt=np.uint8):
+    def __array__(self, dt=np.uint8):
         return self.mask.astype(dt)
     @property
     def shape(self):
         return self.mask.shape
-    def edit_gaps(self, module_rows = 195, module_columns = 487, gap_rows = 17, gap_columns = 7, first_row = 0, first_column = 0, whattodo = 'mask'):
+    def edit_gaps(self, module_rows=195, module_columns=487, gap_rows=17, gap_columns=7, first_row=0, first_column=0, whattodo='mask'):
         col, row = np.meshgrid(np.arange(self.mask.shape[1]),
                             np.arange(self.mask.shape[0]))
         idx = ((col - first_column) % (module_columns + gap_columns) >= module_columns) | \
@@ -327,5 +329,5 @@ and maskid argument was omitted.')
         else:
             raise ValueError('Invalid name for argument \'whattodo\': ' + whattodo)
         return self
-    def __getitem__(self,key):
-        return self.__class__(self.mask[key],maskid=self.maskid+'$trim')
+    def __getitem__(self, key):
+        return self.__class__(self.mask[key], maskid=self.maskid + '$trim')

@@ -8,6 +8,7 @@ import h5py
 
 from .. import misc
 
+__all__ = ['SASExposureException', 'SASMaskException']
 
 class SASExposureException(misc.SASException):
     "This exception is raised when averaging incompatible data"
@@ -20,7 +21,7 @@ class SASMaskException(misc.SASException):
 
 
 class _HDF_parse_group(object):
-    def __init__(self, hdf_argument, dirs = None):
+    def __init__(self, hdf_argument, dirs=None):
         self.hdf_argument = hdf_argument
         self.hdf_file = None
         self.hdf_group = None

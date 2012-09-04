@@ -1,54 +1,104 @@
-from fitfunction import FitFunction
 import numpy as np
 from scipy.special import gamma, gammainc, sinc
 
+__all__ = []
 
-class FFGaussianChain(FitFunction):
-    name="Scattering intensity of a Gaussian Chain (Debye function)"
-    formula="y(x)=A*2*(exp(-(x*R)^2)-1+(x*R)^2)/(x*R)^4"
-    argument_info=[('R','Radius of gyration'),('A','Scaling')]
-    def __init__(self):
-        FitFunction.__init__(self)
-    def __call__(self,x,R,A):
-        a=(x*R)**2
-        return 2*A*(np.exp(-a)-1+a)/a**2
+def DebyeChain(q, Rg):
+    """Scattering form-factor intensity of a Gaussian chain (Debye)
 
+    Inputs:
+    -------
+        ``q``: independent variable
+        ``Rg``: radius of gyration
 
-class FFFloryChain(FitFunction):
-    name="Excluded volume chain"
-    argument_info=[('A','Scaling'),('Rg','Radius of gyration'),
-                   ('nu','Excluded volume parameter')]
-    formula="SASFit manual 6. nov. 2010. Equation (3.60b)"
-    def __call__(self,x,A,Rg,nu):
-        u=x*x*Rg*Rg*(2.*nu+1)*(2.*nu+2)/6.
-        return A*(np.power(u,0.5/nu)*gamma(0.5/nu)*gammainc(0.5/nu,u)-
-              gamma(1./nu)*gammainc(1./nu,u))/(nu*np.power(u,1./nu));
-#        return A*(np.power(u,0.5/nu)*gamma(0.5/nu)-gamma(1/nu)-
-#              np.power(u,0.5/nu)*gammaincc(0.5/nu,u)*gamma(0.5/nu)+ 
-#            gamma(1/nu)*gammaincc(1/nu,u))/(nu*np.power(u,1/nu));
+    Formula:
+    --------
+        ``2*(exp(-a)-1+a)/a^2`` where ``a=(q*Rg)^2``
+    """
+    a = (q * Rg) ** 2
+    return 2 * (np.exp(-a) - 1 + a) / a ** 2
 
-class FFCorrelatedChain(FitFunction):
-    name="Excluded volume chain with correlation effects"
-    argument_info=[('A','Scaling'),('Rg','Radius of gyration'),
-                   ('nu','Excluded volume parameter'),
-                   ('Rc','Parameter for correlations'),
-                   ('sigma','Cut-off length for correlations'),
-                   ('B','Strength of coupling')]
-    formula="y(x) = A * P(q) / (1 + B * sin(q * Rc) / (q * Rc) * e^(-q^2 * sigma^2);\n\
-P(q) is the scattering function of a single excluded volume Gaussian chain."
-    def __call__(self,x,A,Rg,nu,Rc,sigma,B):
-        u=x*x*Rg*Rg*(2*nu+1)*(2*nu+2)/6.
-        p=(np.power(u,0.5/nu)*gamma(0.5/nu)*gammainc(0.5/nu,u)-
-              gamma(1./nu)*gammainc(1./nu,u))/(nu*np.power(u,1./nu));
-        return A*p/(1+p*B*sinc(x*Rc/np.pi)*np.exp(-x*x*sigma*sigma));
+def ExcludedVolumeChain(q, Rg, nu):
+    """Scattering intensity of a generalized excluded-volume Gaussian chain
 
-class FFHorkay(FitFunction):
-    name="Horkay et al. J. Chem. Phys. 125 234904 (9)"
-    argument_info=[('F','factor'),
-                   ('L','rod length'),
-                   ('rc','rod radius'),
-                   ('A','factor for the power-law'),
-                   ('s','absolute value of the power-law exponent')]
-    formula="F/(1+q*L)/(1+q^2*rc^2)+A*q^(-s)"
-    def __call__(self,x,F,L,rc,A,s):
-        return F/(1+x*L)/(1+x*x*rc*rc)+A*np.power(x,-s)
+    Inputs:
+    -------
+        ``q``: independent variable
+        ``Rg``: radius of gyration
+        ``nu``: excluded volume exponent
+
+    Formula:
+    --------
+        ``(u^(1/nu)*gamma(0.5/nu)*gammainc_lower(0.5/nu,u)-
+            gamma(1/nu)*gammainc_lower(1/nu,u)) / (nu*u^(1/nu))``
+        where ``u = q^2*Rg^2*(2*nu+1)*(2*nu+2)/6`` is the reduced scattering
+        variable, ``gamma(x)`` is the gamma function and ``gammainc_lower(x,t)``
+        is the lower incomplete gamma function.
+
+    Literature:
+    -----------
+        SASFit manual 6. nov. 2010. Equation (3.60b)
+    """
+    u = (q * Rg) ** 2 * (2 * nu + 1) * (2 * nu + 2) / 6.
+    return (u ** (0.5 / nu) * gamma(0.5 / nu) * gammainc(0.5 / nu, u) -
+            gamma(1. / nu) * gammainc(1. / nu, u)) / (nu * u ** (1. / nu))
+
+def BorueErukhimovich(q, C, r0, s, t):
+    """Borue-Erukhimovich model of microphase separation in polyelectrolytes
+
+    Inputs:
+    -------
+        ``q``: independent variable
+        ``C``: scaling factor
+        ``r0``: typical el.stat. screening length
+        ``s``: dimensionless charge concentration
+        ``t``: dimensionless temperature
+
+    Formula:
+    --------
+        ``C*(x^2+s)/((x^2+s)(x^2+t)+1)`` where ``x=q*r0``
+
+    Literature:
+    -----------
+        o Borue and Erukhimovich. Macromolecules (1988) 21 (11) 3240-3249
+        o Shibayama and Tanaka. J. Chem. Phys (1995) 102 (23) 9392
+        o Moussaid et. al. J. Phys II (France) (1993) 3 (4) 573-594
+        o Ermi and Amis. Macromolecules (1997) 30 (22) 6937-6942
+    """
+    x = q * r0
+    return C * (x ** 2 + s) / ((x ** 2 + s) * (x ** 2 + t) + 1)
+
+def BorueErukhimovich_Powerlaw(q, C, r0, s, t, nu):
+    """Borue-Erukhimovich model ending in a power-law.
+
+    Inputs:
+    -------
+        ``q``: independent variable
+        ``C``: scaling factor
+        ``r0``: typical el.stat. screening length
+        ``s``: dimensionless charge concentration
+        ``t``: dimensionless temperature
+        ``nu``: excluded volume parameter
+
+    Formula:
+    --------
+        ``C*(x^2+s)/((x^2+s)(x^2+t)+1)`` where ``x=q*r0`` if ``q<qsep``
+        ``A*q^(-1/nu)``if ``q>qsep``
+        ``A`` and ``qsep`` are determined from conditions of smoothness at the
+        cross-over.
+    """
+    def get_xsep(alpha, s, t):
+        A = alpha + 2
+        B = 2 * s * alpha + t * alpha + 4 * s
+        C = s * t * alpha + alpha + alpha * s ** 2 + alpha * s * t - 2 + 2 * s ** 2
+        D = alpha * s ** 2 * t + alpha * s
+        r = np.roots([A, B, C, D])
+        #print "get_xsep: ", alpha, s, t, r
+        return r[r > 0][0] ** 0.5
+    get_B = lambda C, xsep, s, t, nu:C * (xsep ** 2 + s) / ((xsep ** 2 + s) * (xsep ** 2 + t) + 1) * xsep ** (1.0 / nu)
+    x = q * r0
+    xsep = np.real_if_close(get_xsep(-1.0 / nu, s, t))
+    A = get_B(C, xsep, s, t, nu)
+    return np.piecewise(q, (x < xsep, x >= xsep),
+                        (lambda a:BorueErukhimovich(a, C, r0, s, t),
+                         lambda a:A * (a * r0) ** (-1.0 / nu)))

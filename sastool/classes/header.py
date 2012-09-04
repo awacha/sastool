@@ -19,14 +19,15 @@ import h5py
 from ..io import header
 from .. import misc
 
+__all__ = ['SASHeader']
 
 class SASHeader(dict):
     """A class for holding measurement meta-data, such as sample-detector
     distance, photon energy, wavelength, beam position etc.
-    
+
     This is a subclass of the Python dictionary class. It supports therefore
     dict-style indexing (header['BeamPosX']), but has several extensions:
-    
+
     1) The main intent of this class is to offer a uniform interface for common
     header data (beam position, etc.), while keeping the original logic of
     various instruments. To accomplish that, we have key aliasing under the
@@ -35,29 +36,29 @@ class SASHeader(dict):
     that these can be accessed under the general fieldnames BeamPosX and
     BeamPosY. Either is read or modified, the underlying field gets read or
     modified.
-    
+
     2) safe default values are supplied for undefined fields, e.g. default FSN
     is zero, default Title is "untitled" etc. See __missing__() for details
-    
+
     3) summing and averaging of multiple headers is supported, compatibility is
     taken care of. See fields _fields_to_sum, _fields_to_average,
     _fields_to_collect and __add__, __iadd__, isequiv, summarize() methods.
-    
+
     4) Loading/saving: if you want to load a header file, use the new_from_*()
-    class methods. If you want to extend (update) an instance with another file, 
+    class methods. If you want to extend (update) an instance with another file,
     use the read_from_*() instance methods. Saving is supported as generalized
     B1 logfiles (text) and as attributes of a HDF5 group or dataset.
-    
+
     Reader routines can be called only with a single filename (or corresponding
     data dict loaded elsewhere). New_from_*() methods have two possibilities of
     invocation:
-    
+
     >>> header = new_from_xyz(filename_or_dict_object)
-    
-    or 
-    
+
+    or
+
     >>> header = new_from_xyz(fsn, fileformat=<default_name>, dirs=['.'])
-    
+
     where fsn is either a scalar number or a sequence of scalar numbers (the
     so-called file sequence number) and fileformat is a C-style format string
     into which the fsn(s) is/are interpolated, e.g. 'org_%05d.header' for B1
@@ -66,18 +67,18 @@ class SASHeader(dict):
     a full filename will be constructed and fed to sastool.misc.findfileindirs
     along with dirs. If fsn is a scalar, all exceptions raised by that function
     are propagated to the caller. If fsn is a sequence, exceptions are eaten
-    and a sequence of only the successfully loaded headers will be returned. 
-    
+    and a sequence of only the successfully loaded headers will be returned.
+
     5) History: operations on the dataset can (and should) update the history.
-    
+
     Examples:
-    
+
     Load a B1 original header file:
     >>> h=SASHeader.new_from_B1_org('path/to/datafile/org_00015.header')
-    
+
     Load an EDF file:
     >>> h=SASHeader.new_from_ESRF_ID02('path/to/datafile/sc3269_0_0015ccd')
-    
+
     Supported keys (these are obligatory. Part of them have safe default
     values):
     :FSN:     File sequence number (integer)
@@ -109,15 +110,15 @@ class SASHeader(dict):
     :PixelSize:      Average pixel size of the detector: 0.5*(XPixel+YPixel)
     :Monitor:        Monitor counts
     :MonitorError:   Error of the monitor counts
-    
+
     Some keys are treated specially:
-    
+
     keys ending with ``Calibrated``
         If this key is not found, it is created with the value of the
         corresponding key without the ``Calibrated`` suffix. E.g. if
         ``EnergyCalibrated`` does not exist, it is created automatically and
         its value will be that of ``Energy``.
-        
+
     keys ending with ``Error``
         if this key is not present, it is created with 0 value. Upon averaging
         multiple headers, these and the corresponding un-suffixed keys are
@@ -127,8 +128,8 @@ class SASHeader(dict):
         will be averaged (weighted by the corresponding Error keys). I.e. the
         former are assumed to be *independent measurements of different
         quantities*, the latter are assumed to be *independent measurements of
-        the same quantity*. 
-    
+        the same quantity*.
+
     """
     # the following define fields treated specially when adding one or more
     # headers together.
@@ -177,19 +178,19 @@ class SASHeader(dict):
         """Load one or more header structure. This function serves as a general
         entry point. It handles the calls
         ::
-        
+
             >>> SASHeader(...)
-        
+
         The ways of calling are:
-        
+
         0) ``SASHeader()``: empty constructor
-        
+
         1) ``SASHeader(<instance-of-SASHeader>)``: copy constructor
-        
+
         2) ``SASHeader(<instance-of-dict>)``: casting constructor.
-        
+
         3) ``SASHeader(<filename>, **kwargs)``: direct loading of a file
-        
+
         4) ``SASHeader(<fileformat>, <fsn>, **kwargs)``: loading possibly more
         files.
         """
@@ -276,7 +277,7 @@ class SASHeader(dict):
             # its keys
 
             if isinstance(args[0], SASHeader):
-                super(SASHeader,self).__init__(args[0])
+                super(SASHeader, self).__init__(args[0])
                 # copy over protected attributes
                 for fn in args[0]._protectedfields_to_copy: #IGNORE:W0212
                     attr = getattr(args[0], fn)
@@ -329,7 +330,7 @@ class SASHeader(dict):
         """Make a copy of this header structure"""
         d = super(SASHeader, self).copy(*args, **kwargs)
         return SASHeader(d)
-    def __missing__(self, key, dry_run = False):
+    def __missing__(self, key, dry_run=False):
         """Create default values for missing fields"""
         if key in ['FSNs']:
             val = []
@@ -388,7 +389,7 @@ class SASHeader(dict):
             ret = super(SASHeader, self).__contains__(key)
             if not ret: # try if the key can be auto-generated by __missing__()
                 try:
-                    self.__missing__(key, dry_run = True)
+                    self.__missing__(key, dry_run=True)
                 except KeyError:
                     return False
                 return True
@@ -424,11 +425,11 @@ class SASHeader(dict):
     def read_from_PAXE(self, filename_or_paxe, **kwargs):
         """Read header data from a PAXE (Saclay, France or Budapest, Hungary)
         measurement file.
-        
+
         Inputs:
             filename_or_paxe: the file name (usually XE????.DAT) or a dict
                 loaded by readPAXE().
-                
+
         Outputs: the updated header structure. Fields not present in the file
             are kept unchanged.
         """
@@ -445,11 +446,11 @@ class SASHeader(dict):
 
     def read_from_ESRF_ID02(self, filename_or_edf, **kwargs):
         """Read header data from an ESRF ID02 EDF file.
-        
+
         Inputs:
             filename_or_edf: the full name of the file or an edf structure read
                 by readehf()
-                
+
         Outputs: the updated header structure. Fields not present in the file
             are kept unchanged.
         """
@@ -553,9 +554,9 @@ class SASHeader(dict):
         header.writeB1logfile(filename, self)
     # ------------------------ History manipulation ---------------------------
 
-    def add_history(self, text, time = None):
+    def add_history(self, text, time=None):
         """Add a new entry to the history.
-        
+
         Inputs:
             text: history text
             time: time of the event. If None, the current time will be used.
@@ -591,10 +592,10 @@ class SASHeader(dict):
     @classmethod
     def summarize(cls, *args):
         """Summarize several headers. Calling convention:
-        
+
         summed=SASHeader.summarize(header1,header2,header3,...)
-        
-        Several fields are treated specially. Values of fields in 
+
+        Several fields are treated specially. Values of fields in
         SASHeader._fields_to_sum are summed (error is calculated by taking the
         corresponding 'Error' fields into account). Values of fields in
         SASHeader._fields_to_average get averaged. Values of fields in
@@ -666,7 +667,7 @@ class SASHeader(dict):
             del self['History'][-1]
 
     def read_from_hdf5(self, hdf_entity):
-        """Read the parameter structure from the attributes of a HDF entity 
+        """Read the parameter structure from the attributes of a HDF entity
         (group or dataset). hdf_entity should be an instance of
         h5py.highlevel.Dataset or h5py.highlevel.Group or h5py.highlevel.File.
         """

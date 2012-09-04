@@ -15,6 +15,10 @@ import collections
 from errorvalue import ErrorValue
 import time
 
+__all__ = ['FixedParameter', 'nonlinear_leastsquares',
+           'simultaneous_nonlinear_leastsquares', 'nlsq_fit',
+           'simultaneous_nlsq_fit']
+
 class FixedParameter(float):
     def __str__(self):
         return 'FixedParameter(' + float.__str__(self) + ')'
@@ -354,4 +358,5 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, verbose=False,
         statdictflat['Correlation_coeffs'].append(slice_covarmatrix(statdictflat['Correlation_coeffs_global'], param_indices[j]))
         statdictflat['Chi2_reduced'].append(statdictflat['Chi2'][-1] / statdictflat['DoF'][-1])
     return p, dp, statdictflat
+
 

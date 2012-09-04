@@ -6,9 +6,14 @@ Created on Jul 25, 2012
 import os
 import collections
 import sys
+import warnings
+
+__all__ = ['sastool_search_path', 'find_subdirs', 'append_search_path',
+           'get_search_path', 'remove_from_search_path', 'set_search_path']
 
 class SearchPath(list):
     def __init__(self, path=None):
+        list.__init__(self)
         if isinstance(path, collections.Sequence):
             self.extend(path)
         elif isinstance(path, basestring):
@@ -52,17 +57,28 @@ class SearchPath(list):
         super(SearchPath, self).remove(path)
     def remove_duplicates(self):
         path1 = []
-        for p in self._path:
+        for p in self[:]:
             if p not in path1:
                 path1.append(p)
-        self._path = path1
+        self.set(path1)
 
 sastool_search_path = SearchPath('.')
 
-append_search_path = sastool_search_path.append
-get_search_path = sastool_search_path.get
-remove_from_search_path = sastool_search_path.remove
-set_search_path = sastool_search_path.set
+def append_search_path(*args, **kwargs):
+    warnings.warn(DeprecationWarning('append_search_path() is deprecated, use sastool_search_path.append() instead.'))
+    return sastool_search_path.append(*args, **kwargs)
+
+def get_search_path(*args, **kwargs):
+    warnings.warn(DeprecationWarning('get_search_path() is deprecated, use sastool_search_path.get() instead.'))
+    return sastool_search_path.get(*args, **kwargs)
+
+def remove_from_search_path(*args, **kwargs):
+    warnings.warn(DeprecationWarning('remove_from_search_path() is deprecated, use sastool_search_path.remove() instead.'))
+    return sastool_search_path.remove(*args, **kwargs)
+
+def set_search_path(*args, **kwargs):
+    warnings.warn(DeprecationWarning('set_search_path() is deprecated, use sastool_search_path.set() instead.'))
+    return sastool_search_path.set(*args, **kwargs)
 
 def find_subdirs(startdir='.', recursion_depth=None):
     """Find all subdirectory of a directory.

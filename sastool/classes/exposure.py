@@ -31,6 +31,8 @@ import scipy.constants
 HC = scipy.constants.codata.value('Planck constant in eV s') * \
     scipy.constants.codata.value('speed of light in vacuum') * 1e10
 
+__all__ = ['SASExposure']
+
 class SASExposure(ArithmeticBase):
     """A class for holding SAS exposure data, i.e. intensity, error, metadata
     and mask.

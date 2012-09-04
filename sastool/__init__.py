@@ -44,3 +44,13 @@ import io
 import fitting
 import sim
 import classes
+
+for k in __all__[:]:
+    __all__.extend(eval('%s.__all__' % k))
+
+from fitting import *
+from misc import *
+from io import *
+from utils2d import *
+from sim import *
+from classes import *

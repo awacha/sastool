@@ -3,13 +3,15 @@
 from _sim import *
 import numpy as np
 
+__all__ = []
+
 def Fsphere(q, R):
     """Scattering factor of a sphere, normalized to F(q=0)=N_electrons
-    
+
     Inputs:
         q: scalar or one-dimensional vector of q values
         R: scalar or one-dimensional vector of radii
-         
+
     Outputs:
         the values of the form factor amplitude in a `np.ndarray`. Its shape is
         that of ``np.outer(q, R)`` and is scaled such as F(q = 0) = V
@@ -21,7 +23,7 @@ def Fsphere(q, R):
 def FGaussProfile(q, R, sigma):
     """Form factor of a radial layer with a Gaussian radial profile, normalized
     to F(q=0) = V
-    
+
     Inputs:
     -------
     q: scalar or a one-dimensional np.ndarray
@@ -30,10 +32,10 @@ def FGaussProfile(q, R, sigma):
         the values of the mean value of the radial Gauss profile
     sigma: scalar
         HWHM of the radial Gauss profile
-        
+
     Outputs:
     --------
-        the values of the form factor amplitude in a np.ndarray. Its shape is 
+        the values of the form factor amplitude in a np.ndarray. Its shape is
         that of ``np.outer(q, R)`` and it is scaled such as F(q=0) = V
     """
     qR = np.outer(q, R)

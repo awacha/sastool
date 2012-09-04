@@ -19,6 +19,8 @@ from ..misc.arithmetic import ArithmeticBase
 from ..misc.errorvalue import ErrorValue
 from ..misc.easylsq import nonlinear_leastsquares, simultaneous_nonlinear_leastsquares
 
+__all__ = ['GeneralCurve', 'SASCurve', 'SASPixelCurve', 'SASAzimuthalCurve']
+
 #TODO: fitting with no errorbars present
 
 def errtrapz(x, yerr):
@@ -38,6 +40,9 @@ def errtrapz(x, yerr):
 
 
 class ControlledVectorAttribute(object):
+    """A class exposing the descriptor interface (__get__ and __set__ methods)
+    to be used as special arguments in GeneralCurve and its derivatives.
+    """
     def __init__(self, value=None, name=None, obj=None):
         if isinstance(value, type(self)):
             self.value = value.value

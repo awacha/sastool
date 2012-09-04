@@ -8,22 +8,24 @@ import numbers
 import time
 import matplotlib
 
+__all__ = ['pause']
+
 class Pauser(object):
     """A general, state-retaining class for pausing in a similar way as Matlab(R)
     does. After instantiation the pause() method can be called
     """
     _is_enabled = True
-    def pause(self, arg = None):
+    def pause(self, arg=None):
         """Make a pause or adjust pause mode, depending on the type and value of
         'arg':
-        
+
         1) boolean (True/False): enable/disable pausing
         2) numeric: sleep for this many seconds
         3) string or None: Do an UI pause, i.e. if a matplotlib figure is open,
         wait until a key is pressed. If not, wait until a key is pressed in the
         command prompt. If the argument is a string, it will be used as the
         pause prompt. Does nothing if pausing is disabled.
-        
+
         UI pausing depends on the currently used Matplotlib backend. Currently
         TK, GTK, WX and QT are tested.
         """
@@ -38,10 +40,10 @@ class Pauser(object):
     def get_pause_state(self):
         """Return the current pause state (enabled/disabled)"""
         return self._is_enabled
-    def set_pause_state(self, state = True):
+    def set_pause_state(self, state=True):
         """Enable/disable pausing"""
         self._is_enabled = bool(state)
-    def do_ui_pause(self, prompt = None):
+    def do_ui_pause(self, prompt=None):
         """Make a UI pause without regard to the current pause state."""
         if prompt is None:
             prompt = 'Paused. Press ENTER to continue...'

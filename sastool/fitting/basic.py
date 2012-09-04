@@ -1,74 +1,151 @@
-from fitfunction import FitFunction
 import numpy as np
 
-class FFLinear(FitFunction):
-    name="Linear"
-    argument_info=[('a','slope'),('b','offset')]
-    formula="y(x) = a * x + b"
-    def __init__(self):
-        FitFunction.__init__(self)
-    def __call__(self,x,a,b):
-        return a*x+b
+__all__ = ['Linear', 'Sine', 'Cosine', 'Square', 'Cube', 'Powerlaw',
+           'Exponential', 'Lorentzian', 'Gaussian']
 
-class FFSine(FitFunction):
-    name="Sine"
-    argument_info=[('a','amplitude'),('omega','circular frequency'),('phi0','phase'),('y0','offset')]
-    formula="y(x) = a * sin( omega * x + phi0 ) + y0"
-    def __init__(self):
-        FitFunction.__init__(self)
-    def __call__(self,x,a,omega,phi0,y0):
-        return a*np.sin(omega*x+phi0)+y0
+def Linear(x, a, b):
+    """First-order polynomial
 
-class FFPolynomial(FitFunction):
-    _factory_arguments=[(2,),(3,)]
-    name="Polynomial"
-    argument_info=[]
-    formula=""
-    def __init__(self,deg=1):
-        FitFunction.__init__(self)
-        self.deg=deg
-        self.name="Polynomial of order %d"%deg
-        self.formula="y(x) = sum_(i=0)^(%d) Ai*x^i" % deg
-        self.argument_info=self.argument_info[:]
-        for i in range(deg+1):
-            self.argument_info.append(('A%d'%i,'Coeff. of the x^%d term'%i))
-    def __call__(self,x,*coeffs):
-        return np.polyval(coeffs,x)
+    Inputs:
+    -------
+        ``x``: independent variable
+        ``a``: slope
+        ``b``: offset
 
-class FFPowerlaw(FitFunction):
-    _factory_arguments=[(None,),(0,),(1,),(2,)]
-    name="Power-law"
-    formula="y(x) = A* x^alpha"
-    argument_info=[('A','factor'),('alpha','Exponent')]
-    def __init__(self,bgorder=None):
-        FitFunction.__init__(self)
-        self.bgorder=bgorder 
-        if bgorder is not None:
-            self.name+=" with order #%d background"%bgorder
-            self.formula+=" + sum_(i=0)^(%d) Ai*x^i" %bgorder
-            self.argument_info=self.argument_info[:]
-            for i in range(bgorder+1):
-                self.argument_info.append(('A%d'%i,'Coeff. of the x^%d term'%i))
-    def __call__(self,x,A,alpha,*bgcoeffs):
-        y1=A*np.power(x,alpha)
-        if self.bgorder is not None:
-            return y1+np.polyval(bgcoeffs,x)
-        return y1
+    Formula:
+    --------
+        ``a*x+b``
+    """
+    return a * x + b
 
-class FFLorentzian(FitFunction):
-    name="Lorentzian peak"
-    formula="y(x)=A/(1+((x-x0)/sigma)^2)+B"
-    argument_info=[('A','Scaling'),('x0','Center'),('sigma','HWHM'),('B','offset')]
-    def __init__(self):
-        FitFunction.__init__(self)
-    def __call__(self,x,A,x0,sigma,B):
-        return A/(1+((x-x0)/sigma)**2)+B
+def Sine(x, a, omega, phi, y0):
+    """Sine function
 
-class FFGaussian(FitFunction):
-    name="Gaussian peak"
-    formula="y(x)=A*exp(-(x-x0)^2)/(2*sigma^2)+B"
-    argument_info=[('A','Scaling'),('x0','Center'),('sigma','HWHM'),('B','offset')]
-    def __init__(self):
-        FitFunction.__init__(self)
-    def __call__(self,x,A,x0,sigma,B):
-        return A*np.exp(-(x-x0)**2/(2*sigma**2))+B
+    Inputs:
+    -------
+        ``x``: independent variable
+        ``a``: amplitude
+        ``omega``: circular frequency
+        ``phi``: phase
+        ``y0``: offset
+
+    Formula:
+    --------
+        ``a*sin(x*omega + phi)+y0``
+    """
+    return a * np.sin(x * omega + phi) + y0
+
+def Cosine(x, a, omega, phi, y0):
+    """Cosine function
+
+    Inputs:
+    -------
+        ``x``: independent variable
+        ``a``: amplitude
+        ``omega``: circular frequency
+        ``phi``: phase
+        ``y0``: offset
+
+    Formula:
+    --------
+        ``a*cos(x*omega + phi)+y0``
+    """
+    return a * np.cos(x * omega + phi) + y0
+
+def Square(x, a, b, c):
+    """Second order polynomial
+
+    Inputs:
+    -------
+        ``x``: independent variable
+        ``a``: coefficient of the second-order term
+        ``b``: coefficient of the first-order term
+        ``c``: additive constant
+
+    Formula:
+    --------
+        ``a*x^2 + b*x + c``
+    """
+    return a * x ** 2 + b * x + c
+
+def Cube(x, a, b, c, d):
+    """Third order polynomial
+
+    Inputs:
+    -------
+        ``x``: independent variable
+        ``a``: coefficient of the third-order term
+        ``b``: coefficient of the second-order term
+        ``c``: coefficient of the first-order term
+        ``d``: additive constant
+
+    Formula:
+    --------
+        ``a*x^3 + b*x^2 + c*x + d``
+    """
+    return a * x ** 3 + b * x ** 2 + c * x + d
+
+def Powerlaw(x, a, alpha):
+    """Power-law function
+
+    Inputs:
+    -------
+        ``x``: independen variable
+        ``a``: scaling factor
+        ``alpha``: exponent
+
+    Formula:
+    --------
+        ``a*x^alpha``
+    """
+    return a * x ** alpha
+
+def Exponential(x, a, tau, y0):
+    """Exponential function
+
+    Inputs:
+    -------
+        ``x``: independen variable
+        ``a``: scaling factor
+        ``tau``: time constant
+        ``y0``: additive constant
+
+    Formula:
+    --------
+        ``a*exp(x/tau)+y0``
+    """
+    return np.exp(x / tau) * a + y0
+
+def Lorentzian(x, a, x0, sigma, y0):
+    """Lorentzian peak
+
+    Inputs:
+    -------
+        ``x``: independen variable
+        ``a``: scaling factor (extremal value)
+        ``x0``: center
+        ``sigma``: half width at half maximum
+        ``y0``: additive constant
+
+    Formula:
+    --------
+        ``a/(1+((x-x0)/sigma)^2)+y0``
+    """
+    return a / (1 + ((x - x0) / sigma) ** 2) + y0
+
+def Gaussian(x, a, x0, sigma, y0):
+    """Gaussian peak
+
+    Inputs:
+    -------
+        ``x``: independen variable
+        ``a``: scaling factor (extremal value)
+        ``x0``: center
+        ``sigma``: half width at half maximum
+        ``y0``: additive constant
+
+    Formula:
+    --------
+        ``a*exp(-(x-x0)^2)/(2*sigma^2)+y0``
+    """
+    return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2)) + y0

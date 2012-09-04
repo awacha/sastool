@@ -8,13 +8,15 @@ from ..misc import easylsq
 from scipy.special import gamma, psi
 from ..classes import ErrorValue
 
-def shullroess(q, Intensity, Error, R0 = None, r = None):
+__all__ = ['fit_shullroess']
+
+def fit_shullroess(q, Intensity, Error, R0=None, r=None):
     """Do a Shull-Roess fitting on the scattering data.
-    
+
     Inputs:
-        
+
     Output:
-        
+
     Note: This first searches for r0, which best linearizes the
             log(Intensity) vs. log(q**2+3/r0**2) relation.
             After this is found, the parameters of the fitted line give the
