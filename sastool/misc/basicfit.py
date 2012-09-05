@@ -35,5 +35,5 @@ def findpeak(x, y, dy=None, position=None, hwhm=None, baseline=None, amplitude=N
         def fitfunc(x_, amplitude_, position_, hwhm_, baseline_):
             return amplitude_ * hwhm_ ** 2 / (hwhm_ ** 2 + (position_ - x_) ** 2) + baseline_
     p, dp = nlsq_fit(x, y, dy, fitfunc,
-                                     (amplitude, position, hwhm, baseline))
+                                     (amplitude, position, hwhm, baseline))[:2]
     return p[1], dp[1], abs(p[2]), dp[2], p[3], dp[3], p[0], dp[0]

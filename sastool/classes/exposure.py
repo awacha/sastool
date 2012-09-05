@@ -150,11 +150,16 @@ class SASExposure(ArithmeticBase):
                 loadername = SASExposure._autoguess_experiment_type(args[0])
             else:
                 loadername = 'read_from_%s' % kwargs['experiment_type']
+            if loadername is None:
+                loadername = 'read_from_image'
             if filename is not None:
                 try:
                     getattr(self, loadername).__call__(filename, **kwargs)
                 except AttributeError as ae:
                     raise AttributeError(str(ae) + '; possibly bad experiment type given')
+                except TypeError as te:
+                    print loadername
+                    raise te
                 #other exceptions such as IOError on read failure are propagated.
             if kwargs['maskfile'] is not None and kwargs['load_mask']:
                 self.set_mask(SASMask(kwargs['maskfile'], dirs=kwargs['dirs']))
