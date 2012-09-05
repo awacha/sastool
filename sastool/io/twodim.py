@@ -5,12 +5,12 @@ This module contains low-level read/write procedures for two-dimensional data
 (scattering patterns, masks etc.). Read functions have the signature::
 
     def read<what>(filename, <other args>)
-    
+
 and return the loaded data in a structure passing for the original logic of the
 file, whereas writer functions look like::
-    
+
     def write<what>(filename, <data>, <other args>)
-    
+
 and accept the data in a a format as returned by the corresponding reader.
 
 Matrices are usually represented as two-dimensional `numpy.ndarray`-s.
@@ -31,67 +31,67 @@ Implemented in `Cython` for the sake of speed."""
 def readjusifaorg(filename):
     """Read an original ASCII scattering data file (measured at the beamline
     B1/JUSIFA, HASYLAB, Hamburg).
-    
+
     Inputs
     ------
     filename: string
         the name of the input file
-    
+
     Outputs
     -------
     the scattering pattern in an N-times-8 shape (rows-times-columns)
 
     Notes
     -----
-    It simply skips the first 133 lines (header data) and loads the rest by 
+    It simply skips the first 133 lines (header data) and loads the rest by
     ``np.loadtxt``. No reshaping is done, it is the responsibility of the
     caller.
     """
-    return np.loadtxt(filename, skiprows = 133)
+    return np.loadtxt(filename, skiprows=133)
 
 def readPAXE(filename):
     """Read an exposure measured at the PAXE instrument of LLB, Saclay, France
     or at the Yellow Submarine SANS instrument of BNC, Budapest, Hungary.
-    
+
     Inputs
     ------
     filename: string
         the name of the input file
-    
+
     Outputs
     -------
     header: dict
         the header data
     data: np.ndarray
         the scattering matrix
-            
+
     Notes
     -----
     The original 16-bit files and 32-bit ones can also be loaded. The type is
     determined by the extension of the filename (``.32`` is the 32-bit type,
     otherwise 16-bit is assumed)
     """
-    return header.readPAXE(filename, load_data = True)
+    return header.readPAXE(filename, load_data=True)
 
 def readcbf(name):
     """Read a cbf (crystallographic binary format) file from a Dectris PILATUS
     detector.
-    
+
     Inputs
     ------
     name: string
         the file name
-    
+
     Output
     ------
     a numpy array of the scattering data
-        
+
     Notes
     -----
     currently only Little endian, "signed 32-bit integer" type and
     byte-offset compressed data are accepted.
     """
-    def getvaluefromheader(hed, caption, separator = ':'):
+    def getvaluefromheader(hed, caption, separator=':'):
         tmp = [x.split(separator)[1].strip() for x in hed if x.startswith(caption)]
         if len(tmp) == 0:
             raise ValueError ('Caption %s not present in CBF header!' % caption)
@@ -111,7 +111,7 @@ def readcbf(name):
     nbytes = long(getvaluefromheader(hed, 'X-Binary-Size'))
     return cbfdecompress(cbfbin[datastart:datastart + nbytes], dim1, dim2)
 
-def readbdfv1(filename, bdfext = '.bdf', bhfext = '.bhf'):
+def readbdfv1(filename, bdfext='.bdf', bhfext='.bhf'):
     """Read bdf file (Bessy Data Format v1)
 
     Input
@@ -131,16 +131,16 @@ def readbdfv1(filename, bdfext = '.bdf', bhfext = '.bhf'):
 
 def readtif(filename):
     """Read image files (TIFF, JPEG, PNG... supported by PIL).
-    
+
     Input
     -----
     filename: string
         the name of the file
-    
+
     Output
     ------
     the image in a ``np.ndarray``
-    
+
     Notes
     -----
     ``scipy.misc.imread()`` is used, which in turn depends on PIL.
@@ -150,32 +150,32 @@ def readtif(filename):
 def readint2dnorm(filename):
     """Read corrected intensity and error matrices (Matlab mat or numpy npz
     format for Beamline B1 (HASYLAB/DORISIII))
-    
+
     Input
     -----
     filename: string
         the name of the file
-    
+
     Outputs
     -------
     two ``np.ndarray``-s, the Intensity and the Error matrices
-    
+
     File formats supported:
     -----------------------
-    
+
     ``.mat``
         Matlab MAT file, with (at least) two fields: Intensity and Error
-    
+
     ``.npz``
         Numpy zip file, with (at least) two fields: Intensity and Error
-    
+
     other
         the file is opened with ``np.loadtxt``. The error matrix is tried
         to be loaded from the file ``<name>_error<ext>`` where the intensity was
         loaded from file ``<name><ext>``. I.e. if ``somedir/matrix.dat`` is given,
         the existence of ``somedir/matrix_error.dat`` is checked. If not found,
         None is returned for the error matrix.
-    
+
     Notes
     -----
     The non-existence of the Intensity matrix results in an exception. If the
@@ -199,9 +199,9 @@ def readint2dnorm(filename):
     except:
         return Intensity, None
 
-def writeint2dnorm(filename, Intensity, Error = None):
+def writeint2dnorm(filename, Intensity, Error=None):
     """Save the intensity and error matrices to a file
-    
+
     Inputs
     ------
     filename: string
@@ -210,7 +210,7 @@ def writeint2dnorm(filename, Intensity, Error = None):
         the intensity matrix
     Error: np.ndarray, optional
         the error matrix (can be ``None``, if no error matrix is to be saved)
-        
+
     Output
     ------
     None
@@ -228,16 +228,16 @@ def writeint2dnorm(filename, Intensity, Error = None):
             name, ext = os.path.splitext(filename)
             np.savetxt(name + '_error' + ext, Error)
 
-def readmask(filename, fieldname = None):
+def readmask(filename, fieldname=None):
     """Try to load a maskfile from a matlab(R) matrix file
-    
+
     Inputs
     ------
     filename: string
         the input file name
     fieldname: string, optional
         field in the mat file. None to autodetect.
-        
+
     Outputs
     -------
     the mask in a numpy array of type np.uint8
@@ -255,17 +255,17 @@ def readmask(filename, fieldname = None):
 
 def readedf(filename):
     """Read an ESRF data file (measured at beamlines ID01 or ID02)
-    
+
     Inputs
     ------
     filename: string
         the input file name
-        
+
     Output
     ------
     the imported EDF structure in a dict. The scattering pattern is under key
     'data'.
-    
+
     Notes
     -----
     Only datatype ``FloatValue`` is supported right now.
@@ -280,9 +280,9 @@ def readedf(filename):
     edf['data'] = np.fromstring(f.read(edf['EDF_BinarySize']), dtype).reshape(edf['Dim_1'], edf['Dim_2'])
     return edf
 
-def readbdfv2(filename, bdfext = '.bdf', bhfext = '.bhf'):
+def readbdfv2(filename, bdfext='.bdf', bhfext='.bhf'):
     """Read a version 2 Bessy Data File
-    
+
     Inputs
     ------
     filename: string
@@ -292,25 +292,37 @@ def readbdfv2(filename, bdfext = '.bdf', bhfext = '.bhf'):
         the extension of the data file
     bhfext: string, optional
         the extension of the header file
-    
+
     Output
     ------
     the data structure in a dict. Header is loaded implicitely.
-    
+
     Notes
     -----
-    BDFv2 header and scattering data are stored separately in the header and 
+    BDFv2 header and scattering data are stored separately in the header and
     the data files. Given the file name both are loaded.
     """
     datas = header.readbhfv2(filename, True, bdfext, bhfext)
     return datas
 
-def readbdf(filename, bdfext = '.bdf', bhfext = '.bhf'):
+def readbdf(filename, bdfext='.bdf', bhfext='.bhf'):
     return header.readbhf(filename, True, bdfext, bhfext)
 
-def writebdfv2(filename, bdf, bdfext = '.bdf', bhfext = '.bhf'):
+def readmar(filename):
+    """Read a two-dimensional scattering pattern from a MarResearch .image file.
+    """
+    hed = header.readmarheader(filename)
+    with open(filename, 'rb') as f:
+        h = f.read(hed['recordlength'])
+        data = np.fromstring(f.read(2 * hed['Xsize'] * hed['Ysize']), '<u2').astype(np.float64)
+        if hed['highintensitypixels'] > 0:
+            raise NotImplementedError('Intensities over 65535 are not yet supported!')
+        data = data.reshape(hed['Xsize'], hed['Ysize'])
+    return data, hed
+
+def writebdfv2(filename, bdf, bdfext='.bdf', bhfext='.bhf'):
     """Write a version 2 Bessy Data File
-    
+
     Inputs
     ------
     filename: string
@@ -322,14 +334,14 @@ def writebdfv2(filename, bdf, bdfext = '.bdf', bhfext = '.bhf'):
         the extension of the data file
     bhfext: string, optional
         the extension of the header file
-    
+
     Output
     ------
     None
-        
+
     Notes
     -----
-    BDFv2 header and scattering data are stored separately in the header and 
+    BDFv2 header and scattering data are stored separately in the header and
     the data files. Given the file name both are saved.
     """
     if filename.endswith(bdfext):
@@ -346,12 +358,12 @@ def writebdfv2(filename, bdf, bdfext = '.bdf', bhfext = '.bhf'):
         if k not in bdf.keys():
             continue
         f.write('#%s[%d:%d]\n' % (k, bdf['xdim'], bdf['ydim']))
-        f.write(np.rot90(bdf[k], 3).astype('float32').tostring(order = 'F'))
+        f.write(np.rot90(bdf[k], 3).astype('float32').tostring(order='F'))
     f.close()
 
-def rebinmask(mask, binx, biny, enlarge = False):
+def rebinmask(mask, binx, biny, enlarge=False):
     """Re-bin (shrink or enlarge) a mask matrix.
-    
+
     Inputs
     ------
     mask: np.ndarray
@@ -363,13 +375,13 @@ def rebinmask(mask, binx, biny, enlarge = False):
     enlarge: bool, optional
         direction of binning. If True, the matrix will be enlarged, otherwise
         shrinked (this is the default)
-    
+
     Output
     ------
     the binned mask matrix, of shape ``M/binx`` times ``N/biny`` or ``M*binx``
-    times ``N*biny``, depending on the value of ``enlarge`` (if ``mask`` is 
+    times ``N*biny``, depending on the value of ``enlarge`` (if ``mask`` is
     ``M`` times ``N`` pixels).
-    
+
     Notes
     -----
     one is nonmasked, zero is masked.
@@ -377,7 +389,7 @@ def rebinmask(mask, binx, biny, enlarge = False):
     if not enlarge and ((mask.shape[0] % binx) or (mask.shape[1] % biny)):
         raise ValueError('The number of pixels of the mask matrix should be divisible by the binning in each direction!')
     if enlarge:
-        return mask.repeat(binx, axis = 0).repeat(biny, axis = 1)
+        return mask.repeat(binx, axis=0).repeat(biny, axis=1)
     else:
         return mask[::binx, ::biny]
 

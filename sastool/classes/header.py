@@ -21,6 +21,12 @@ from .. import misc
 
 __all__ = ['SASHeader']
 
+import scipy.constants
+#Planck constant times speed of light in eV*Angstroem units
+HC = scipy.constants.codata.value('Planck constant in eV s') * \
+    scipy.constants.codata.value('speed of light in vacuum') * 1e10
+
+
 class SASHeader(dict):
     """A class for holding measurement meta-data, such as sample-detector
     distance, photon energy, wavelength, beam position etc.
@@ -243,6 +249,8 @@ class SASHeader(dict):
                 (file_or_dict.endswith('.DAT') or \
                  file_or_dict.endswith('.32')):
                 return 'read_from_PAXE'
+            elif file_or_dict.lower().endswith('.image'):
+                return 'read_from_MAR'
         elif isinstance(file_or_dict, h5py.highlevel.Group):
             return 'read_from_HDF5'
         elif isinstance(file_or_dict, dict):
@@ -260,6 +268,8 @@ class SASHeader(dict):
                 return 'read_from_BDF'
             elif file_or_dict['__Origin__'] == 'BDFv2':
                 return 'read_from_BDFv2'
+            elif file_or_dict['__Origin__'] == 'MarResearch .image':
+                return 'read_from_MAR'
             else:
                 raise ValueError('Unknown header dictionary')
         else:
@@ -421,6 +431,25 @@ class SASHeader(dict):
         return itertools.izip(self.iterkeys(), self.itervalues())
 
     # -------------------- Reader methods (read_from*)
+    def read_from_MAR(self, filename_or_mar, **kwargs):
+        """Read header data from a MarResearch .image file.
+
+        Inputs:
+            filename_or_mar: the full filename or a dict loaded by
+                readmarheader()
+
+        Outputs: the updated header structure. Fields not present in the file
+            are kept unchanged.
+        """
+        if not isinstance(filename_or_mar, dict):
+            mar = header.readmarheader(filename_or_mar)
+        else:
+            mar = filename_or_mar
+        self.update(mar)
+        self['Energy'] = HC / self['Wavelength']
+        if not isinstance(filename_or_mar, dict):
+            self.add_history('Loaded from MAR .image file ' + filename_or_mar)
+        return self
 
     def read_from_PAXE(self, filename_or_paxe, **kwargs):
         """Read header data from a PAXE (Saclay, France or Budapest, Hungary)

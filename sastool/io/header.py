@@ -31,11 +31,11 @@ def _delinearize_bool(b):
         return bool(b)
 
 
-def _linearize_list(l, pre_converter = lambda a:a, post_converter = lambda a:a):
+def _linearize_list(l, pre_converter=lambda a:a, post_converter=lambda a:a):
     return post_converter(' '.join([unicode(pre_converter(x)) for x in l]))
 
 
-def _delinearize_list(l, pre_converter = lambda a:a, post_converter = list):
+def _delinearize_list(l, pre_converter=lambda a:a, post_converter=list):
     return post_converter([misc.parse_number(x) for x in \
                            pre_converter(l).replace(',', ' ').replace(';', ' ').split()])
 
@@ -101,15 +101,15 @@ _logfile_data = [('FSN', 'FSN', None, lambda x: int(float(x))),
                  ('Calibrated energy (eV)', 'EnergyCalibrated', None, float),
                  ('Calibrated energy', 'EnergyCalibrated', None, float),
                  ('Beam x y for integration', ('BeamPosX', 'BeamPosY'),
-                  functools.partial(_linearize_list, pre_converter = lambda a:a + 1),
+                  functools.partial(_linearize_list, pre_converter=lambda a:a + 1),
                   functools.partial(_delinearize_list,
-                                    post_converter = lambda a:tuple([x - 1 for x in a]))),
+                                    post_converter=lambda a:tuple([x - 1 for x in a]))),
                  ('Normalisation factor (to absolute units)', 'NormFactor',
                   None, float),
                  ('Relative error of normalisation factor (percentage)',
                   'NormFactorRelativeError', None, float),
                  ('Beam size X Y (mm)', ('BeamsizeX', 'BeamsizeY'), _linearize_list,
-                  functools.partial(_delinearize_list, post_converter = tuple)),
+                  functools.partial(_delinearize_list, post_converter=tuple)),
                  ('Pixel size of 2D detector (mm)', 'PixelSize', None, float),
                  ('Primary intensity at monitor (counts/sec)', 'Monitor', None,
                   float),
@@ -122,10 +122,10 @@ _logfile_data = [('FSN', 'FSN', None, lambda x: int(float(x))),
 
 def readB1logfile(filename):
     """Read B1 logfile (*.log)
-    
+
     Inputs:
         filename: the file name
-            
+
     Output: A dictionary.
     """
     dic = dict()
@@ -169,11 +169,11 @@ def readB1logfile(filename):
 
 def writeB1logfile(filename, data):
     """Write a header structure into a B1 logfile.
-    
+
     Inputs:
         filename: name of the file.
         data: header dictionary
-        
+
     Notes:
         exceptions pass through to the caller.
     """
@@ -237,21 +237,21 @@ of the same length as the field names in logfile_data.')
 
 def readB1header(filename):
     """Read beamline B1 (HASYLAB, Hamburg) header data
-    
+
     Input
     -----
     filename: string
         the file name. If ends with ``.gz``, it is fed through a ``gunzip``
         filter
-        
+
     Output
     ------
     A header dictionary.
-        
+
     Examples
     --------
     read header data from 'ORG000123.DAT'::
-    
+
         header=readB1header('ORG00123.DAT')
     """
     #Planck's constant times speed of light: incorrect
@@ -335,12 +335,12 @@ def _readedf_extractline(left, right):
 
 def readehf(filename):
     """Read EDF header (ESRF data format, as of beamline ID01 and ID02)
-    
+
     Input
     -----
     filename: string
         the file name to load
-    
+
     Output
     ------
     the EDF header structure in a dictionary
@@ -371,7 +371,7 @@ def readehf(filename):
     edf['__Origin__'] = 'EDF ID02'
     return edf
 
-def readbhfv2(filename, load_data = False, bdfext = '.bdf', bhfext = '.bhf'):
+def readbhfv2(filename, load_data=False, bdfext='.bdf', bhfext='.bhf'):
     # strip the bhf or bdf extension if there.
     if filename.endswith(bdfext):
         basename = filename[:-len(bdfext)]
@@ -449,16 +449,16 @@ Sorry for the inconvenience.""", ioe.filename)
             datasize = xsize[i] * ysize[i] * dt.itemsize
             if datasize > len(s1):
                 # assume we are dealing with a BOOL matrix
-                header[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i]:], dtype = np.uint8)
+                header[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i]:], dtype=np.uint8)
             else:
-                header[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i] * dt.itemsize:], dtype = dt)
+                header[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i] * dt.itemsize:], dtype=dt)
             #conversion: Matlab saves the array in Fortran-style ordering (columns first).
             # Python however loads in C-style: rows first. We need to take care:
             #   1) reshape from linear to (ysize,xsize) and not (xsize,ysize)
             #   2) transpose (swaps columns and rows)
             # After these operations, we only have to rotate this counter-clockwise by 90
             # degrees because bdf2_write rotates by +270 degrees before saving.
-            header[names[i]] = np.rot90(header[names[i]].reshape((ysize[i], xsize[i]), order = 'F'), 1)
+            header[names[i]] = np.rot90(header[names[i]].reshape((ysize[i], xsize[i]), order='F'), 1)
     return header
 
 def writebhfv2(filename, bdf):
@@ -476,13 +476,13 @@ def writebhfv2(filename, bdf):
             f.write("#HIS %s\n" % h)
     f.close()
 
-def readbhfv1(filename, load_data = False, bdfext = '.bdf', bhfext = '.bhf'):
+def readbhfv1(filename, load_data=False, bdfext='.bdf', bhfext='.bhf'):
     """Read header data from bdf/bhf file (Bessy Data Format v1)
 
     Input:
         filename: the name of the file
         load_data: if the matrices are to be loaded
-    
+
     Output:
         bdf: the BDF header structure
 
@@ -588,20 +588,20 @@ Sorry for the inconvenience.""", ioe.filename)
             datasize = xsize[i] * ysize[i] * dt.itemsize
             if datasize > len(s1):
                 # assume we are dealing with a BOOL matrix
-                bdf[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i]:], dtype = np.uint8)
+                bdf[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i]:], dtype=np.uint8)
             else:
-                bdf[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i] * dt.itemsize:], dtype = dt)
+                bdf[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i] * dt.itemsize:], dtype=dt)
             #conversion: Matlab saves the array in Fortran-style ordering (columns first).
             # Python however loads in C-style: rows first. We need to take care:
             #   1) reshape from linear to (ysize,xsize) and not (xsize,ysize)
             #   2) transpose (swaps columns and rows)
             # After these operations, we only have to rotate this counter-clockwise by 90
             # degrees because bdf2_write rotates by +270 degrees before saving.
-            bdf[names[i]] = np.rot90(bdf[names[i]].reshape((ysize[i], xsize[i]), order = 'F'), 1)
+            bdf[names[i]] = np.rot90(bdf[names[i]].reshape((ysize[i], xsize[i]), order='F'), 1)
 
     return bdf
 
-def readbhf(filename, load_data = False, bdfext = '.bdf', bhfext = '.bhf'):
+def readbhf(filename, load_data=False, bdfext='.bdf', bhfext='.bhf'):
     if not filename.upper().endswith(bhfext.upper()):
         filename = os.path.splitext(filename)[0] + bhfext
     with open(filename, 'rt') as f:
@@ -618,7 +618,7 @@ def readbhf(filename, load_data = False, bdfext = '.bdf', bhfext = '.bhf'):
     else:
         return readbhfv2(filename, load_data, bdfext, bhfext)
 
-def readPAXE(filename, load_data = False):
+def readPAXE(filename, load_data=False):
     f = open(filename, 'r')
     s = f.read()
     f.close()
@@ -661,3 +661,21 @@ def readPAXE(filename, load_data = False):
             return par, np.fromstring(s[0x100:], '>u2').astype(np.double).reshape((64, 64))
     else:
         return par
+
+def readmarheader(filename):
+    """Read a header from a MarResearch .image file."""
+    with open(filename, 'rb') as f:
+        intheader = np.fromstring(f.read(10 * 4), np.int32)
+        floatheader = np.fromstring(f.read(15 * 4), '<f4')
+        strheader = f.read(24)
+        f.read(4)
+        otherstrings = [f.read(16) for i in range(29)]
+    return {'Xsize':intheader[0], 'Ysize':intheader[1], 'MeasTime':intheader[8],
+            'BeamPosX':floatheader[7], 'BeamPosY':floatheader[8],
+            'Wavelength':floatheader[9], 'Dist':floatheader[10],
+            '__Origin__':'MarResearch .image', 'recordlength':intheader[2],
+            'highintensitypixels':intheader[4],
+            'highintensityrecords':intheader[5],
+            'Date':dateutil.parser.parse(strheader),
+            'Detector':'MARCCD'}
+

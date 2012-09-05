@@ -74,6 +74,8 @@ class SASExposure(ArithmeticBase):
                 (fileformat_or_name.endswith('.DAT') or \
                  fileformat_or_name.endswith('.32')):
                 return 'read_from_PAXE'
+            elif fileformat_or_name.endswith('.IMAGE'):
+                return 'read_from_MAR'
         elif isinstance(fileformat_or_name, h5py.highlevel.Group):
             return 'read_from_HDF5'
         else:
@@ -158,7 +160,6 @@ class SASExposure(ArithmeticBase):
                 except AttributeError as ae:
                     raise AttributeError(str(ae) + '; possibly bad experiment type given')
                 except TypeError as te:
-                    print loadername
                     raise te
                 #other exceptions such as IOError on read failure are propagated.
             if kwargs['maskfile'] is not None and kwargs['load_mask']:
@@ -463,7 +464,7 @@ class SASExposure(ArithmeticBase):
         return (self.header['DistCalibrated'] * np.tan(2 * np.arcsin(q * HC / self.header['EnergyCalibrated'] / (4 * np.pi))) / self.header['PixelSize'])
     def pixeltoq_radius(self, pix):
         return 4 * np.pi * np.sin(0.5 * np.arctan(pix * self.header['PixelSize'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC
-### -------------- Loading routines (new_from_xyz) ------------------------
+    ### -------------- Loading routines (new_from_xyz) ------------------------
 
     @classmethod
     def new_from_hdf5(cls, hdf_or_filename):
@@ -485,7 +486,7 @@ class SASExposure(ArithmeticBase):
                 r.set_mask(masks[r.header['maskid']])
         return ret
 
-### -------------- reading routines--------------------------
+    ### -------------- reading routines--------------------------
 
     def read_from_image(self, filename, **kwargs):
         """Read a "bare" image file
@@ -681,6 +682,17 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             self.Error = None
         return self
 
+    def read_from_MAR(self, filename, **kwargs):
+        kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
+        data, header = twodim.readmar(misc.findfileindirs(filename, dirs=kwargs['dirs']))
+        self.header = SASHeader(header)
+        self.Intensity = data
+        if kwargs['estimate_errors']:
+            self.Error = np.sqrt(self.Intensity)
+        else:
+            self.Error = None
+        return self
+
     def read_from_BDF(self, filename, **kwargs):
         if 'bdfext' not in kwargs:
             kwargs['bdfext'] = '.bdf'
@@ -713,7 +725,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 dirs = kwargs['dirs']
             self.set_mask(SASMask(filename, dirs=dirs))
         return self
-### ------------------- Interface routines ------------------------------------
+    ### ------------------- Interface routines ------------------------------------
     def set_mask(self, mask):
         mask1 = SASMask(mask)
         if self.shape != mask1.shape:
@@ -742,7 +754,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 pass
         raise AttributeError('No matrix in this instance of' + str(type(self)))
 
-### ------------------- simple arithmetics ------------------------------------
+    ### ------------------- simple arithmetics ------------------------------------
 
     def _check_arithmetic_compatibility(self, other):
         if isinstance(other, numbers.Number):
@@ -810,7 +822,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             return self.Intensity
         else:
             return self.Intensity.astype(dt)
-### ------------------- Routines for radial integration -----------------------
+    ### ------------------- Routines for radial integration -----------------------
 
     def get_qrange(self, N=None, spacing='linear'):
         """Calculate the available q-range.
@@ -1213,7 +1225,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             return ds
 
 
-### ---------------------- Plotting -------------------------------------------
+    ### ---------------------- Plotting -------------------------------------------
 
     def plot2d(self, **kwargs):
         """Plot the matrix (imshow)
