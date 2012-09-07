@@ -194,4 +194,4 @@ def LogNormSpheres(q, A, mu, sigma, N=1000):
         q1 = np.outer(q, np.ones_like(R))
         return 4 * np.pi / q1 ** 3 * (np.sin(qR) - qR * np.cos(qR))
     I = (Fsphere_outer(q, R) ** 2 * np.outer(np.ones_like(q), P))
-    return I.sum(1) / P.sum()
+    return A * I.sum(1) / P.sum()

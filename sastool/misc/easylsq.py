@@ -172,7 +172,7 @@ def nlsq_fit(x, y, dy, func, params_init, verbose=False, **kwargs):
     func_orig = func
     params_init_orig = params_init
     func, params_init = hide_fixedparams(func_orig, params_init_orig)
-    if (dy == np.nan).sum() > 0 or (dy <= 0).sum() > 0:
+    if (dy is None) or (dy == np.nan).sum() > 0 or (dy <= 0).sum() > 0:
         if verbose:
             print "nlsq_fit: no weighting"
         dy = None
