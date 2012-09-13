@@ -21,8 +21,6 @@ from ..misc.easylsq import nonlinear_leastsquares, simultaneous_nonlinear_leasts
 
 __all__ = ['GeneralCurve', 'SASCurve', 'SASPixelCurve', 'SASAzimuthalCurve']
 
-#TODO: fitting with no errorbars present
-
 def errtrapz(x, yerr):
     """Error of the trapezoid formula
     Inputs:
@@ -38,7 +36,6 @@ def errtrapz(x, yerr):
                         np.sum((x[2:] - x[:-2]) ** 2 * yerr[1:-1] ** 2) +
                         (x[-1] - x[-2]) ** 2 * yerr[-1] ** 2)
 
-
 class ControlledVectorAttribute(object):
     """A class exposing the descriptor interface (__get__ and __set__ methods)
     to be used as special arguments in GeneralCurve and its derivatives.
@@ -49,9 +46,10 @@ class ControlledVectorAttribute(object):
             self.name = value.name
         else:
             self.name = name
+            value_orig = value
             value = np.array(value)
             if value.dtype.kind.lower() not in 'biuf':
-                raise TypeError("Cannot instantiate a ControlledVectorAttribute with a type %s" % type(value))
+                raise TypeError("Cannot instantiate a ControlledVectorAttribute with a type %s; numpy dtype kind was %s." % (type(value_orig), value.dtype.kind))
             self.value = obj.check_compatibility(value, self.name)
     def __get__(self, obj, type_=None):
         return self.value
@@ -95,14 +93,14 @@ class GeneralCurve(ArithmeticBase):
                 firstline = f.readline()
                 if firstline.startswith('#'):
                     columnnames = firstline[1:].strip().split()
-
             m = np.loadtxt(args[0], **kwargs_for_loadtxt)
             for i, cn in itertools.izip(range(m.shape[1]), columnnames):
                 self.add_dataset(cn, m[:, i])
         else:
             for a, name in zip(args, self._special_names.values()):
                 self.add_dataset(name, a)
-        for a, name in [(kwargs[k], k) for k in kwargs if isinstance(kwargs[k], np.ndarray) or isinstance(kwargs[k], collections.Sequence)
+        for a, name in [(kwargs[k], k) for k in kwargs if isinstance(kwargs[k], np.ndarray) or
+                        (isinstance(kwargs[k], collections.Sequence) and all(isinstance(x, numbers.Number) or isinstance(x, ErrorValue) for x in kwargs[k]))
                         or isinstance(kwargs[k], ErrorValue)]:
             self.add_dataset(name, a)
     def __getattribute__(self, name):

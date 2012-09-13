@@ -63,6 +63,9 @@ class SASMask(object):
             maskmatrix.lower()[-4:] in ['.edf']:
             # load from an EDF file
             self.read_from_edf(maskmatrix, **kwargs)
+        elif isinstance(maskmatrix, basestring) and \
+            maskmatrix.lower()[-4:] in ['.sma']:
+            self.read_from_sma(maskmatrix)
         elif isinstance(maskmatrix, np.ndarray):
             # convert a numpy array to a SASMask
             self.mask = (maskmatrix != 0).astype(np.uint8)
@@ -131,9 +134,21 @@ class SASMask(object):
             raise ValueError('Mask %s not in the file!' % fieldname)
         self.maskid = fieldname
         self.mask = f[fieldname].astype(np.uint8)
-    def write_to_mat(self, filename):
+    def read_from_sma(self, filename):
+        """Load a mask from a *.sma file (produced by BerSANS)
+        """
+        self.mask = twodim.readBerSANSmask(filename).astype(np.uint8)
+        self.maskid = filename.split('.')[0]
+    def write_to_sma(self, filename=None):
+        """Write mask a *.sma file (produced by BerSANS)"""
+        if filename is None:
+            filename = self.maskid + '.sma'
+        twodim.writeBerSANSmask(filename, self.mask)
+    def write_to_mat(self, filename=None):
         """Save this mask to a Matlab(R) .mat or a numpy .npy or .npz file.
         """
+        if filename is None:
+            filename = self.maskid + '.mat'
         if filename.lower().endswith('.mat'):
             scipy.io.savemat(filename, {self.maskid:self.mask})
         elif filename.lower().endswith('.npz'):

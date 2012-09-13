@@ -21,6 +21,7 @@ import os
 import numpy as np
 import scipy.misc
 import scipy.io
+import datetime
 
 import header
 
@@ -393,3 +394,61 @@ def rebinmask(mask, binx, biny, enlarge=False):
     else:
         return mask[::binx, ::biny]
 
+def readBerSANSdata(filename):
+    hed = header.readBerSANS(filename)
+    if hed['Type'] not in ['SANSDraw', 'SANSDAni']:
+        raise ValueError('Invalid file type: ' + hed['Type'])
+    datasize = int(hed['DataSize'] ** 0.5)
+    with open(filename, 'rt') as f:
+        l = f.readline()
+        counts = []
+        errors = []
+        while not l.startswith('%Counts') and len(l) > 0:
+            l = f.readline()
+        l = f.readline()
+        while not l.startswith('%') and len(l) > 0:
+            counts.append([float(x) for x in l.replace(',', ' ').replace('-', ' -').replace('e -', 'e-').replace('E -', 'E-').split()])
+            l = f.readline()
+        l = f.readline()
+        while len(l) > 0:
+            errors.append([float(x) for x in l.replace(',', ' ').replace('-', ' -').replace('e -', 'e-').replace('E -', 'E-').split()])
+            l = f.readline()
+        c = np.array(counts, dtype=np.float64)
+        e = np.array(errors, dtype=np.float64)
+        if c.size == hed['DataSize']:
+            c = c.reshape(datasize, datasize)
+        else:
+            raise ValueError('Invalid size of the counts matrix!')
+        if e.size == hed['DataSize']:
+            e = e.reshape(datasize, datasize)
+        elif e.size == 0:
+            e = None
+        else:
+            raise ValueError('Invalid size of the error matrix!')
+    return c, e, hed
+
+def readBerSANSmask(filename):
+    with open(filename, 'rt') as f:
+        l = f.readline()
+        while not l.startswith('%Mask') and len(l) > 0:
+            l = f.readline()
+        m = f.read()
+    mask = np.array([[ord(y) for y in x] for x in m.split()], np.uint8)
+    mask[mask == 45] = 0
+    mask[mask == 35] = 1
+    return mask
+
+def writeBerSANSmask(filename, maskmatrix):
+    with open(filename, 'wt') as f:
+        f.write('%File\n')
+        f.write('FileName=%s\n' % filename)
+        d = datetime.datetime.now()
+        month = [None, 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        f.write('FileDate=%02d-%s-%04d\n' % (d.day, month[d.month], d.year))
+        f.write('FileTime=%02d:%02d:%02d\n' % (d.hour, d.minute, d.second))
+        f.write('Type=SANSMAni\n')
+        f.write('DataSize=%d\n' % maskmatrix.size)
+        f.write('%Mask\n')
+        maskmatrix = (maskmatrix != 0) * 1
+        data = '\n'.join([''.join([str(a) for a in x]) for x in maskmatrix.tolist()])
+        f.write(data.replace('0', '#').replace('1', '-') + '\n')

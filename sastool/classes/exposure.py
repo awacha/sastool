@@ -76,6 +76,8 @@ class SASExposure(ArithmeticBase):
                 return 'read_from_PAXE'
             elif fileformat_or_name.endswith('.IMAGE'):
                 return 'read_from_MAR'
+            elif re.match('.*?D(\d+).(\d+)$', fileformat_or_name):
+                return 'read_from_BerSANS'
         elif isinstance(fileformat_or_name, h5py.highlevel.Group):
             return 'read_from_HDF5'
         else:
@@ -415,6 +417,7 @@ class SASExposure(ArithmeticBase):
             return isum
         except ValueError: # this can occur if everything is masked
             return ErrorValue(0, 0)
+        return ErrorValue(isum, esum)
     def max(self, masked=True):
         if self.check_for_mask(False) and masked:
             indices = np.array(self.mask) != 0
@@ -426,7 +429,6 @@ class SASExposure(ArithmeticBase):
             return ErrorValue(I.max(), E[I == I.max()].max())
         except ValueError: # this can occur if everything is masked
             return ErrorValue(np.nan, np.nan)
-
     def min(self, masked=True):
         if self.check_for_mask(False) and masked:
             indices = np.array(self.mask) != 0
@@ -681,6 +683,26 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         else:
             self.Error = None
         return self
+    def read_from_BerSANS(self, filename, **kwargs):
+        kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)
+        c, e, hed = twodim.readBerSANSdata(misc.findfileindirs(filename, dirs=kwargs['dirs']))
+        self.header = SASHeader(hed)
+        self.Intensity = c
+        if e is not None:
+            self.Error = e
+        elif kwargs['estimate_errors']:
+            self.Error = np.sqrt(self.Intensity)
+        else:
+            self.Error = None
+        if 'MaskFile' in self.header:
+            dir_ = os.path.split(filename)[0]
+            if dir_:
+                dirs = [dir_] + kwargs['dirs']
+            else:
+                dirs = kwargs['dirs']
+            self.set_mask(SASMask(self.header['MaskFile'], dirs=dirs))
+        return self
+
 
     def read_from_MAR(self, filename, **kwargs):
         kwargs = SASExposure._set_default_kwargs_for_readers(kwargs)

@@ -39,5 +39,4 @@ setup(name='sastool', version='0.1.3', author='Andras Wacha',
 #                    },
       keywords="saxs sans sas small-angle scattering x-ray neutron",
       license="",
-      package_data={'sastool': ['resource/*/*']},
       )

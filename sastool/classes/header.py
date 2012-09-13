@@ -26,6 +26,9 @@ import scipy.constants
 HC = scipy.constants.codata.value('Planck constant in eV s') * \
     scipy.constants.codata.value('speed of light in vacuum') * 1e10
 
+NEUTRON_WAVELENGTH_CONVERTOR = scipy.constants.codata.value('Planck constant') ** 2 * 0.5 / \
+    (scipy.constants.codata.value('neutron mass')) / \
+    scipy.constants.codata.value('electron volt-joule relationship') * 1e20# J
 
 class SASHeader(dict):
     """A class for holding measurement meta-data, such as sample-detector
@@ -251,6 +254,8 @@ class SASHeader(dict):
                 return 'read_from_PAXE'
             elif file_or_dict.lower().endswith('.image'):
                 return 'read_from_MAR'
+            elif re.match('.*?D(\d+).(\d+)$', file_or_dict):
+                return 'read_from_BerSANS'
         elif isinstance(file_or_dict, h5py.highlevel.Group):
             return 'read_from_HDF5'
         elif isinstance(file_or_dict, dict):
@@ -270,6 +275,8 @@ class SASHeader(dict):
                 return 'read_from_BDFv2'
             elif file_or_dict['__Origin__'] == 'MarResearch .image':
                 return 'read_from_MAR'
+            elif file_or_dict['__Origin__'] == 'BerSANS':
+                return 'read_from_BerSANS'
             else:
                 raise ValueError('Unknown header dictionary')
         else:
@@ -348,6 +355,26 @@ class SASHeader(dict):
             val = 0
         elif key.startswith('Monitor'):
             val = 0
+        elif key == '__particle__':
+            val = 'photon'
+        elif key == 'Energy':
+            if 'Wavelength' not in self:
+                raise KeyError(key)
+            if self['__particle__'] == 'photon':
+                val = HC / self['Wavelength']
+            elif self['__particle__'] == 'neutron':
+                val = NEUTRON_WAVELENGTH_CONVERTOR / self['Wavelength'] ** 2
+            else:
+                raise ValueError('Invalid particle type: ' + self['__particle__'])
+        elif key == 'Wavelength':
+            if 'Energy' not in self:
+                raise KeyError(key)
+            if self['__particle__'] == 'photon':
+                val = HC / self['Energy']
+            elif self['__particle__'] == 'neutron':
+                val = (NEUTRON_WAVELENGTH_CONVERTOR / self['Energy']) ** 0.5
+            else:
+                raise ValueError('Invalid particle type: ' + self['__particle__'])
         elif key in ['maskid']:
             val = None
         elif key.startswith('FSN'):
@@ -579,6 +606,16 @@ class SASHeader(dict):
     read_from_BDFv2 = read_from_BDF
     read_from_BDFv1 = read_from_BDF
 
+    def read_from_BerSANS(self, filename, **kwargs):
+        kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
+        if isinstance(filename, basestring):
+            hed = header.readBerSANS(misc.findfileindirs(filename, kwargs['dirs']))
+        else:
+            hed = filename
+        self.update(hed)
+        self.add_history('Imported from a BerSANS file')
+        self._key_aliases['maskid'] = 'MaskFile'
+        return self
     def write_B1_log(self, filename):
         header.writeB1logfile(filename, self)
     # ------------------------ History manipulation ---------------------------

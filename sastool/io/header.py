@@ -165,6 +165,7 @@ def readB1logfile(filename):
             dic[ld[1]] = vals
     fid.close()
     dic['__Origin__'] = 'B1 log'
+    dic['__particle__'] = 'photon'
     return dic
 
 def writeB1logfile(filename, data):
@@ -317,6 +318,7 @@ def readB1header(filename):
     hed['MonitorDORISError'] = math.sqrt(hed['MonitorDORIS'])
     hed['Date'] = datetime.datetime(hed['Year'], hed['Month'], hed['Day'], hed['Hour'], hed['Minutes'])
     hed['__Origin__'] = 'B1 original'
+    hed['__particle__'] = 'photon'
     return hed
 
 def _readedf_extractline(left, right):
@@ -369,6 +371,7 @@ def readehf(filename):
     f.close()
     edf['FileName'] = filename
     edf['__Origin__'] = 'EDF ID02'
+    edf['__particle__'] = 'photon'
     return edf
 
 def readbhfv2(filename, load_data=False, bdfext='.bdf', bhfext='.bhf'):
@@ -408,6 +411,7 @@ def readbhfv2(filename, load_data=False, bdfext='.bdf', bhfext='.bhf'):
     header['ydim'] = header['C']['ydim']
     header['type'] = header['C']['type']
     header['__Origin__'] = 'BDFv2'
+    header['__particle__'] = 'photon'
 
     #now open the data if needed
     if load_data:
@@ -548,6 +552,7 @@ def readbhfv1(filename, load_data=False, bdfext='.bdf', bhfext='.bhf'):
     for dictname, prfname in zip(['M', 'CG', 'CS', 'CT'], ['M', 'G', 'S', 'T']):
         bdf[dictname] = dict(zip(namelists[prfname], valuelists[prfname]))
     bdf['__Origin__'] = 'BDFv1'
+    bdf['__particle__'] = 'photon'
 
     if load_data:
         f = open(dataname, 'r')
@@ -642,7 +647,10 @@ def readPAXE(filename, load_data=False):
     par['WaveLength'] = long(s[0x42:0x44])
     par['Dist'] = long(s[0x44:0x49])
     par['comments'] = re.sub(r'\s+', ' ', s[0x6d:0x100].strip())
-    par['sum'] = long(s[0x65:0x6d])
+    try:
+        par['sum'] = long(s[0x65:0x6d])
+    except:
+        par['sum'] = np.nan
     par['BeamPosX'] = float(s[0x49:0x4d])
     par['BeamPosY'] = float(s[0x4d:0x51])
     par['AngleBase'] = float(s[0x51:0x56])
@@ -654,6 +662,7 @@ def readPAXE(filename, load_data=False):
     par['Detector'] = 'XE'
     par['PixelSize'] = 1.0
     par['__Origin__'] = 'PAXE'
+    par['__particle__'] = 'neutron'
     if load_data:
         if filename.endswith('32'):
             return par, np.fromstring(s[0x100:], '<i4').astype(np.double).reshape((64, 64))
@@ -677,5 +686,57 @@ def readmarheader(filename):
             'highintensitypixels':intheader[4],
             'highintensityrecords':intheader[5],
             'Date':dateutil.parser.parse(strheader),
-            'Detector':'MARCCD'}
+            'Detector':'MARCCD', '__particle__':'photon'}
 
+def readBerSANS(filename):
+    """Read a header from a SANS file (produced usually by BerSANS)"""
+    hed = {'Comment':''}
+    translate = {'Lambda':'Wavelength',
+               'Title':'Owner',
+               'SampleName':'Title',
+               'BeamcenterX':'BeamPosX',
+               'BeamcenterY':'BeamPosY',
+               'Time':'MeasTime',
+               'TotalTime':'MeasTime',
+               'Moni1':'Monitor',
+               'Moni2':'Monitor',
+               'Moni':'Monitor',
+               'Transmission':'Transm',
+               }
+    with open(filename, 'rt') as f:
+        comment_next = False
+        for l in f:
+            l = l.strip()
+            if comment_next:
+                hed['Comment'] = hed['Comment'] + '\n' + l
+                comment_next = False
+            elif l.startswith('%Counts'):
+                break
+            elif l.startswith('%Comment'):
+                comment_next = True
+            elif l.startswith('%'):
+                continue
+            elif l.split('=', 1)[0] in translate:
+                hed[translate[l.split('=', 1)[0]]] = misc.parse_number(l.split('=', 1)[1])
+            else:
+                try:
+                    hed[l.split('=', 1)[0]] = misc.parse_number(l.split('=', 1)[1])
+                except IndexError:
+                    print l.split('=', 1)
+    if 'FileName' in hed:
+        m = re.match('D(\d+)\.(\d+)', hed['FileName'])
+        if m is not None:
+            hed['FSN'] = int(m.groups()[0])
+            hed['suffix'] = int(m.groups()[1])
+    if 'FileDate' in hed:
+        hed['Date'] = dateutil.parser.parse(hed['FileDate'])
+    if 'FileTime' in hed:
+        hed['Date'] = datetime.datetime.combine(hed['Date'].date(), dateutil.parser.parse(hed['FileTime']).time())
+    hed['__Origin__'] = 'BerSANS'
+    if 'SD' in hed:
+        hed['Dist'] = hed['SD'] * 1000
+    if hed['Comment'].startswith('\n'):
+        hed['Comment'] = hed['Comment'][1:]
+    hed['__particle__'] = 'neutron'
+    hed['Wavelength'] *= 10; #convert from nanometres to Angstroems
+    return hed
