@@ -434,8 +434,8 @@ def readBerSANSmask(filename):
             l = f.readline()
         m = f.read()
     mask = np.array([[ord(y) for y in x] for x in m.split()], np.uint8)
-    mask[mask == 45] = 0
-    mask[mask == 35] = 1
+    mask[mask == 45] = 1
+    mask[mask == 35] = 0
     return mask
 
 def writeBerSANSmask(filename, maskmatrix):

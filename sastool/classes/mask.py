@@ -217,15 +217,7 @@ and maskid argument was omitted.')
         col, row = np.meshgrid(np.arange(self.mask.shape[1]),
                             np.arange(self.mask.shape[0]))
         idx = (row >= min(x0, x1)) & (row <= max(x0, x1)) & (col <= max(y0, y1)) & (col >= min(y0, y1))
-        if whattodo.lower() == 'mask':
-            self.mask[idx] = 0
-        elif whattodo.lower() == 'unmask':
-            self.mask[idx] = 1
-        elif whattodo.lower() == 'invert':
-            self.mask[idx] = 1 - self.mask[idx]
-        else:
-            raise ValueError('Invalid value for argument \'whattodo\': ' + whattodo)
-        return self
+        return self.edit_general(idx, whattodo)
     def edit_polygon(self, x, y, whattodo='mask'):
         """Edit points inside a polygon.
 
@@ -240,15 +232,7 @@ and maskid argument was omitted.')
         points = np.vstack((col.flatten(), row.flatten())).T
         points_inside = matplotlib.nxutils.points_inside_poly(points, np.vstack((y, x)).T)
         idx = points_inside.astype('bool').reshape(self.shape)
-        if whattodo.lower() == 'mask':
-            self.mask[idx] = 0
-        elif whattodo.lower() == 'unmask':
-            self.mask[idx] = 1
-        elif whattodo.lower() == 'invert':
-            self.mask[idx] = 1 - self.mask[idx]
-        else:
-            raise ValueError('Invalid value for argument \'whattodo\': ' + whattodo)
-        return self
+        return self.edit_general(idx, whattodo)
 
 
     def edit_circle(self, x0, y0, r, whattodo='mask'):
@@ -263,15 +247,7 @@ and maskid argument was omitted.')
         col, row = np.meshgrid(np.arange(self.mask.shape[1]),
                             np.arange(self.mask.shape[0]))
         idx = (((row - x0) ** 2 + (col - y0) ** 2) <= r ** 2)
-        if whattodo.lower() == 'mask':
-            self.mask[idx] = 0
-        elif whattodo.lower() == 'unmask':
-            self.mask[idx] = 1
-        elif whattodo.lower() == 'invert':
-            self.mask[idx] = 1 - self.mask[idx]
-        else:
-            raise ValueError('Invalid value for argument \'whattodo\': ' + whattodo)
-        return self
+        return self.edit_general(idx, whattodo)
 
     def edit_from_matrix(self, matrix, valmin= -np.inf, valmax=np.inf,
                          masknonfinite=True, whattodo='mask'):
@@ -289,16 +265,8 @@ and maskid argument was omitted.')
             raise ValueError('Incompatible shape for the matrix!')
         idx = (matrix >= valmin) & (matrix <= valmax)
         if masknonfinite:
-            self.mask[-np.isfinite(matrix)] = 0
-        if whattodo.lower() == 'mask':
-            self.mask[idx] = 0
-        elif whattodo.lower() == 'unmask':
-            self.mask[idx] = 1
-        elif whattodo.lower() == 'invert':
-            self.mask[idx] = 1 - self.mask[idx]
-        else:
-            raise ValueError('Invalid value for argument \'whattodo\': ' + whattodo)
-        return self
+            idx &= (-np.isfinite(matrix))
+        return self.edit_general(idx, whattodo)
     def edit_borders(self, left=0, right=0, top=0, bottom=0, whattodo='mask'):
         """Edit borders of the mask.
 
@@ -312,6 +280,8 @@ and maskid argument was omitted.')
         col, row = np.meshgrid(np.arange(self.mask.shape[1]),
                             np.arange(self.mask.shape[0]))
         idx = (col < left) | (col > self.shape[1] - 1 - right) | (row < top) | (row > self.shape[0] - 1 - bottom)
+        return self.edit_general(idx, whattodo)
+    def edit_general(self, idx, whattodo):
         if whattodo.lower() == 'mask':
             self.mask[idx] = 0
         elif whattodo.lower() == 'unmask':
@@ -335,14 +305,12 @@ and maskid argument was omitted.')
                             np.arange(self.mask.shape[0]))
         idx = ((col - first_column) % (module_columns + gap_columns) >= module_columns) | \
             ((row - first_row) % (module_rows + gap_rows) >= module_rows)
-        if whattodo.lower() == 'mask':
-            self.mask[idx] = 0
-        elif whattodo.lower() == 'unmask':
-            self.mask[idx] = 1
-        elif whattodo.lower() == 'invert':
-            self.mask[idx] = 1 - self.mask[idx]
-        else:
-            raise ValueError('Invalid name for argument \'whattodo\': ' + whattodo)
-        return self
+        return self.edit_general(idx, whattodo)
+    def edit_nonfinite(self, matrix, whattodo='mask'):
+        return self.edit_function(matrix, lambda a:-np.isfinite(a), whattodo)
+    def edit_nonpositive(self, matrix, whattodo='mask'):
+        return self.edit_function(matrix, lambda a:a <= 0, whattodo)
+    def edit_function(self, matrix, func, whattodo='mask'):
+        return self.edit_general(func(matrix), whattodo)
     def __getitem__(self, key):
         return self.__class__(self.mask[key], maskid=self.maskid + '$trim')

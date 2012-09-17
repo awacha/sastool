@@ -124,12 +124,22 @@ class SASExposure(ArithmeticBase):
             self.Error = args[0].Error.copy()
             self.header = SASHeader(args[0].header)
             self.mask = SASMask(args[0].mask)
+        elif len(args) == 1 and isinstance(args[0], np.ndarray):
+            self.Intensity = args[0]
+            self.Error = None
+            self.header = SASHeader()
+            self.mask = None
         elif (len(args) <= 2): #scheme 2) or 3) or 4) with single FSN or direct file load
             self.Intensity = None
             self.Error = None
             self.header = SASHeader()
             self.mask = None
-            if len(args) == 1 and isinstance(args[0], basestring):
+            if len(args) == 2 and isinstance(args[0], np.ndarray) and isinstance(args[1], np.ndarray):
+                self.Intensity = args[0]
+                self.Error = args[1]
+                self.header = SASHeader()
+                self.mask = None
+            elif len(args) == 1 and isinstance(args[0], basestring):
                 filename = args[0]
             elif isinstance(args[0], h5py.highlevel.Group) and len(args) > 1:
                 # interpolate FSN
@@ -168,8 +178,8 @@ class SASExposure(ArithmeticBase):
                 self.set_mask(SASMask(kwargs['maskfile'], dirs=kwargs['dirs']))
         else:
             raise ValueError('Too many positional arguments!')
-        if self.mask is None:
-            self.set_mask(SASMask(np.ones_like(self.Intensity)))
+#        if self.mask is None:
+#            self.set_mask(SASMask(np.ones_like(self.Intensity)))
     def __new__(cls, *args, **kwargs):
         """Load files or just create an empty instance or copy.
 
@@ -363,7 +373,10 @@ class SASExposure(ArithmeticBase):
         # nor its ancestor has one.
     @property
     def shape(self):
-        return self.Intensity.shape
+        if hasattr(self, 'Intensity') and self.Intensity is not None:
+            return self.Intensity.shape
+        else:
+            return None
 
     def __setitem__(self, key, value):
         """respond to `obj[key] = value` calls. Delegate requests to self.header."""
@@ -1265,7 +1278,8 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         qrange_on_axis [True]: if the q-range is to be set to the axis. If no
             mask is attached to this SASExposure instance, defaults to False
         matrix ['Intensity']: the matrix which is to be plotted. If this is not
-            present, another one will be chosen quietly
+            present, another one will be chosen quietly. If None, the scattering
+            image is not plotted.
         axes [None]: the axes into which the image should be plotted. If None,
             defaults to the currently active axes (returned by plt.gca())
         invalid_color ['black']: the color for invalid (NaN or infinite) pixels
@@ -1283,7 +1297,8 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             like should be suppressed.
         drawcolorbar [True]: if a colorbar is to be added. Can be a boolean value
             (True or False) or an instance of matplotlib.axes.Axes, into which the
-            color bar should be drawn.
+            color bar should be drawn. This cannot be other than False if argument
+            'matrix' is None.
 
         All other keywords are forwarded to plt.imshow()
 
@@ -1335,10 +1350,13 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 kwargs_for_imshow[v] = kwargs_default['zscale'](float(kwargs_for_imshow[v]))
             except Exception as e:
                 pass
-        mat = self.get_matrix(kwargs_default['matrix']).copy()
-        mat[mat < kwargs_default['minvalue']] = kwargs_default['minvalue']
-        mat[mat > kwargs_default['maxvalue']] = kwargs_default['maxvalue']
-        mat = kwargs_default['zscale'](mat)
+        if kwargs_default['matrix'] is not None:
+            mat = self.get_matrix(kwargs_default['matrix']).copy()
+            mat[mat < kwargs_default['minvalue']] = kwargs_default['minvalue']
+            mat[mat > kwargs_default['maxvalue']] = kwargs_default['maxvalue']
+            mat = kwargs_default['zscale'](mat)
+        else:
+            mat = None
 
         if kwargs_default['drawmask']:
             try:
@@ -1374,11 +1392,14 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                 bcy = self.header['BeamPosY']
             else:
                 bcx = None; bcy = None
-            xmin = 0; xmax = mat.shape[1]; ymin = 0; ymax = mat.shape[0]
+            xmin = 0; xmax = self.shape[1]; ymin = 0; ymax = self.shape[0]
 
         if kwargs_default['axes'] is None:
             kwargs_default['axes'] = plt.gca()
-        ret = kwargs_default['axes'].imshow(mat, **kwargs_for_imshow) #IGNORE:W0142
+        if mat is not None:
+            ret = kwargs_default['axes'].imshow(mat, **kwargs_for_imshow) #IGNORE:W0142
+        else:
+            ret = None
         if kwargs_default['drawmask']:
             #workaround: because of the colour-scaling we do here, full one and
             #   full zero masks look the SAME, i.e. all the image is shaded.
@@ -1401,7 +1422,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             else:
                 warnings.warn('Cross-hair was requested but beam center was not found.')
         kwargs_default['axes'].set_axis_bgcolor(kwargs_default['invalid_color'])
-        if kwargs_default['drawcolorbar']:
+        if kwargs_default['drawcolorbar'] and mat is not None:
             if isinstance(kwargs_default['drawcolorbar'], matplotlib.axes.Axes):
                 kwargs_default['axes'].figure.colorbar(ret, cax=kwargs_default['drawcolorbar'])
             else:
