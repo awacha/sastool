@@ -296,7 +296,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
                 qout[l]+=q1*w
                 Intensity[l]+=data[ix,iy]*w
                 if flagerror:
-                    Error[l]+=dataerr[ix,iy]**2*w**2
+                    Error[l]+=dataerr[ix,iy]**2*w
                 Area[l]+=1
                 weight[l]+=w
                 if returnmask:
@@ -310,7 +310,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
             qout[l]/=weight[l]
             Intensity[l]/=weight[l]
             if flagerror:
-                Error[l]=sqrt(Error[l])/weight[l]
+                Error[l]=sqrt(Error[l]/weight[l])
             pixelout[l]/=weight[l]
     #cleanup memory
     free(qmax)
@@ -508,7 +508,7 @@ def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
                 qout[l,sector_idx]+=q1*w
                 Intensity[l,sector_idx]+=data[ix,iy]*w
                 if flagerror:
-                    Error[l,sector_idx]+=dataerr[ix,iy]**2*w**2
+                    Error[l,sector_idx]+=dataerr[ix,iy]**2*w
                 Area[l,sector_idx]+=1
                 weight[l*Nsector+sector_idx]+=w
                 if returnmask:
@@ -523,7 +523,7 @@ def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
                 qout[l,sector_idx]/=weight[l*Nsector+sector_idx]
                 Intensity[l,sector_idx]/=weight[l*Nsector+sector_idx]
                 if flagerror:
-                    Error[l,sector_idx]=sqrt(Error[l,sector_idx])/weight[l*Nsector+sector_idx]
+                    Error[l,sector_idx]=sqrt(Error[l,sector_idx]/weight[l*Nsector+sector_idx])
                 pixelout[l,sector_idx]/=weight[l*Nsector+sector_idx]
     #cleanup memory
     free(qmax)
@@ -668,7 +668,7 @@ def radint_fullq(np.ndarray[np.double_t,ndim=2] data not None,
                 qout[l]+=q1*w
                 Intensity[l]+=data[ix,iy]*w
                 if flagerror:
-                    Error[l]+=dataerr[ix,iy]**2*w**2
+                    Error[l]+=w*dataerr[ix,iy]**2
                 Area[l]+=1
                 weight[l]+=w
                 if returnmask:
@@ -680,7 +680,7 @@ def radint_fullq(np.ndarray[np.double_t,ndim=2] data not None,
             qout[l]/=weight[l]
             Intensity[l]/=weight[l]
             if flagerror:
-                Error[l]=sqrt(Error[l])/weight[l]
+                Error[l]=sqrt(Error[l]/weight[l])
     #cleanup memory
     free(qmax)
     free(weight)

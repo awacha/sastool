@@ -4,9 +4,9 @@ Created on Jul 25, 2012
 @author: andris
 '''
 import numpy as np
-from ..misc import easylsq
+from sastool.misc import easylsq
 from scipy.special import gamma, psi
-from ..classes import ErrorValue
+from sastool.classes import ErrorValue
 
 __all__ = ['fit_shullroess']
 

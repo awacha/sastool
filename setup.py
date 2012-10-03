@@ -26,7 +26,7 @@ ext_modules = [Extension("sastool.io._io", ["sastool/io/_io.pyx"],
                          include_dirs=incdirs),
                ]
 
-setup(name='sastool', version='0.1.4', author='Andras Wacha',
+setup(name='sastool', version='0.1.6', author='Andras Wacha',
       author_email='awacha@gmail.com', url='http://github.com/awacha/sastool',
       description='Python macros for [A]SA(X|N)S data processing, fitting, plotting etc.',
       packages=find_packages(),

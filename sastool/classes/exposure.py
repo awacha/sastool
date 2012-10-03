@@ -3,8 +3,6 @@ Created on Jun 15, 2012
 
 @author: andris
 '''
-# pylint: disable=F0401
-# pylint: disable=E0611
 
 import numpy as np
 import warnings
@@ -47,7 +45,38 @@ class SASExposure(ArithmeticBase):
     any of the above attributes can be missing, a value of None signifies
     this situation.
 
+    This class can be instantiated in one of the following ways:
 
+    ``SASExposure()``
+        create an empty object (Intensity, Error, mask, header are None)
+
+    ``SASExposure(other_instance_of_sasexposure)``
+        copy constructor: make a deep copy
+
+    ``SASExposure(filename, [other keyword arguments])``
+        load a file. The currently supported file (experiment) types and the
+        corresponding accepted, not common keyword arguments can be found in the
+        doc-strings of the ``read_from_*`` member functions
+
+    ``SASExposure(filename_format, fsn, [other keyword arguments])``
+        load multiple files. `filename_format` is a C-style format string, into
+        which the file sequence number(s) can be interpolated, e.g. 's%07d.bdf'.
+        `fsn` can be a scalar number or a sequence of numbers. In the former
+        case a single ``SASExposure`` is returned. In the latter, a list of
+        ``SASExposure`` instances is returned.
+
+    ``SASExposure(hdf5_object [, fsn] [, HDF5_Groupnameformat='FSN(\d+)']  \
+        [, HDF5_Intensityname='Intensity'] [, HDF5_Errorname='Error'])``
+        load exposures from a HDF5 file or group described by `hdf5_object`,
+        which should either be the name of a HDF5 file or an instance of
+        `h5py.Highlevel.Group`. Exposures reside in HDF5 groups whose name
+        conforms the regular expression pattern in HDF5_Groupnameformat. Each
+        of these groups can have an intensity and an error matrix (HDF5 datasets
+        designated by `HDF5_Intensityname` and `HDF5_Errorname`, respectively.
+        The meta-data are stored as attributes to the HDF5 group of the exposure.
+        If `fsn` is omitted, all exposures found in the group are loaded. If
+        present, only the given file sequence numbers are read (if they are
+        present).
     """
     matrix_names = ['Intensity', 'Error']
     matrices = dict([('Intensity', 'Scattered intensity'),
@@ -82,6 +111,7 @@ class SASExposure(ArithmeticBase):
             return 'read_from_HDF5'
         else:
             raise ValueError('Unknown measurement file format')
+
     @staticmethod
     def _set_default_kwargs_for_readers(kwargs):
         if 'dirs' not in kwargs:
@@ -396,14 +426,10 @@ class SASExposure(ArithmeticBase):
         else:
             obj = self.__class__()
             obj.Intensity = self.Intensity[key]
-            try:
+            if self.Error is not None:
                 obj.Error = self.Error[key]
-            except:
-                pass
-            try:
+            if self.mask is not None:
                 obj.mask = self.mask[key]
-            except:
-                pass
             obj.header = SASHeader(self.header)
             return obj
 
@@ -995,8 +1021,8 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                self.header['BeamPosX'], self.header['BeamPosY'],
                                                (self.mask.mask == 0).astype(np.uint8),
                                                qrange, returnavgq=q_average,
-                                               returnmask=returnmask);
-            i = 0;
+                                               returnmask=returnmask)
+            i = 0
             q = res[i]; i += 1
             I = res[i]; i += 1
             if err is not None:
@@ -1015,7 +1041,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                      1 - self.mask.mask, qrange,
                                                      returnmask=returnmask,
                                                      returnavgpix=q_average)
-            i = 0;
+            i = 0
             p = res[i]; i += 1
             I = res[i]; i += 1
             if err is not None:
@@ -1077,7 +1103,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                returnpixel=True,
                                                returnmask=returnmask,
                                                phi0=phi0, dphi=dphi, symmetric_sector=symmetric_sector)
-            i = 0;
+            i = 0
             q = res[i]; i += 1
             I = res[i]; i += 1
             if err is not None:
@@ -1097,7 +1123,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                      returnavgpix=q_average, phi0=phi0,
                                                      returnmask=returnmask,
                                                      dphi=dphi, symmetric_sector=symmetric_sector)
-            i = 0;
+            i = 0
             p = res[i]; i += 1
             I = res[i]; i += 1
             if err is not None:
@@ -1161,7 +1187,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                phi0=phi0, dphi=width,
                                                doslice=True,
                                                symmetric_sector=symmetric_slice)
-            i = 0;
+            i = 0
             q = res[i]; i += 1
             I = res[i]; i += 1
             if err is not None:
@@ -1182,7 +1208,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                      dphi=width, symmetric_sector=symmetric_slice,
                                                      returnmask=returnmask,
                                                      doslice=True)
-            i = 0;
+            i = 0
             p = res[i]; i += 1
             I = res[i]; i += 1
             if err is not None:
@@ -1242,7 +1268,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
                                                      self.mask.mask == 0, Ntheta,
                                                      returnmask=returnmask,
                                                      pixmin=qmin, pixmax=qmax)
-        i = 0;
+        i = 0
         theta = res[i]; i += 1
         I = res[i]; i += 1
         if err is not None:
@@ -1346,10 +1372,8 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             else:
                 raise ValueError('Invalid value for zscale: %s' % kwargs_default['zscale'])
         for v in ['vmin', 'vmax']:
-            try:
+            if v in kwargs_for_imshow:
                 kwargs_for_imshow[v] = kwargs_default['zscale'](float(kwargs_for_imshow[v]))
-            except Exception as e:
-                pass
         if kwargs_default['matrix'] is not None:
             mat = self.get_matrix(kwargs_default['matrix']).copy()
             mat[mat < kwargs_default['minvalue']] = kwargs_default['minvalue']

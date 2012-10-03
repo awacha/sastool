@@ -21,13 +21,13 @@ class ArithmeticBase(object):
         __div__, __rdiv__ and __idiv__ are constructed automatically from the
         given functions (assuming commutative addition and multiplication)
     """
-    def copy(self):
-        raise NotImplementedError
     def __add__(self, value):
         try:
-            obj = self.copy()
-        except NotImplementedError:
+            copier = getattr(self, 'copy')
+        except AttributeError:
             obj = type(self)(self)
+        else:
+            obj = copier()
         obj = obj.__iadd__(value)
         return obj
     def __radd__(self, value):
@@ -39,9 +39,11 @@ class ArithmeticBase(object):
         return self.__iadd__(-value)
     def __sub__(self, value):
         try:
-            obj = self.copy()
-        except NotImplementedError:
+            copier = getattr(self, 'copy')
+        except AttributeError:
             obj = type(self)(self)
+        else:
+            obj = copier()
         obj = obj.__isub__(value)
         return obj
     def __rsub__(self, value):
@@ -52,9 +54,11 @@ class ArithmeticBase(object):
     def __mul__(self, value):
         #print "arithmetic.__mul__ starting: ",type(self),type(value)
         try:
-            obj = self.copy()
-        except NotImplementedError:
+            copier = getattr(self, 'copy')
+        except AttributeError:
             obj = type(self)(self)
+        else:
+            obj = copier()
         #print "calling imul"
         obj = obj.__imul__(value)
         #print "imul returned"
@@ -70,9 +74,11 @@ class ArithmeticBase(object):
         return self.__imul__(1.0 / value)
     def __div__(self, value):
         try:
-            obj = self.copy()
-        except NotImplementedError:
+            copier = getattr(self, 'copy')
+        except AttributeError:
             obj = type(self)(self)
+        else:
+            obj = copier()
         obj = obj.__idiv__(value)
         return obj
     def __rdiv__(self, value):

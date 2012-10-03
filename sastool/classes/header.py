@@ -30,6 +30,10 @@ NEUTRON_WAVELENGTH_CONVERTOR = scipy.constants.codata.value('Planck constant') *
     (scipy.constants.codata.value('neutron mass')) / \
     scipy.constants.codata.value('electron volt-joule relationship') * 1e20# J
 
+class SASHeaderException(Exception):
+    pass
+
+
 class SASHeader(dict):
     """A class for holding measurement meta-data, such as sample-detector
     distance, photon energy, wavelength, beam position etc.
@@ -256,6 +260,8 @@ class SASHeader(dict):
                 return 'read_from_MAR'
             elif re.match('.*?D(\d+).(\d+)$', file_or_dict):
                 return 'read_from_BerSANS'
+            else:
+                raise SASHeaderException('Cannot determine experiment type from "%s"' % file_or_dict)
         elif isinstance(file_or_dict, h5py.highlevel.Group):
             return 'read_from_HDF5'
         elif isinstance(file_or_dict, dict):

@@ -9,16 +9,16 @@ Created on Apr 5, 2012
 __all__ = ['common', 'exposure', 'header', 'mask', 'arithmetic', 'curve', 'errorvalue']
 
 
-from ..misc import errorvalue
-from ..misc import arithmetic
+from sastool.misc import errorvalue
+from sastool.misc import arithmetic
 import common
 import exposure
 import header
 import mask
 import curve
 
-from ..misc.errorvalue import *
-from ..misc.arithmetic import *
+from sastool.misc.errorvalue import *
+from sastool.misc.arithmetic import *
 from common import *
 from .exposure import *
 from .mask import *

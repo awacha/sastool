@@ -4,9 +4,6 @@ Created on Jul 5, 2012
 @author: andris
 '''
 
-# pylint: disable=E1103
-# pylint: disable=F0401
-
 import numpy as np
 import collections
 import numbers
@@ -15,9 +12,9 @@ import gzip
 import itertools
 import operator
 
-from ..misc.arithmetic import ArithmeticBase
-from ..misc.errorvalue import ErrorValue
-from ..misc.easylsq import nonlinear_leastsquares, simultaneous_nonlinear_leastsquares
+from sastool.misc.arithmetic import ArithmeticBase
+from sastool.misc.errorvalue import ErrorValue
+from sastool.misc.easylsq import nonlinear_leastsquares, simultaneous_nonlinear_leastsquares
 
 __all__ = ['GeneralCurve', 'SASCurve', 'SASPixelCurve', 'SASAzimuthalCurve']
 
@@ -63,7 +60,9 @@ class GeneralCurve(ArithmeticBase):
     _xtol = 1e-3
     _dxepsilon = 1e-6
     _default_special_names = [('x', 'X'), ('y', 'Y'), ('dy', 'DY'), ('dx', 'DX')]
+
     def __init__(self, *args, **kwargs):
+        ArithmeticBase.__init__(self)
         kwargs = self._initialize_kwargs_for_readers(kwargs)
         self._controlled_attributes = []
         self._special_names = kwargs['special_names']
@@ -103,12 +102,14 @@ class GeneralCurve(ArithmeticBase):
                         (isinstance(kwargs[k], collections.Sequence) and all(isinstance(x, numbers.Number) or isinstance(x, ErrorValue) for x in kwargs[k]))
                         or isinstance(kwargs[k], ErrorValue)]:
             self.add_dataset(name, a)
+
     def __getattribute__(self, name):
         #hack to allow instance descriptors. http://blog.brianbeck.com/post/74086029/instance-descriptors
         value = object.__getattribute__(self, name)
         if isinstance(value, ControlledVectorAttribute):
             value = value.__get__(self, self.__class__)
         return value
+
     def __setattr__(self, name, value):
         #hack to allow instance descriptors. http://blog.brianbeck.com/post/74086029/instance-descriptors
         if hasattr(self, '_special_names') and name in self._special_names.values():
@@ -304,6 +305,7 @@ class GeneralCurve(ArithmeticBase):
         else:
             return NotImplemented
         return self
+
     def __imul__(self, other):
         try:
             other = self.check_arithmetic_compatibility(other)
@@ -679,7 +681,6 @@ class GeneralCurve(ArithmeticBase):
             results.append(tuple(pars) + (statdict, funcval))
         return results
 
-
     @classmethod
     def average(cls, *args):
         args = list(args)
@@ -703,16 +704,21 @@ class GeneralCurve(ArithmeticBase):
             d['y'] = np.sum([a.y / a.dy ** 2 for a in args], 0) / sumweight
             d['dy'] = 1.0 / sumweight
         return cls(d)
+
     def has_valid_dx(self):
         return hasattr(self, 'dx') and np.absolute(self.dx).sum() > 0
+
     def has_valid_dy(self):
         return hasattr(self, 'dy') and np.absolute(self.dy).sum() > 0
+
 
 class SASCurve(GeneralCurve):
     _default_special_names = [('x', 'q'), ('y', 'Intensity'), ('dy', 'Error'), ('dx', 'qError')]
 
+
 class SASPixelCurve(GeneralCurve):
     _default_special_names = [('x', 'pixel'), ('y', 'Intensity'), ('dy', 'Error'), ('dx', 'pixelError')]
+
 
 class SASAzimuthalCurve(GeneralCurve):
     _default_special_names = [('x', 'phi'), ('y', 'Intensity'), ('dy', 'Error'), ('dx', 'phiError')]

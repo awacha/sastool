@@ -6,7 +6,7 @@ Created on Jun 15, 2012
 
 import h5py
 
-from .. import misc
+from sastool import misc
 
 __all__ = ['SASExposureException', 'SASMaskException']
 
@@ -25,7 +25,7 @@ class _HDF_parse_group(object):
         self.hdf_argument = hdf_argument
         self.hdf_file = None
         self.hdf_group = None
-        self.dirs = None
+        self.dirs = dirs
     def __enter__(self):
         if isinstance(self.hdf_argument, basestring):
             self.hdf_file = h5py.highlevel.File(misc.findfileindirs(self.hdf_argument, self.dirs))
