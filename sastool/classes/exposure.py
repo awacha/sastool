@@ -787,8 +787,11 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             self.set_mask(SASMask(filename, dirs=dirs))
         return self
     ### ------------------- Interface routines ------------------------------------
-    def set_mask(self, mask):
-        mask1 = SASMask(mask)
+    def set_mask(self, mask=None):
+        if mask is None:
+            mask1 = SASMask(np.ones(self.shape, dtype=np.uint8))
+        else:
+            mask1 = SASMask(mask)
         if self.shape != mask1.shape:
             raise SASExposureException('Invalid shape for mask: %s instead of %s.' % (str(mask1.shape), str(self.shape)))
         self.mask = mask1

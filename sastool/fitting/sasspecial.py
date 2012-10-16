@@ -14,8 +14,26 @@ def fit_shullroess(q, Intensity, Error, R0=None, r=None):
     """Do a Shull-Roess fitting on the scattering data.
 
     Inputs:
+        q: np.ndarray[ndim=1]
+            vector of the q values (4*pi*sin(theta)/lambda)
+        Intensity: np.ndarray[ndim=1]
+            Intensity vector
+        Error: np.ndarray[ndim=1]
+            Error of the intensity (absolute uncertainty, 1sigma)
+        R0: scalar
+            first guess for the mean radius (None to autodetermine, default)
+        r: np.ndarray[ndim=1]
+            vector of the abscissa of the resulting size distribution (None to
+            autodetermine, default)
 
     Output:
+        A: ErrorValue
+            the fitted value of the intensity scaling factor
+        r0: the r0 parameter of the maxwellian size distribution
+        n: the n parameter of the maxwellian size distribution
+        r: the abscissa of the fitted size distribution
+        maxw: the size distribution
+        stat: the statistics dictionary, returned by nlsq_fit()
 
     Note: This first searches for r0, which best linearizes the
             log(Intensity) vs. log(q**2+3/r0**2) relation.

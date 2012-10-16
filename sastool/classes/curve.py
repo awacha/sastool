@@ -57,7 +57,7 @@ class ControlledVectorAttribute(object):
             obj._controlled_attributes.remove(self.name)
 
 class GeneralCurve(ArithmeticBase):
-    _xtol = 1e-3
+    _xtolpcnt = 1e-2 # tolerance percent in abscissa (1e-2 corresponds to 1%)
     _dxepsilon = 1e-6
     _default_special_names = [('x', 'X'), ('y', 'Y'), ('dy', 'DY'), ('dx', 'DX')]
 
@@ -274,7 +274,7 @@ class GeneralCurve(ArithmeticBase):
                     return other
                 else:
                     raise ValueError('Abscissae are not the same within error!')
-            elif np.absolute(other.x - self.x).max() < max(self._xtol, other._xtol):
+            elif (np.absolute(other.x - self.x) <= np.absolute(other.x + self.x) * 0.5 * max(self._xtolpcnt, other._xtolpcnt)).all():
                 return other
             else:
                 raise ValueError('Incompatible abscissae!')
