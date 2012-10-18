@@ -31,16 +31,26 @@ def hide_fixedparams(function, params):
         return function(x, *resubstitute_fixedparams(pars, params), **kwargs)
     return newfunc, [p for p in params if not isinstance(p, FixedParameter)]
 
-def resubstitute_fixedparams(params, paramsorig):
+def resubstitute_fixedparams(params, paramsorig, covariance=None):
     if isinstance(paramsorig, tuple):
         paramsorig = list(paramsorig)
     elif isinstance(paramsorig, np.ndarray):
         paramsorig = paramsorig.tolist()
     paramsorig = paramsorig[:]
-    for j, p in zip([i for i in range(len(paramsorig))
-                     if not isinstance(paramsorig[i], FixedParameter)], params):
-        paramsorig[j] = p
-    return paramsorig
+    if covariance is not None:
+        cov1 = np.zeros((len(paramsorig), len(paramsorig)))
+    indices_nonfixed = [i for i in range(len(paramsorig)) if not isinstance(paramsorig[i], FixedParameter)]
+    for i in range(len(params)):
+        paramsorig[indices_nonfixed[i]] = params[i]
+        if covariance is not None:
+            cov1[indices_nonfixed[i], indices_nonfixed[i]] = covariance[i, i]
+            for j in range(i + 1, len(params)):
+                cov1[indices_nonfixed[i], indices_nonfixed[j]] = covariance[i, j]
+                cov1[indices_nonfixed[j], indices_nonfixed[i]] = covariance[j, i]
+    if covariance is not None:
+        return paramsorig, cov1
+    else:
+        return paramsorig
 
 def nonlinear_leastsquares(x, y, dy, func, params_init, verbose=False, **kwargs):
     """Perform a non-linear least squares fit, return the results as
@@ -84,8 +94,8 @@ def nonlinear_leastsquares(x, y, dy, func, params_init, verbose=False, **kwargs)
     """
     newfunc, newparinit = hide_fixedparams(func, params_init)
     p, dp, statdict = nlsq_fit(x, y, dy, newfunc, newparinit, verbose, **kwargs)
-    p = resubstitute_fixedparams(p, params_init)
-    dp = resubstitute_fixedparams(dp, [type(p_)(0) for p_ in params_init])
+    p, statdict['Covariance'] = resubstitute_fixedparams(p, params_init, statdict['Covariance'])
+    dp, statdict['Correlation_coeffs'] = resubstitute_fixedparams(dp, [type(p_)(0) for p_ in params_init], statdict['Correlation_coeffs'])
     def convert(p_, dp_):
         if isinstance(p_, FixedParameter) or isinstance(dp_, FixedParameter):
             return p_
@@ -217,14 +227,12 @@ def nlsq_fit(x, y, dy, func, params_init, verbose=False, **kwargs):
                }
     statdict['Chi2_reduced'] = statdict['Chi2'] / statdict['DoF']
     statdict['Covariance'] = cov * statdict['Chi2_reduced']
+    par, statdict['Covariance'] = resubstitute_fixedparams(par, params_init_orig, statdict['Covariance'])
     #calculate the estimated errors of the fit parameters
     dpar = np.sqrt(statdict['Covariance'].diagonal())
     #Pearson's correlation coefficients (usually 'r') in a matrix.
     statdict['Correlation_coeffs'] = statdict['Covariance'] / np.outer(dpar,
                                                                        dpar)
-    par = resubstitute_fixedparams(par, params_init_orig)
-    dpar = resubstitute_fixedparams(dpar, [type(p)(0)
-                                           for p in params_init_orig])
     if verbose:
         print "nlsq_fit: returning with results."
         print "nlsq_fit: total time: %.2f sec." % (time.time() - t0)
@@ -299,7 +307,8 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, verbose=False,
     # later during the fit.
     paramcat = []  # this will be the concatenated list of parameters
     param_indices = [] # this will have the same structure as params_inits (i.e.
-        # a tuple of tuples of ints). Each integer number holds
+        # a tuple of tuples of ints). Each tuple corresponds to a dataset.
+        # Each integer number in each tuple holds
         # the index of the corresponding fit parameter in the 
         # concatenated parameter list.
     for j in range(Ndata): # for each dataset
