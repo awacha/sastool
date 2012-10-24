@@ -33,7 +33,6 @@ NEUTRON_WAVELENGTH_CONVERTOR = scipy.constants.codata.value('Planck constant') *
 class SASHeaderException(Exception):
     pass
 
-
 class SASHeader(dict):
     """A class for holding measurement meta-data, such as sample-detector
     distance, photon energy, wavelength, beam position etc.
@@ -622,6 +621,7 @@ class SASHeader(dict):
         self.add_history('Imported from a BerSANS file')
         self._key_aliases['maskid'] = 'MaskFile'
         return self
+    
     def write_B1_log(self, filename):
         header.writeB1logfile(filename, self)
     # ------------------------ History manipulation ---------------------------
