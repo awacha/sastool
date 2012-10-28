@@ -10,11 +10,9 @@ import numbers
 import matplotlib.pyplot as plt
 import matplotlib.colors
 import collections
-import re
-import h5py
 
 from .header import SASHeader
-from .common import SASExposureException, _HDF_parse_group
+from .common import SASExposureException,
 from .curve import SASCurve, SASAzimuthalCurve, SASPixelCurve
 from .mask import SASMask
 from .. import misc
@@ -93,17 +91,29 @@ class SASExposure(ArithmeticBase):
         else:
             cls._plugins.insert(idx, plugin)
     @classmethod
+    def get_IOplugin(cls, filename, mode='READ', **kwargs):
+        plugin = []
+        if mode.upper() == 'READ':
+            checkmode = lambda a:a.is_read_supported()
+        elif mode.upper() == 'WRITE':
+            checkmode = lambda a:a.is_write_supported()
+        elif mode.upper() == 'BOTH':
+            checkmode = lambda a:(a.is_read_supported() and a.is_write_supported())
+        else:
+            raise ValueError('Invalid mode!')
+        if 'experiment_type' in kwargs:
+            plugin = [p for p in cls._plugins if p.name == kwargs['experiment_type'] and checkmode(p)]
+        if not plugin:
+            plugin = [p for p in cls._plugins if p.check_if_applies(filename) and checkmode(p)]
+        if not plugin:
+            raise ValueError('No plugin can handle ' + str(filename))
+        return plugin[0]
+    @classmethod
     def _autoguess_experiment_type(cls, fileformat_or_name):
         plugin = [p for p in cls._plugins if p.check_if_applies(fileformat_or_name)]
         if not plugin:
             raise SASExposureException('Cannot find appropriate IO plugin for file ' + fileformat_or_name)
         return plugin[0]
-    @classmethod
-    def _get_HDF5_plugin(cls):
-        h5plugin = [p for p in cls._plugins if p.name == 'HDF5']
-        if not h5plugin:
-            raise SASExposureException('HDF5 plugin not loaded, cannot operate on HDF5 files!')
-        return h5plugin[0]
     @staticmethod
     def _initialize_kwargs(kwargs):
         d = {'dirs':[], 'experiment_type':None, 'load_mask':True, 'maskfile':None,
@@ -116,9 +126,17 @@ class SASExposure(ArithmeticBase):
         called directly since `__new__()` is implemented. See there for the
         usual cases of object construction.
         """
+        if hasattr(self, '_was_init'):
+            #an ugly hack to avoid duplicate __init__()-s, since whenever __new__()
+            # returns an instance of this class, the __init__() method is executed
+            # with the _SAME_ arguments with which __new__() was originally called. 
+            return
+        self._was_init = True
+        print "SASExposure.__init__"
         ArithmeticBase.__init__(self)
-        self._initialize_kwargs(kwargs)
+
         if not args:
+            print "  args=[]"
             #no positional arguments: create an empty SASExposure
             self.Intensity = None
             self.Error = None
@@ -126,6 +144,7 @@ class SASExposure(ArithmeticBase):
             self.mask = None
             return
         elif len(args) == 1 and isinstance(args[0], SASExposure):
+            print "  copy __init__()"
             #make a deep copy of an existing SASExposure
             if isinstance(args[0].Intensity, np.ndarray):
                 self.Intensity = args[0].Intensity.copy()
@@ -144,65 +163,48 @@ class SASExposure(ArithmeticBase):
             else:
                 self.mask = args[0].mask
             return
-        elif len(args) == 1 and isinstance(args[0], np.ndarray):
+        elif len(args) == 1 and isinstance(args[0], dict):
+            print "  dict __init__()"
+            # create SASExposure from a dict
+            a = {'Intensity':None, 'Error':None, 'header':None, 'mask':None}
+            a.update(args[0])
+            if isinstance(a['Intensity'], np.ndarray):
+                self.Intensity = a['Intensity'].copy()
+            else:
+                self.Intensity = a['Intensity']
+            if isinstance(a['Error'], np.ndarray):
+                self.Error = a['Error'].copy()
+            else:
+                self.Error = a['Error']
+            if isinstance(a['header'], SASHeader):
+                self.header = SASHeader(a['header'])
+            else:
+                self.header = a['header']
+            if isinstance(a['mask'], SASMask):
+                self.mask = SASMask(a['mask'])
+            else:
+                self.mask = a['mask']
+            return
+        elif isinstance(args[0], np.ndarray):
+            print "  ndarray __init__()"
             # convert a numpy matrix to a SASExposure
             self.Intensity = args[0]
-            self.Error = None
-            self.header = SASHeader()
-            self.mask = None
-            return
-        elif (len(args) <= 2): 
-            #scheme 2) or 3) or 4) with single FSN or direct file load
-            self.Intensity = None
-            self.Error = None
-            self.header = SASHeader()
-            self.mask = None
-            if ((len(args) == 2) and isinstance(args[0], np.ndarray)
-                and isinstance(args[1], np.ndarray)):
-                # Intensity and Error matrices are given.
-                self.Intensity = args[0]
+            if len(args) > 1 and isinstance(args[1], np.ndarray):
                 self.Error = args[1]
+            else:
+                self.Error = None
+            if len(args) > 2:
+                self.header = SASHeader(args[2])
+            else:
                 self.header = SASHeader()
+            if len(args) > 3:
+                self.mask = SASMask(args[3])
+            else:
                 self.mask = None
-                return
-            elif len(args) == 1 and isinstance(args[0], basestring):
-                # a single file was given with full filename.
-                filename = args[0]
-            elif isinstance(args[0], h5py.highlevel.Group) and len(args) > 1:
-                # a loaded HDF5 instance is given and an FSN. 
-                # interpolate FSN
-                h5plugin = self._get_HDF5_plugin()
-                filename = args[0][h5plugin['HDF5_Groupnameformat'] % args[1]]
-            elif isinstance(args[0], basestring):
-                #and len(args) >1, which is true because the case in which is 
-                # false has already been treated.
-
-                try:
-                    filename = args[0] % args[1]
-                except TypeError:
-                    # if args[0] is not a printf-style format string, try to
-                    #load it as a HDF5 file
-                    with h5py.highlevel.File(args[0]) as hdf_file:
-                        h5plugin = self._get_HDF5_plugin()
-                        self._read(hdf_file[h5plugin['HDF5_Groupnameformat'] % args[1]], h5plugin, **kwargs)
-                        filename = None
-            else:
-                # use the first argument as-is.
-                filename = args[0]
-            if kwargs['experiment_type'] is None:
-                #auto-guess from filename
-                plugin = SASExposure._autoguess_experiment_type(args[0])
-            else:
-                plugin = [p for p in self._plugins if p.name == kwargs['experiment_type']]
-                if not plugin:
-                    raise SASExposureException('No plugin is available for experiment type "%s".' % kwargs['experiment_type'])
-                plugin = plugin[0]
-            if filename is not None:
-                self._read(filename, plugin, **kwargs)
-            if kwargs['maskfile'] is not None and kwargs['load_mask']:
-                self.set_mask(SASMask(kwargs['maskfile'], dirs=kwargs['dirs']))
-        else:
-            raise ValueError('Too many positional arguments!')
+            return
+        if kwargs['maskfile'] is not None and kwargs['load_mask']:
+            self.set_mask(SASMask(kwargs['maskfile'], dirs=kwargs['dirs']))
+    
     def __new__(cls, *args, **kwargs):
         """Load files or just create an empty instance or copy.
 
@@ -221,37 +223,32 @@ class SASExposure(ArithmeticBase):
             In this case an instance of `SASExposure` is returned. The copy is
             shallow!
 
-        2) ``SASExposure(filename, **kwargs)``: load a file
-            **One positional argument**, a string
-            `filename`:  string
-                file name to load (with path if needed)
+        2) ``SASExposure(<dict>)``: make a SASExposure from a dictionary. The
+            given parameter should contain the field 'Intensity' (np.ndarray) 
+            and optionally 'Error' (np.ndarray), 'header' and 'mask'. The last two
+            must be convertible to SASHeader and SASMask, respectively.
+        
+        3) ``SASExposure(Intensity [, Error [, header [, mask]]])`` where 
+            ``Intensity`` and ``Error`` are np.ndarrays, ``header`` and ``mask``
+            are convertible to SASHeader and SASMask.
+            
+        4) ``SASExposure(filename_or_other_obj, **kwargs)``: load a file
+            **One positional argument**
+            `filename_or_other_obj`: file name or other object which can be handled
+                by one of the I/O plugins.
 
-        3) ``SASExposure(fileformat, fsn, **kwargs)``: load
-            one or more files. **Two positional arguments**.
-            `fileformat`: string
-                C-style file format, containing a directive for substitution of
-                a number, i.e. ``org_%05d.cbf`` or ``s%07d.bdf`` or
-                ``sc3269_0_%04dccd``
+        5) ``SASExposure(fileformat_or_other_obj, fsn, **kwargs)``: load
+            one or more exposures. **Two positional arguments**.
+            `fileformat_or_other_obj`: string or other
+                usually a C-style file format, containing a directive for 
+                substitution of a number, i.e. ``org_%05d.cbf`` or ``s%07d.bdf`` or
+                ``sc3269_0_%04dccd``. But can be e.g. a HDF5 Group.
+                
             `fsn`: number or a sequence of numbers
                 file sequence number. If a scalar, the corresponding file will
                 be loaded. If a sequence of numbers, each file will be opened
-                and a list of SASExposure instances will be returned.
-
-        4) ``SASExposure(hdf_group, [fsn,] **kwargs)``: load exposures from a HDF5 file
-            produced by `sastool`. **One positional argument**, a hdf5 filename
-            or a hdf5 group (instance of ``h5py.highlevel.Group``). Supported
-            keyword arguments:
-            `HDF5_Groupnameformat`: a regular expression pattern compatible with
-                the `re` module to match and parse group names. Should contain a
-                parsed regular expression group for the FSN. For example the
-                default value is ``r"FSN(\d+)"``. Typically the pattern should
-                contain a construct like ``(\d+)`` to match file sequence numbers.
-            `HDF5_Intensityname`: the name of the dataset in each group which
-                corresponds to the scattered intensity. Defaults to
-                ``'Intensity'``.
-            `HDF5_Errorname`: the name of the dataset in each group which
-                corresponds to the error of the scattered intensity. Defaults
-                to ``Error``.
+                and a list (or a generator, depending on the value of the `generator`
+                keyword argument) of SASExposure instances will be returned.
 
         For signatures 2), 3) and 4) the following optional keyword arguments
         are supported:
@@ -274,84 +271,54 @@ class SASExposure(ArithmeticBase):
                 search path. Defaults to `None`
             `load_mask`: if a mask has to be loaded. Defaults to ``True``
         """
+        print "SASExposure.__new__()"
         cls._initialize_kwargs(kwargs)
         if not args:
+            print "  args==[]"
             #no positional arguments are specified: create an empty SASExposure.
+            #we cannot call SASExposure(), since this would cause an infinite loop.
             return super(SASExposure, cls).__new__(cls)
-        elif len(args) == 1: #scheme 0) 1) and 2) can be handled in the same way
-            if (isinstance(args[0], h5py.highlevel.Group) or 
-                (isinstance(args[0], basestring) and any([args[0].upper().endswith(k) for k in ['.HDF5', '.HDF', '.H5']])) or 
-                (kwargs['experiment_type'] == 'HDF5')):
-                gen = cls._read_multi_HDF5(args[0], **kwargs)
-                if kwargs['generator']:
+        elif (isinstance(args[0], SASExposure) or isinstance(args[0], np.ndarray)
+              or isinstance(args[0], dict)):
+            print "  simple __init__()"
+            # copy an existing SASExposure, make a new SASExposure from a numpy
+            # array or from a dict. 
+            # we cannot call SASExposure(*args,**kwargs), since it will cause an infinite loop
+            return super(SASExposure, cls).__new__(cls) #will call __init__ implicitly with args and kwargs
+        else:
+            # Everything else is handled by IO plugins
+            plugin = cls.get_IOplugin(args[0], 'READ')
+            if len(args) == 2:
+                print "  two args"
+                if not isinstance(args[1], collections.Sequence):
+                    fsns = [args[1]]
+                else:
+                    fsns = args[1]
+                res = plugin.read_multi(args[0], fsns, **kwargs)
+            elif len(args) == 1:
+                print "  one arg"
+                res = plugin.read(args[0], **kwargs)
+            else:
+                raise ValueError('Invalid number of positional arguments.')
+            if isinstance(res, dict):
+                obj = super(SASExposure, cls).__new__(cls)
+                obj.__init__(res) # now the _was_init hack comes handy.
+                return obj
+            else:
+                gen = cls._read_multi(res)
+                if len(args) == 2 and not isinstance(args[1], collections.Sequence):
+                    return list(gen)[0]
+                elif kwargs['generator'] :
                     return gen
                 else:
                     return list(gen)
-            else:
-                obj = super(SASExposure, cls).__new__(cls)
-                return obj # this will call obj.__init__(*args, **kwargs) implicitly
-        elif len(args) == 2: # scheme 3) or scheme 4)
-            if isinstance(args[0], basestring) or isinstance(args[0], h5py.highlevel.Group):
-                fsns = args[1]
-                fileformat = args[0]
-                if isinstance(fsns, collections.Sequence):
-                    #multi-FSN
-                    if (any([fileformat.upper().endswith(k) for k in ['.HDF5', '.HDF', '.H5']]) or
-                        isinstance(fileformat, h5py.highlevel.Group)):
-                        # we are dealing with a HDF file
-                        with _HDF_parse_group(fileformat) as hdf:
-                            kwargs['experiment_type'] = 'HDF5'
-                            gen = cls._read_multi_HDF5(hdf, fsns)
-                        if kwargs['generator']:
-                            return gen
-                        else:
-                            return list(gen)
-                    else:
-                        gen = cls._read_multi(fileformat, fsns, **kwargs)
-                        if kwargs['generator']:
-                            return gen
-                        else:
-                            return list(gen)
-                else:
-                    #single-FSN
-                    obj = super(SASExposure, cls).__new__(cls)
-                    return obj #delegate the job to the __init__ method
-        else:
-            raise ValueError('Invalid number of positional arguments.')
-    def _read(self, filename, plugin, **kwargs):
-        d = plugin.read(filename, **kwargs)
-        self.Intensity = d['Intensity']
-        self.Error = d['Error']
-        self.header = d['header']
-        self.set_mask(d['mask'])
     @classmethod
-    def _read_multi(cls, filename, fsns, **kwargs):
-        for f in fsns:
-            obj = super(SASExposure, cls).__new__(cls)
-            try:
-                obj.__init__(filename % f, **kwargs)
-                yield obj
-            except IOError:
-                del obj
-                if kwargs['error_on_not_found']:
-                    raise
-        return
-    @classmethod
-    def _read_multi_HDF5(cls, hdfname, fsns=None, **kwargs):
-        h5plugin = cls._get_HDF5_plugin()
-        if 'HDF5_Groupnameformat' not in kwargs:
-            kwargs['HDF5_Groupnameformat'] = h5plugin['HDF5_Groupnameformat']
-        pattern = misc.re_from_Cformatstring_numbers(kwargs['HDF5_Groupnameformat'])
-        with _HDF_parse_group(hdfname) as hdf_group:
-            for k in hdf_group.keys():
-                if re.match(pattern, k) is not None:
-                    obj = super(SASExposure, cls).__new__(cls)
-                    try:
-                        obj.__init__(hdf_group[k], **kwargs)
-                        yield obj
-                    except:
-                        if kwargs['error_on_not_found']:
-                            raise
+    def _read_multi(cls, obj):
+        print "  SASExposure._read_multi()"
+        for o in obj:
+            print "  SASExposure._read_multi() yields..."
+            yield cls(o) # this will call __new__ with a dict
+        print "  SASExposure._read_multi() returns"
         return
     def check_for_mask(self, isfatal=True):
         """Check if a valid mask is defined.
@@ -386,10 +353,10 @@ class SASExposure(ArithmeticBase):
                 False, the list of missing field names is returned (an empty
                 list signifies that every required field is present).
         """
-        #Note, that we check for 'Dist' and 'Energy' instead of 'DistCalibrated'
-        # and 'EnergyCalibrated', because if the latter are missing, they
+        #Note, that we check for 'Dist' and 'Wavelength' instead of 'DistCalibrated'
+        # and 'WavelengthCalibrated', because if the latter are missing, they
         # default to the values of the uncalibrated ones.
-        missing = [x for x in  ['BeamPosX', 'BeamPosY', 'Dist', 'Energy', 'XPixel', 'YPixel'] if x not in self.header]
+        missing = [x for x in  ['BeamPosX', 'BeamPosY', 'Dist', 'Wavelength', 'XPixel', 'YPixel'] if x not in self.header]
 
         if missing:
             if isfatal:
@@ -497,42 +464,30 @@ class SASExposure(ArithmeticBase):
         return self.trimpix(int(np.floor(rowmin)), int(np.ceil(rowmax)), int(np.floor(colmin)), int(np.ceil(colmax)))
 
     def pixeltoq(self, row, col):
-        return(4 * np.pi * np.sin(0.5 * np.arctan((row - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC,
-               4 * np.pi * np.sin(0.5 * np.arctan((col - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC)
+        return(4 * np.pi * np.sin(0.5 * np.arctan((row - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) / self.header['WavelengthCalibrated'],
+               4 * np.pi * np.sin(0.5 * np.arctan((col - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) / self.header['WavelengthCalibrated'])
 
 
     def qtopixel(self, qrow, qcol):
-        return (self.header['DistCalibrated'] * np.tan(2 * np.arcsin(qrow * HC / self.header['EnergyCalibrated'] / (4 * np.pi))) / self.header['XPixel'] + self.header['BeamPosX'],
-                self.header['DistCalibrated'] * np.tan(2 * np.arcsin(qcol * HC / self.header['EnergyCalibrated'] / (4 * np.pi))) / self.header['YPixel'] + self.header['BeamPosY'])
+        return (self.header['DistCalibrated'] * np.tan(2 * np.arcsin(qrow * self.header['WavelengthCalibrated'] / (4 * np.pi))) / self.header['XPixel'] + self.header['BeamPosX'],
+                self.header['DistCalibrated'] * np.tan(2 * np.arcsin(qcol * self.header['WavelengthCalibrated'] / (4 * np.pi))) / self.header['YPixel'] + self.header['BeamPosY'])
     def qtopixel_radius(self, q):
-        return (self.header['DistCalibrated'] * np.tan(2 * np.arcsin(q * HC / self.header['EnergyCalibrated'] / (4 * np.pi))) / self.header['PixelSize'])
+        return (self.header['DistCalibrated'] * np.tan(2 * np.arcsin(q * self.header['WavelengthCalibrated'] / (4 * np.pi))) / self.header['PixelSize'])
     def pixeltoq_radius(self, pix):
-        return 4 * np.pi * np.sin(0.5 * np.arctan(pix * self.header['PixelSize'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC
+        return 4 * np.pi * np.sin(0.5 * np.arctan(pix * self.header['PixelSize'] / self.header['DistCalibrated'])) / self.header['WavelengthCalibrated']
     ### -------------- Loading routines (new_from_xyz) ------------------------
     @classmethod
-    def get_valid_experiment_types(cls):
-        return [p.name for p in cls._plugins]
-    @classmethod
-    def new_from_hdf5(cls, hdf_or_filename):
-        #get a HDF file object
-        ret = []
-        with _HDF_parse_group(hdf_or_filename) as hpg:
-            if hpg.name.startswith('/FSN'):
-                hdfgroups = [hpg]
-            else:
-                hdfgroups = [x for x in hpg.keys() if x.startswith('FSN')]
-            for g in hdfgroups:
-                ret.append(cls())
-                ret[-1].read_from_hdf5(hpg[g], load_mask=False)
-            # adding masks later, thus only one copy of each mask will exist in
-            # the memory 
-            masknames = set([r.header['maskid'] for r in ret])
-            masks = dict([(mn, SASMask(hpg, maskid=mn)) for mn in masknames])
-            for r in ret:
-                r.set_mask(masks[r.header['maskid']])
-        return ret
-
-
+    def get_valid_experiment_types(cls, mode='read'):
+        """Get the available plugins which support 'read', 'write' or 'both'.
+        """
+        if mode.upper() == 'READ':
+            return [p.name for p in cls._plugins if p.is_read_supported()]
+        elif mode.upper() == 'WRITE':
+            return [p.name for p in cls._plugins if p.is_write_supported()]
+        elif mode.upper() == 'BOTH':
+            return [p.name for p in cls._plugins if p.is_read_supported() and p.is_write_supported()]
+        else:
+            raise ValueError('invalid mode')
 
     ### ------------------- Interface routines ------------------------------------
     def set_mask(self, mask=None):
@@ -651,7 +606,7 @@ class SASExposure(ArithmeticBase):
             the q-scale in a numpy array.
         """
         self.check_for_mask()
-        qrange = utils2d.integrate.autoqscale(self.header['EnergyCalibrated'],
+        qrange = utils2d.integrate.autoqscale(self.header['WavelengthCalibrated'],
                                             self.header['DistCalibrated'],
                                             self.header['XPixel'],
                                             self.header['YPixel'],
@@ -766,7 +721,7 @@ class SASExposure(ArithmeticBase):
         else:
             err = None
         if not pixel:
-            res = utils2d.integrate.radint_fullq(mat, err, self.header['EnergyCalibrated'],
+            res = utils2d.integrate.radint_fullq(mat, err, self.header['WavelengthCalibrated'],
                                                self.header['DistCalibrated'],
                                                (self.header['XPixel'], self.header['YPixel']),
                                                self.header['BeamPosX'], self.header['BeamPosY'],
@@ -844,7 +799,7 @@ class SASExposure(ArithmeticBase):
             err = None
         if not pixel:
             res = utils2d.integrate.radint(mat, err,
-                                               self.header['EnergyCalibrated'],
+                                               self.header['WavelengthCalibrated'],
                                                self.header['DistCalibrated'],
                                                (self.header['XPixel'], self.header['YPixel']),
                                                self.header['BeamPosX'],
@@ -926,7 +881,7 @@ class SASExposure(ArithmeticBase):
             err = None
         if not pixel:
             res = utils2d.integrate.radint(mat, err,
-                                               self.header['EnergyCalibrated'],
+                                               self.header['WavelengthCalibrated'],
                                                self.header['DistCalibrated'],
                                                (self.header['XPixel'], self.header['YPixel']),
                                                self.header['BeamPosX'],
@@ -1004,7 +959,7 @@ class SASExposure(ArithmeticBase):
             err = None
         if not pixel:
             res = utils2d.integrate.azimint(mat, err,
-                                               self.header['EnergyCalibrated'],
+                                               self.header['WavelengthCalibrated'],
                                                self.header['DistCalibrated'],
                                                (self.header['XPixel'], self.header['YPixel']),
                                                self.header['BeamPosX'],
@@ -1151,10 +1106,10 @@ class SASExposure(ArithmeticBase):
                         kwargs_default['qrange_on_axis'] = False
 
         if kwargs_default['qrange_on_axis']:
-            xmin = 4 * np.pi * np.sin(0.5 * np.arctan((0 - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC
-            xmax = 4 * np.pi * np.sin(0.5 * np.arctan((mat.shape[1] - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC
-            ymin = 4 * np.pi * np.sin(0.5 * np.arctan((0 - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC
-            ymax = 4 * np.pi * np.sin(0.5 * np.arctan((mat.shape[0] - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) * self.header['EnergyCalibrated'] / HC
+            xmin = 4 * np.pi * np.sin(0.5 * np.arctan((0 - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) / self.header['WavelengthCalibrated']
+            xmax = 4 * np.pi * np.sin(0.5 * np.arctan((mat.shape[1] - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) / self.header['WavelengthCalibrated']
+            ymin = 4 * np.pi * np.sin(0.5 * np.arctan((0 - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) / self.header['WavelengthCalibrated']
+            ymax = 4 * np.pi * np.sin(0.5 * np.arctan((mat.shape[0] - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) / self.header['WavelengthCalibrated']
             if kwargs_for_imshow['origin'].upper() == 'UPPER':
                 kwargs_for_imshow['extent'] = [xmin, xmax, ymax, ymin]
             else:
@@ -1357,7 +1312,6 @@ class SASExposure(ArithmeticBase):
             self.update_beampos(bc, source='radialpeak')
         return bc
 
-
     def find_beam_Guinier(self, pixmin, pixmax, extent=10,
                                 update=True, callback=None):
         """Find the beam position by maximizing of a radius of gyration in the 
@@ -1391,38 +1345,9 @@ class SASExposure(ArithmeticBase):
 
 ### ----------------------- Writing routines ----------------------------------
 
-    def write_to_HDF5(self, hdf_or_filename, **kwargs):
-        """Save exposure to a HDF5 file or group.
-
-        Inputs:
-            hdf_or_filename: a file name (string) or an instance of
-                h5py.highlevel.File (equivalent to a HDF5 root group) or
-                h5py.highlevel.Group.
-            other keyword arguments are passed on as keyword arguments to the
-                h5py.highlevel.Group.create_dataset() method.
-
-        A HDF5 group will be created with the name FSN<fsn> and the available
-        matrices (Intensity, Error) will be saved. Header data is saved
-        as attributes to the HDF5 group.
-
-        If a mask is associated to this exposure, it is saved as well as a
-        sibling group of FSN<fsn> with the name <maskid>.
-        """
-        if 'compression' not in kwargs:
-            kwargs['compression'] = 'gzip'
-        with _HDF_parse_group(hdf_or_filename) as hpg:
-            groupname = 'FSN%d' % self.header['FSN']
-            if groupname in hpg.keys():
-                del hpg[groupname]
-            hpg.create_group(groupname)
-            for k in self.matrix_names:
-                if k is None:
-                    continue
-                hpg[groupname].create_dataset(k, data=getattr(self, k), **kwargs)
-            self.header.write_to_hdf5(hpg[groupname])
-            if self.mask is not None:
-                self.mask.write_to_hdf5(hpg)
-
+    def write(self, writeto, **kwargs):
+        plugin = self.get_IOplugin(writeto, 'WRITE')
+        plugin.write(writeto, self, **kwargs)
     ### ------------------------ Calculation routines -------------------------
     @property
     def Dpix(self):
@@ -1445,5 +1370,5 @@ class SASExposure(ArithmeticBase):
         return 4 * np.pi * np.sin(0.5 * \
                                   np.arctan(self.D / \
                                             self.header['DistCalibrated'])) / \
-                           HC * self.header['EnergyCalibrated']
+                           self.header['WavelengthCalibrated']
     ### ------------------------ Simple arithmetics ---------------------------

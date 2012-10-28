@@ -95,7 +95,7 @@ def flatten_hierarchical_dict(original_dict, separator='.', max_recursion_depth=
 
 def re_from_Cformatstring_numbers(s):
     """Make a regular expression from the C-style format string."""
-    return "^" + re.sub('%\+?\d*l?[diou]', '\d+', s) + "$"
+    return "^" + re.sub(r'%\+?\d*l?[diou]', r'(\d+)', s) + "$"
 
 
 def random_str(Nchars=6, randstrbase='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'):

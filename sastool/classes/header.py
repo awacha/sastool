@@ -7,17 +7,11 @@ Created on Jun 15, 2012
 # pylint: disable=E0611
 
 import collections
-import numpy as np
 import itertools
-import os
 import datetime
 import math
-import numbers
 import re
-import h5py
 
-from ..io import header
-from .. import misc
 
 __all__ = ['SASHeader']
 
@@ -29,6 +23,42 @@ HC = scipy.constants.codata.value('Planck constant in eV s') * \
 NEUTRON_WAVELENGTH_CONVERTOR = scipy.constants.codata.value('Planck constant') ** 2 * 0.5 / \
     (scipy.constants.codata.value('neutron mass')) / \
     scipy.constants.codata.value('electron volt-joule relationship') * 1e20# J
+
+class SASHistory(object):
+    def __init__(self, s=''):
+        if s:
+            history_oneliner = s.replace(';;', '<*doublesemicolon*>')
+            history_list = [a.strip().replace('<*doublesemicolon*>', ';') \
+                            for a in history_oneliner.split(';')]
+            history = [a.split(':', 1) for a in history_list]
+            self._list = [(float(a[0]), a[1].strip()) for a in history]
+        else:
+            self._list = []
+    def linearize(self):
+        history_text = [str(x[0]) + ': ' + x[1] for x in self._list]
+        history_text = [a.replace(';', ';;') for a in history_text]
+        return '; '.join(history_text)
+    def add(self, label, at=None):
+        """Add a new entry to the history.
+
+        Inputs:
+            label: history text
+            at: time of the event. If None, the current time will be used.
+        """
+        if at is None:
+            at = datetime.datetime.now()
+        deltat = at - datetime.datetime.fromtimestamp(0, at.tzinfo)
+        deltat_seconds = deltat.seconds + deltat.days * 24 * 3600 + deltat.microseconds * 1e-6
+        self._list.append((deltat_seconds, label))
+    def __str__(self):
+        """Return the history in a human-readable format"""
+        return '\n'.join([str(h[0]) + ': ' + h[1] for h in self._list])
+    def __unicode__(self):
+        return u'\n'.join([unicode(h[0]) + ': ' + h[1].encode('utf-8') for h in self._list])
+    def pop(self):
+        return self._list.pop()
+    def __iter__(self):
+        return self._list.__iter__()
 
 class SASHeaderException(Exception):
     pass
@@ -143,6 +173,7 @@ class SASHeader(dict):
         the same quantity*.
 
     """
+    _plugins = []
     # the following define fields treated specially when adding one or more
     # headers together.
     # _fields_to_sum: these fields are to be added. The corresponding 'Error'
@@ -161,17 +192,10 @@ class SASHeader(dict):
                     'Temperature': lambda a, b: (abs(a - b) < 0.5),
                     'Title': lambda a, b: (a == b),
                    }
-    # information on HDF5 reading: not all Python datatypes have their HDF5
-    # equivalents. These help to convert them to/from HDF5.
-    # depending on the type: list of (type, converter_function) tuples
-    _HDF5_read_postprocess_type = [(np.generic, lambda x:x.tolist()), ]
-    # depending on the key name: dictionary of 'key':converter_function pairs
-    _HDF5_read_postprocess_name = {'FSNs':lambda x:x.tolist(), 'History':header._delinearize_history}
     # dictionary of key aliases. Note that multi-level aliases are not allowed!
     # This is a 
     _key_aliases = None
     _protectedfields_to_copy = ['_protectedfields_to_copy', '_key_aliases',
-                              '_HDF5_read_postprocess_type',
                               '_fields_to_sum', '_fields_to_average',
                               '_fields_to_collect', '_equiv_tests']
 
@@ -184,6 +208,8 @@ class SASHeader(dict):
             kwargs['experiment_type'] = None
         if 'error_on_not_found' not in kwargs:
             kwargs['error_on_not_found'] = True
+        if 'generator' not in kwargs:
+            kwargs['generator'] = False
         return kwargs
 
     def __new__(cls, *args, **kwargs):
@@ -206,148 +232,115 @@ class SASHeader(dict):
         4) ``SASHeader(<fileformat>, <fsn>, **kwargs)``: loading possibly more
         files.
         """
+        print "SASHeader.__new__()"
         kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
-
-        if len(args) < 2:
-            obj = super(SASHeader, cls).__new__(cls)
-            return obj #this will call obj.__init__(*args, **kwargs) implicitly
-        elif len(args) == 2:
-            fsns = args[1]
-            fileformat = args[0]
-            if isinstance(fsns, collections.Sequence):
-                objlist = []
-                for f in fsns:
-                    obj = super(SASHeader, cls).__new__(cls)
-                    try:
-                        obj.__init__(fileformat % f, **kwargs)
-                    except IOError as ioerr:
-                        if kwargs['error_on_not_found']:
-                            raise ioerr
-                        else:
-                            obj = None
-                    #all other exceptions pass through
-                    objlist.append(obj)
-                return objlist
+        if not args:
+            print "  empty __new__()"
+            return super(SASHeader, cls).__new__(cls)
+        elif (isinstance(args[0], SASHeader) or isinstance(args[0], dict)) or isinstance(args[0], tuple):
+            print "  simple __new__()"
+            return super(SASHeader, cls).__new__(cls)
+        else:
+            #everything from now on is handled by plug-ins.
+            # Everything else is handled by IO plugins
+            plugin = cls.get_IOplugin(args[0], 'READ')
+            if len(args) == 2:
+                print "  two args"
+                if not isinstance(args[1], collections.Sequence):
+                    fsns = [args[1]]
+                else:
+                    fsns = args[1]
+                res = plugin.read_multi(args[0], fsns, **kwargs)
+            elif len(args) == 1:
+                print "  one arg"
+                res = plugin.read(args[0], **kwargs)
             else:
+                raise ValueError('Invalid number of positional arguments.')
+            if isinstance(res, tuple):
                 obj = super(SASHeader, cls).__new__(cls)
-                return obj #this will call obj.__init__(*args, **kwargs) implicitly
-        else:
-            raise ValueError('Invalid number of positional arguments!')
-    @staticmethod
-    def _autoguess_experiment_type(file_or_dict):
-        if isinstance(file_or_dict, basestring):
-            file_or_dict = os.path.split(file_or_dict)[1].upper()
-            if file_or_dict.endswith('.EDF') or \
-                file_or_dict.endswith('CCD'):
-                return 'read_from_ESRF_ID02'
-            elif file_or_dict.startswith('ORG'):
-                return 'read_from_B1_org'
-            elif file_or_dict.startswith('INTNORM'):
-                return 'read_from_B1_int2dnorm'
-            elif file_or_dict.endswith('.H5') or \
-                file_or_dict.endswith('.HDF5') or \
-                file_or_dict.endswith('.HDF'):
-                return 'read_from_hdf5'
-            elif file_or_dict.endswith('.BDF') or \
-                file_or_dict.endswith('.BHF'):
-                return 'read_from_BDF'
-            elif file_or_dict.startswith('XE') and \
-                (file_or_dict.endswith('.DAT') or \
-                 file_or_dict.endswith('.32')):
-                return 'read_from_PAXE'
-            elif file_or_dict.lower().endswith('.image'):
-                return 'read_from_MAR'
-            elif re.match('.*?D(\d+).(\d+)$', file_or_dict):
-                return 'read_from_BerSANS'
+                obj.__init__(res)
+                return obj
             else:
-                raise SASHeaderException('Cannot determine experiment type from "%s"' % file_or_dict)
-        elif isinstance(file_or_dict, h5py.highlevel.Group):
-            return 'read_from_HDF5'
-        elif isinstance(file_or_dict, dict):
-            if '__Origin__' not in file_or_dict:
-                raise ValueError('Cannot determine measurement file format from this dict: no \'__Origin__\' field.')
-            elif file_or_dict['__Origin__'] == 'B1 original header':
-                return 'read_from_B1_org'
-            elif file_or_dict['__Origin__'] == 'B1 log':
-                return 'read_from_B1_int2dnorm'
-            elif file_or_dict['__Origin__'] == 'EDF ID02':
-                return 'read_from_ESRF_ID02'
-            elif file_or_dict['__Origin__'] == 'PAXE':
-                return 'read_from_PAXE'
-            elif file_or_dict['__Origin__'] == 'BDFv1':
-                return 'read_from_BDF'
-            elif file_or_dict['__Origin__'] == 'BDFv2':
-                return 'read_from_BDFv2'
-            elif file_or_dict['__Origin__'] == 'MarResearch .image':
-                return 'read_from_MAR'
-            elif file_or_dict['__Origin__'] == 'BerSANS':
-                return 'read_from_BerSANS'
-            else:
-                raise ValueError('Unknown header dictionary')
+                gen = cls._read_multi(res)
+                if len(args) == 2 and not isinstance(args[1], collections.Sequence):
+                    return list(gen)[0]
+                elif kwargs['generator'] :
+                    return gen
+                else:
+                    return list(gen)
+    @classmethod
+    def _read_multi(cls, lis):
+        print "SASHeader._read_multi()"
+        for l in lis:
+            print "SASHeader._read_multi() yields..."
+            yield cls(l)
+        print "SASHeader._read_multi() returns"
+        return
+    @classmethod
+    def _autoguess_experiment_type(cls, file_or_dict):
+        plugin = [p for p in cls._plugins if p.check_if_applies(file_or_dict)]
+        if not plugin:
+            raise SASHeaderException('No plugin can handle ' + str(file_or_dict))
+        return plugin[0]
+    
+    @classmethod
+    def get_valid_experiment_types(cls, mode='read'):
+        """Get the available plugins which support 'read', 'write' or 'both'.
+        """
+        if mode.upper() == 'READ':
+            return [p.name for p in cls._plugins if p.is_read_supported()]
+        elif mode.upper() == 'WRITE':
+            return [p.name for p in cls._plugins if p.is_write_supported()]
+        elif mode.upper() == 'BOTH':
+            return [p.name for p in cls._plugins if p.is_read_supported() and p.is_write_supported()]
         else:
-            raise ValueError('Unknown measurement file format')
+            raise ValueError('invalid mode')
 
     def __init__(self, *args, **kwargs):
         """This constructor behaves identically to that of the superclass. If
         the first positional argument is a SASHeader, this copies over the
         protected parameters whose names are found in _protectedfields_to_copy.
         """
+        if hasattr(self, '_was_init'):
+            return
+        self._was_init = True
+        print "SASHeader.__init__()"
         self._key_aliases = {}
         kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
-        if len(args) == 1:
-            # expect a single argument, an instance of `dict`. Copy over all
-            # its keys
-
-            if isinstance(args[0], SASHeader):
-                super(SASHeader, self).__init__(args[0])
-                # copy over protected attributes
-                for fn in args[0]._protectedfields_to_copy: #IGNORE:W0212
-                    attr = getattr(args[0], fn)
-                    if hasattr(attr, 'copy'):
-                        # if the attribute has a copy method, use that. E.g. dicts.
-                        setattr(self, fn, attr.copy())
-                    elif isinstance(attr, collections.Sequence):
-                        # if the attribute is a sequence, use the [:] construct.
-                        setattr(self, fn, attr[:])
-                    else:
-                        #call the constructor to copy. Note that this can raise an
-                        # exception, which is forwarded to the upper level.
-                        setattr(self, fn, attr.type(attr))
-            elif isinstance(args[0], basestring) or isinstance(args[0], dict):
-                # we have to call a read_from_*() method
-                if kwargs['experiment_type'] is None:
-                    #auto-guess from filename
-                    try:
-                        loadername = SASHeader._autoguess_experiment_type(args[0])
-                    except ValueError:
-                        #no special dict, just copy the data and set __Origin__
-                        # to 'unknown'
-                        super(SASHeader, self).__init__(args[0])
-                        self['__Origin__'] = 'unknown'
-                        return
+        if not args:
+            print "  empty __init__()"
+            super(SASHeader, self).__init__()
+        elif isinstance(args[0], SASHeader):
+            print "  __init__() from SASHeader"
+            super(SASHeader, self).__init__(args[0])
+            # copy over protected attributes
+            for fn in args[0]._protectedfields_to_copy: #IGNORE:W0212
+                attr = getattr(args[0], fn)
+                if hasattr(attr, 'copy'):
+                    # if the attribute has a copy method, use that. E.g. dicts.
+                    setattr(self, fn, attr.copy())
+                elif isinstance(attr, collections.Sequence):
+                    # if the attribute is a sequence, use the [:] construct.
+                    setattr(self, fn, attr[:])
                 else:
-                    loadername = 'read_from_%s' % kwargs['experiment_type']
-                try:
-                    getattr(self, loadername).__call__(args[0], **kwargs)
-                except AttributeError as ae:
-                    raise AttributeError(str(ae) + '; possibly bad experiment type given')
-                #other exceptions such as IOError on read failure are propagated.
-        elif len(args) == 2:
-            # file format and fsn is given, fsn should be a scalar number
-            fileformat = args[0]
-            fsn = args[1]
-            if not isinstance(args[1], numbers.Number):
-                raise ValueError('Invalid fsn: should be a scalar number')
-            if kwargs['experiment_type'] is None:
-                #auto-guess from filename
-                loadername = SASHeader._autoguess_experiment_type(fileformat % fsn)
-            else:
-                loadername = 'read_from_%s' % kwargs['experiment_type']
+                    #call the constructor to copy. Note that this can raise an
+                    # exception, which is forwarded to the upper level.
+                    setattr(self, fn, attr.type(attr))
+        elif isinstance(args[0], tuple):
+            print "  __init__() from tuple"
+            self.update(args[0][0])
+            self._key_aliases = args[0][1]
+        else:
+            print "  __init__() from plugin"
+            # search for a plugin to handle this
             try:
-                getattr(self, loadername).__call__(fileformat % fsn, **kwargs)
-            except AttributeError as ae:
-                raise AttributeError(str(ae) + '; possibly bad experiment type given')
-            #other exceptions such as IOError on read failure are propagated.
+                plugin = self.get_IOplugin(args[0], 'READ', **kwargs)
+            except ValueError:
+                raise NotImplementedError('__init__() not supported with args[0]==' + str(args[0]))
+            else:
+                d, ka = plugin.read(args[0], **kwargs)
+                del self._was_init
+                self.__init__((d, ka))
     def copy(self, *args, **kwargs):
         """Make a copy of this header structure"""
         d = super(SASHeader, self).copy(*args, **kwargs)
@@ -462,168 +455,34 @@ class SASHeader(dict):
         """ Iterator version of items()."""
         return itertools.izip(self.iterkeys(), self.itervalues())
 
-    # -------------------- Reader methods (read_from*)
-    def read_from_MAR(self, filename_or_mar, **kwargs):
-        """Read header data from a MarResearch .image file.
-
-        Inputs:
-            filename_or_mar: the full filename or a dict loaded by
-                readmarheader()
-
-        Outputs: the updated header structure. Fields not present in the file
-            are kept unchanged.
-        """
-        if not isinstance(filename_or_mar, dict):
-            mar = header.readmarheader(filename_or_mar)
+    @classmethod
+    def register_IOplugin(cls, plugin, idx=None):
+        if idx is None:
+            cls._plugins.append(plugin)
         else:
-            mar = filename_or_mar
-        self.update(mar)
-        self['Energy'] = HC / self['Wavelength']
-        if not isinstance(filename_or_mar, dict):
-            self.add_history('Loaded from MAR .image file ' + filename_or_mar)
-        return self
-
-    def read_from_PAXE(self, filename_or_paxe, **kwargs):
-        """Read header data from a PAXE (Saclay, France or Budapest, Hungary)
-        measurement file.
-
-        Inputs:
-            filename_or_paxe: the file name (usually XE????.DAT) or a dict
-                loaded by readPAXE().
-
-        Outputs: the updated header structure. Fields not present in the file
-            are kept unchanged.
-        """
-        kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
-        if isinstance(filename_or_paxe, basestring):
-            paxe = header.readPAXE(misc.findfileindirs(filename_or_paxe, kwargs['dirs']))
+            cls._plugins.insert(idx, plugin)
+    @classmethod
+    def get_IOplugin(cls, filename, mode='READ', **kwargs):
+        plugin = []
+        if mode.upper() == 'READ':
+            checkmode = lambda a:a.is_read_supported()
+        elif mode.upper() == 'WRITE':
+            checkmode = lambda a:a.is_write_supported()
+        elif mode.upper() == 'BOTH':
+            checkmode = lambda a:(a.is_read_supported() and a.is_write_supported())
         else:
-            paxe = filename_or_paxe
-
-        self.update(paxe)
-        if isinstance(filename_or_paxe, basestring):
-            self.add_history('Loaded from PAXE file ' + filename_or_paxe)
-        return self
-
-    def read_from_ESRF_ID02(self, filename_or_edf, **kwargs):
-        """Read header data from an ESRF ID02 EDF file.
-
-        Inputs:
-            filename_or_edf: the full name of the file or an edf structure read
-                by readehf()
-
-        Outputs: the updated header structure. Fields not present in the file
-            are kept unchanged.
-        """
-        kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
-        if isinstance(filename_or_edf, basestring):
-            filename_or_edf = header.readehf(misc.findfileindirs(filename_or_edf, kwargs['dirs']))
-        self.update(filename_or_edf)
-        self._key_aliases['FSN'] = 'HMRunNumber'
-        self._key_aliases['BeamPosX'] = 'Center_2'
-        self._key_aliases['BeamPosY'] = 'Center_1'
-        self._key_aliases['MeasTime'] = 'ExposureTime'
-        self._key_aliases['Monitor'] = 'Intensity0'
-        self._key_aliases['Detector'] = 'DetectorInfo'
-        self._key_aliases['Date'] = 'HMStartTime'
-        self._key_aliases['Wavelength'] = 'WaveLength'
-        self['Transm'] = self['Intensity1'] / self['Intensity0']
-        self['Energy'] = 12398.419 / (self['WaveLength'] * 1e10)
-        self['Dist'] = self['SampleDistance'] * 1000
-        self['XPixel'] = (self['PSize_1'] * 1000)
-        self['YPixel'] = (self['PSize_2'] * 1000)
-        self['PixelSize'] = 0.5 * (self['XPixel'] + self['YPixel'])
-        self['Title'] = self['TitleBody']
-        self['maskid'] = os.path.splitext(self['MaskFileName'])[0]
-        for k in sorted([k for k in self if k.startswith('History')]):
-            self.add_history(self[k], self['HMStartTime'])
-        self.add_history('Loaded EDF header from file ' + filename_or_edf['FileName'])
-        return self
-
-    def read_from_B1_org(self, filename, **kwargs):
-        kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
-        if isinstance(filename, basestring):
-            hed = header.readB1header(misc.findfileindirs(filename, kwargs['dirs']))
-        else:
-            hed = filename
-        self.update(hed)
-        if isinstance(filename, basestring):
-            self.add_history('Original header loaded: ' + filename)
-        return self
-
-    def read_from_B1_int2dnorm(self, filename, **kwargs):
-        kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
-        if isinstance(filename, basestring):
-            hed = header.readB1logfile(misc.findfileindirs(filename, kwargs['dirs']))
-        else:
-            hed = filename
-        self.update(hed)
-        if isinstance(filename, basestring):
-            self.add_history('B1 logfile loaded: ' + filename)
-
-    def read_from_BDF(self, filename, **kwargs):
-        kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
-        if isinstance(filename, basestring):
-            hed = misc.flatten_hierarchical_dict(header.readbhf(misc.findfileindirs(filename, kwargs['dirs'])))
-        else:
-            hed = misc.flatten_hierarchical_dict(filename)
-        self.update(hed)
-        if self['C.bdfVersion'] < 2:
-            self['BeamPosX'] = self['C.xcen'] - 1
-            self['BeamPosY'] = self['C.ycen'] - 1
-            for h in self['his']:
-                self.add_history('BDF: ' + h)
-        elif self['C.bdfVersion'] >= 2:
-            if 'CORR.CenterX' in self:
-                self['BeamPosX'] = self['CORR.CenterX'] - 1
-            if 'CORR.CenterY' in self:
-                self['BeamPosY'] = self['CORR.CenterY'] - 1
-            if 'CORR.EnergyReal' in self:
-                self._key_aliases['EnergyCalibrated'] = 'CORR.EnergyReal'
-            if 'CORR.PixelSizeX' in self:
-                self['XPixel'] = self['CORR.PixelSizeX'] * 10
-            if 'CORR.PixelSizeY' in self:
-                self['YPixel'] = self['CORR.PixelSizeY'] * 10
-            for h in self['HIS']:
-                self.add_history('BDF: ' + h)
-            if 'CORR.SampleThickness' in self:
-                self._key_aliases['Thickness'] = 'CORR.SampleThickness'
-            if 'CORR.SampleThicknessError' in self:
-                self._key_aliases['ThicknessError'] = 'CORR.SampleThicknessError'
-        #common to BDFv1 and v2
-        self.add_history('History imported from BDF file')
-        self._key_aliases['Energy'] = 'M.Energy'
-        self._key_aliases['Dist'] = 'M.SD'
-        self._key_aliases['Title'] = 'C.Sample'
-        self._key_aliases['Temperature'] = 'C.isTemp'
-        self._key_aliases['MeasTime'] = 'CS.Seconds'
-        self._key_aliases['Monitor'] = 'CS.Monitor'
-        self._key_aliases['Anode'] = 'CS.Anode'
-        self._key_aliases['PosSample'] = 'M.VacSampleX'
-        self._key_aliases['PosRef'] = 'M.RefSampleX'
-        self._key_aliases['Transm'] = 'CT.trans'
-        self._key_aliases['TransmError'] = 'CT.transerr'
-        try:
-            self['FSN'] = int(re.search('\d+', self['C.Frame']).group())
-        except AttributeError:
-            self['FSN'] = self['C.Frame']
-        return self
-    read_from_BDFv2 = read_from_BDF
-    read_from_BDFv1 = read_from_BDF
-
-    def read_from_BerSANS(self, filename, **kwargs):
-        kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
-        if isinstance(filename, basestring):
-            hed = header.readBerSANS(misc.findfileindirs(filename, kwargs['dirs']))
-        else:
-            hed = filename
-        self.update(hed)
-        self.add_history('Imported from a BerSANS file')
-        self._key_aliases['maskid'] = 'MaskFile'
-        return self
-    
-    def write_B1_log(self, filename):
-        header.writeB1logfile(filename, self)
+            raise ValueError('Invalid mode!')
+        if 'experiment_type' in kwargs:
+            plugin = [p for p in cls._plugins if p.name == kwargs['experiment_type'] and checkmode(p)]
+        if not plugin:
+            plugin = [p for p in cls._plugins if p.check_if_applies(filename) and checkmode(p)]
+        if not plugin:
+            raise ValueError('No plugin can handle ' + str(filename))
+        return plugin[0]
+    def write(self, writeto, **kwargs):
+        plugin = self.get_IOplugin(writeto, 'WRITE')
+        plugin.write(writeto, self, **kwargs)
+        
     # ------------------------ History manipulation ---------------------------
 
     def add_history(self, text, time=None):
@@ -633,17 +492,13 @@ class SASHeader(dict):
             text: history text
             time: time of the event. If None, the current time will be used.
         """
-        if time is None:
-            time = datetime.datetime.now()
         if 'History' not in self:
-            self['History'] = []
-        deltat = time - datetime.datetime.fromtimestamp(0, time.tzinfo)
-        deltat_seconds = deltat.seconds + deltat.days * 24 * 3600 + deltat.microseconds * 1e-6
-        self['History'].append((deltat_seconds, text))
+            self['History'] = SASHistory()
+        self['History'].add(text, time)
 
     def get_history(self):
         """Return the history in a human-readable format"""
-        return '\n'.join([str(h[0]) + ': ' + h[1] for h in self['History']])
+        return str(self['History'])
 
 
 # --------------------- Summarizing, averaging and equivalence -------------
@@ -709,48 +564,9 @@ class SASHeader(dict):
         """Test if the two headers are equivalent. The information found in
         SASHeader._equiv_tests is used to decide equivalence.
         """
-        return all([self._equiv_tests[k](self[k], other[k]) for k in self._equiv_tests] +
+        return all([self._equiv_tests[k](self[k], other[k]) for k in self._equiv_tests] + 
                    [other._equiv_tests[k](self[k], other[k]) for k in other._equiv_tests]) #IGNORE:W0212
 
     # ---------------------------- HDF5 I/O ----------------------------------
 
-    def write_to_hdf5(self, hdf_entity):
-        """Write the parameter structure to a HDF entity (group or dataset) as
-        attributes. hdf_entity should be an instance of h5py.highlevel.Dataset
-        or h5py.highlevel.Group or h5py.highlevel.File."""
-        try:
-            self.add_history('Written to HDF:' + hdf_entity.file.filename + hdf_entity.name)
-            for k in self.keys():
-                if k == 'History':
-                    hdf_entity.attrs[k] = header._linearize_history(self[k]).encode('utf-8')
-                elif isinstance(self[k], bool):
-                    hdf_entity.attrs[k] = int(self[k])
-                elif isinstance(self[k], numbers.Number):
-                    hdf_entity.attrs[k] = self[k]
-                elif isinstance(self[k], basestring):
-                    hdf_entity.attrs[k] = self[k].encode('utf-8')
-                elif isinstance(self[k], collections.Sequence):
-                    hdf_entity.attrs[k] = self[k]
-                elif isinstance(self[k], datetime.datetime):
-                    hdf_entity.attrs[k] = str(self[k])
-                else:
-                    raise ValueError('Invalid field type: ' + str(k) + ', ', repr(type(self[k])))
-        finally:
-            del self['History'][-1]
 
-    def read_from_hdf5(self, hdf_entity):
-        """Read the parameter structure from the attributes of a HDF entity
-        (group or dataset). hdf_entity should be an instance of
-        h5py.highlevel.Dataset or h5py.highlevel.Group or h5py.highlevel.File.
-        """
-        for k in hdf_entity.attrs.keys():
-            attr = hdf_entity.attrs[k]
-            if k in self._HDF5_read_postprocess_name:
-                self[k] = self._HDF5_read_postprocess_name[k](attr)
-            else:
-                typematch = [x for x in self._HDF5_read_postprocess_type if isinstance(attr, x[0]) ]
-                if typematch:
-                    self[k] = typematch[0][1](attr)
-                else:
-                    self[k] = attr
-        self.add_history('Header read from HDF:' + hdf_entity.file.filename + hdf_entity.name)

@@ -644,7 +644,7 @@ def readPAXE(filename, load_data=False):
     par['PosDetector'] = int(s[0x56:0x5b])
     par['max'] = long(s[0x38:0x3d])
     par['selector_speed'] = long(s[0x3d:0x42])
-    par['WaveLength'] = long(s[0x42:0x44])
+    par['Wavelength'] = long(s[0x42:0x44])
     par['Dist'] = long(s[0x44:0x49])
     par['comments'] = re.sub(r'\s+', ' ', s[0x6d:0x100].strip())
     try:
@@ -655,10 +655,6 @@ def readPAXE(filename, load_data=False):
     par['BeamPosY'] = float(s[0x4d:0x51])
     par['AngleBase'] = float(s[0x51:0x56])
     par['Date'] = datetime.datetime(par['Year'], par['Month'], par['Day'], par['Hour'], par['Minute'], par['Second'])
-    try:
-        par['Energy'] = 12398.419 / par['WaveLength']
-    except ZeroDivisionError:
-        par['Energy'] = np.nan
     par['Detector'] = 'XE'
     par['PixelSize'] = 1.0
     par['__Origin__'] = 'PAXE'

@@ -17,6 +17,7 @@ import header
 import mask
 import curve
 import exposure_plugin
+import header_plugin
 
 from sastool.misc.errorvalue import *
 from sastool.misc.arithmetic import *
@@ -27,6 +28,7 @@ from .mask import *
 from .header import *
 from .curve import *
 from .exposure_plugin import *
+from .header_plugin import *
 
 for k in __all__[:]:
     __all__.extend(eval('%s.__all__' % k))

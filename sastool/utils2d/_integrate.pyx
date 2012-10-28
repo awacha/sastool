@@ -14,7 +14,6 @@ cdef extern from "math.h":
     double fmod(double,double)
     double fabs(double)
     
-cdef double HC=12398.419 #Planck's constant times speed of light, in eV*Angstrom units
 
 cdef inline double gaussian(double x0, double sigma, double x):
     return 1/sqrt(2*M_PI*sigma*sigma)*exp(-(x-x0)**2/(2*sigma**2))
@@ -56,19 +55,19 @@ def polartransform(np.ndarray[np.double_t, ndim=2] data not None,
                 pdata[i,j]=data[x,y];
     return pdata
 
-def autoqscale(double energy, double distance, double xres, double yres,
+def autoqscale(double wavelength, double distance, double xres, double yres,
                double bcxa, double bcya,
                np.ndarray[np.uint8_t, ndim=2] mask not None):
     """Determine q-scale automatically
     
     Inputs:
-        energy: photon energy in eV
+        wavelength: wavelength in Angstroem
         distance: sample-detector distance in mm
         xres, yres: pixel size in mm
         bcxa, bcya: beam position (starting from 0)
         mask: mask matrix (1 means masked, 0 unmasked).
         
-    Output: the q scale in a numpy vector. If either energy or distance or xres
+    Output: the q scale in a numpy vector. If either wavelength or distance or xres
         or yres is nonpositive, pixel vector is returned, which is guaranteed to
         be spaced by 1 pixels.
     """
@@ -78,7 +77,7 @@ def autoqscale(double energy, double distance, double xres, double yres,
     cdef Py_ssize_t ix,iy,M,N
     cdef bint flagq
     
-    flagq=(energy>0 and distance>0 and xres>0 and yres>0)
+    flagq=(wavelength>0 and distance>0 and xres>0 and yres>0)
     M=mask.shape[0]; N=mask.shape[1];
     qmin=1e20; qmax=-10
     for ix from 0<=ix<M:
@@ -88,7 +87,7 @@ def autoqscale(double energy, double distance, double xres, double yres,
             x=((ix-bcxa)*xres)
             y=((iy-bcya)*yres)
             if flagq:
-                q1=4*M_PI*sin(0.5*atan(sqrt(x*x+y*y)/distance))*energy/HC
+                q1=4*M_PI*sin(0.5*atan(sqrt(x*x+y*y)/distance))/wavelength
             else:
                 q1=ceil(sqrt(x*x+y*y));
             if (q1>qmax):
@@ -130,7 +129,7 @@ def radint_getres(res):
 
 def radint(np.ndarray[np.double_t,ndim=2] data not None,
            np.ndarray[np.double_t,ndim=2] dataerr,
-           double energy, double distance, res,
+           double wavelength, double distance, res,
            double bcx, double bcy,
            np.ndarray[np.uint8_t, ndim=2] mask,
            np.ndarray[np.double_t, ndim=1] q=None,
@@ -143,7 +142,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
         data: the intensity matrix
         dataerr: the error (standard deviation) matrix (of the same size as
             'data'). Or None to disregard it.
-        energy: the real photon/neutron energy (eV)
+        wavelength: the real photon/neutron wavelength (Angstroem)
         distance: the distance from the sample to the detector
         res: pixel size. Either a vector (tuple) of two or a scalar. Must be
             expressed in the same units as the 'distance' parameter.
@@ -177,7 +176,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
         returnpixel: return pixel coordinates for integrated bins. False by
             default.
     
-    If any of 'energy', 'distance' or 'res' is zero or negative, pixel-based
+    If any of 'wavelength', 'distance' or 'res' is zero or negative, pixel-based
     integration is done, with q denoting pixel everywhere.
     
     Outputs: q, Intensity, Error, Area, [effective mask], [pixel]
@@ -211,8 +210,8 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
         raise ValueError('data, dataerr and mask should be of the same shape')
     flagerror=(dataerr is not None);
     flagmask=(mask is not None);
-    #if any of energy, distance, res is nonpositive, pixel-based integration.
-    flagq=((energy>0) and (distance>0) and (xres>0) and (yres>0));
+    #if any of wavelength, distance, res is nonpositive, pixel-based integration.
+    flagq=((wavelength>0) and (distance>0) and (xres>0) and (yres>0));
     
     phi0a=phi0; dphia=dphi;
     # the equation of the line of the slice is x*sin(phi0)-y*cos(phi0)==0.
@@ -232,7 +231,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
     if q is None:
         if not flagmask:
             mask=np.zeros((data.shape[0],data.shape[1]),dtype=np.uint8)
-        q=autoqscale(energy, distance, xres, yres, bcx, bcy, mask);
+        q=autoqscale(wavelength, distance, xres, yres, bcx, bcy, mask);
         if not flagmask:
             mask=None
     Numq=len(q)
@@ -274,7 +273,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
             #normalized distance of the pixel from the origin
             if flagq:
                 rho=sqrt(x*x+y*y)/distance
-                q1=4*M_PI*sin(0.5*atan(rho))*energy/HC
+                q1=4*M_PI*sin(0.5*atan(rho))/wavelength
             else:
                 q1=sqrt(x*x/xres/xres+y*y/yres/yres);
             if q1<q[0]: #q underflow
@@ -284,7 +283,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
             if flagq:
                 #weight, corresponding to the Jacobian (integral with respect to q,
                 # not on the detector plane)
-                w=(2*M_PI*energy/HC/distance)**2*(2+rho**2+2*sqrt(1+rho**2))/( (1+rho**2+sqrt(1+rho**2))**2*sqrt(1+rho**2) )
+                w=(2*M_PI/wavelength/distance)**2*(2+rho**2+2*sqrt(1+rho**2))/( (1+rho**2+sqrt(1+rho**2))**2*sqrt(1+rho**2) )
             else:
                 w=1;
             for l from 0<=l<Numq: # Find the q-bin
@@ -331,7 +330,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
         
 def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
            np.ndarray[np.double_t,ndim=2] dataerr,
-           double energy, double distance, res,
+           double wavelength, double distance, res,
            double bcx, double bcy,
            np.ndarray[np.uint8_t, ndim=2] mask,
            np.ndarray[np.double_t, ndim=1] q=None,
@@ -344,7 +343,7 @@ def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
         data: the intensity matrix
         dataerr: the error (standard deviation) matrix (of the same size as
             'data'). Or None to disregard it.
-        energy: the real photon/neutron energy (eV)
+        wavelength: the real photon/neutron wavelength (Angstroem)
         distance: the distance from the sample to the detector
         res: pixel size. Either a vector (tuple) of two or a scalar. Must be
             expressed in the same units as the 'distance' parameter.
@@ -378,7 +377,7 @@ def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
         returnpixel: return pixel coordinates for integrated bins. False by
             default.
     
-    If any of 'energy', 'distance' or 'res' is zero or negative, pixel-based
+    If any of 'wavelength', 'distance' or 'res' is zero or negative, pixel-based
     integration is done, with q denoting pixel everywhere.
     
     Outputs: q, Intensity, Error, Area, [effective mask], [pixel]
@@ -414,8 +413,8 @@ def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
         raise ValueError('data, dataerr and mask should be of the same shape')
     flagerror=(dataerr is not None);
     flagmask=(mask is not None);
-    #if any of energy, distance, res is nonpositive, pixel-based integration.
-    flagq=((energy>0) and (distance>0) and (xres>0) and (yres>0));
+    #if any of wavelength, distance, res is nonpositive, pixel-based integration.
+    flagq=((wavelength>0) and (distance>0) and (xres>0) and (yres>0));
     
     phi0a=phi0; dphia=dphi;
     # the equation of the line of the slice is x*sin(phi0)-y*cos(phi0)==0.
@@ -435,7 +434,7 @@ def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
     if q is None:
         if not flagmask:
             mask=np.zeros((data.shape[0],data.shape[1]),dtype=np.uint8)
-        q=autoqscale(energy, distance, xres, yres, bcx, bcy, mask);
+        q=autoqscale(wavelength, distance, xres, yres, bcx, bcy, mask);
         if not flagmask:
             mask=None
     Numq=len(q)
@@ -486,7 +485,7 @@ def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
             #normalized distance of the pixel from the origin
             if flagq:
                 rho=sqrt(x*x+y*y)/distance
-                q1=4*M_PI*sin(0.5*atan(rho))*energy/HC
+                q1=4*M_PI*sin(0.5*atan(rho))/wavelength
             else:
                 q1=sqrt(x*x/xres/xres+y*y/yres/yres);
             if q1<q[0]: #q underflow
@@ -496,7 +495,7 @@ def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
             if flagq:
                 #weight, corresponding to the Jacobian (integral with respect to q,
                 # not on the detector plane)
-                w=(2*M_PI*energy/HC/distance)**2*(2+rho**2+2*sqrt(1+rho**2))/( (1+rho**2+sqrt(1+rho**2))**2*sqrt(1+rho**2) )
+                w=(2*M_PI/wavelength/distance)**2*(2+rho**2+2*sqrt(1+rho**2))/( (1+rho**2+sqrt(1+rho**2))**2*sqrt(1+rho**2) )
             else:
                 w=1;
             for l from 0<=l<Numq: # Find the q-bin
@@ -549,7 +548,7 @@ def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
         
 def radint_fullq(np.ndarray[np.double_t,ndim=2] data not None,
            np.ndarray[np.double_t,ndim=2] dataerr,
-           double energy, double distance, res,
+           double wavelength, double distance, res,
            double bcx, double bcy,
            np.ndarray[np.uint8_t, ndim=2] mask,
            np.ndarray[np.double_t, ndim=1] q=None,
@@ -561,7 +560,7 @@ def radint_fullq(np.ndarray[np.double_t,ndim=2] data not None,
         data: the intensity matrix
         dataerr: the error (standard deviation) matrix (of the same size as
             'data'). Or None to disregard it.
-        energy: the real photon/neutron energy (eV)
+        wavelength: the real photon/neutron wavelength (Angstroem)
         distance: the distance from the sample to the detector
         res: pixel size. Either a vector (tuple) of two or a scalar. Must be
             expressed in the same units as the 'distance' parameter.
@@ -616,7 +615,7 @@ def radint_fullq(np.ndarray[np.double_t,ndim=2] data not None,
     if q is None:
         if not flagmask:
             mask=np.zeros((data.shape[0],data.shape[1]),dtype=np.uint8)
-        q=autoqscale(energy, distance, xres, yres, bcx, bcy, mask);
+        q=autoqscale(wavelength, distance, xres, yres, bcx, bcy, mask);
         if not flagmask:
             mask=None
     Numq=len(q)
@@ -651,14 +650,14 @@ def radint_fullq(np.ndarray[np.double_t,ndim=2] data not None,
             y=((iy-bcy)*yres)
             #normalized distance of the pixel from the origin
             rho=sqrt(x*x+y*y)/distance
-            q1=4*M_PI*sin(0.5*atan(rho))*energy/HC
+            q1=4*M_PI*sin(0.5*atan(rho))/wavelength
             if q1<q[0]: #q underflow
                 continue
             if q1>q[Numq-1]: #q overflow
                 continue
             #weight, corresponding to the Jacobian (integral with respect to q,
             # not on the detector plane)
-            w=(2*M_PI*energy/HC/distance)**2*(2+rho**2+2*sqrt(1+rho**2))/( (1+rho**2+sqrt(1+rho**2))**2*sqrt(1+rho**2) )
+            w=(2*M_PI/wavelength/distance)**2*(2+rho**2+2*sqrt(1+rho**2))/( (1+rho**2+sqrt(1+rho**2))**2*sqrt(1+rho**2) )
             for l from 0<=l<Numq: # Find the q-bin
                 if (q1>qmax[l]):
                     #not there yet
@@ -698,7 +697,7 @@ def radint_fullq(np.ndarray[np.double_t,ndim=2] data not None,
 
 def azimint(np.ndarray[np.double_t, ndim=2] data not None,
             np.ndarray[np.double_t, ndim=2] dataerr, # error can be None
-            double energy, double distance, res, double bcx, double bcy,
+            double wavelength, double distance, res, double bcx, double bcy,
             np.ndarray[np.uint8_t, ndim=2] mask, Ntheta=100,
             double qmin=0, double qmax=INFINITY, bint returnmask=False):
     """Perform azimuthal integration of image, with respect to q values
@@ -706,7 +705,7 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
     Inputs:
         data: matrix to average
         dataerr: error matrix. If not applicable, set it to None
-        energy: photon energy
+        wavelength: wave length in Angstroem
         distance: sample-detector distance
         res: resolution (pixel size) of the detector (mm/pixel)
         bcx, bcy: beam center coordinates, starting from 0.
@@ -718,7 +717,7 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
             account being unmasked (0). 
     Outputs: theta,I,[E],A,[mask]
     
-    Note: if any of 'energy', 'distance' or 'res' is nonpositive, q means pixel
+    Note: if any of 'wavelength', 'distance' or 'res' is nonpositive, q means pixel
         everywhere.
     """
     cdef np.ndarray[np.double_t, ndim=1] theta, I, E, A
@@ -746,7 +745,7 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
     
     flagerror=(dataerr is not None)
     flagmask=(mask is not None)
-    flagq=(distance>0 and energy>0 and resx>0 and resy>0);
+    flagq=(distance>0 and wavelength>0 and resx>0 and resy>0);
     for ix from 0<=ix<M:
         for iy from 0<=iy<N:
             if flagmask and mask[ix,iy]:
@@ -757,7 +756,7 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
             y=(iy-bcy)*resy
             d=sqrt(x**2+y**2)
             if flagq:
-                q=4*M_PI*sin(0.5*atan2(d,distance))*energy/HC
+                q=4*M_PI*sin(0.5*atan2(d,distance))/wavelength
             else:
                 q=sqrt(x*x/resx/resx+y*y/resy/resy);
             if (q<qmin) or (q>qmax):

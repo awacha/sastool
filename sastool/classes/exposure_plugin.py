@@ -1,8 +1,28 @@
-import re
+""" exposure_plugin.py
+
+Created 25.10.2012. Andras Wacha
+
+This module defines the I/O plugin ecosystem for the SASExposure class, which enables
+the user to extend the read/write functionality of SASExposure.
+
+Each plugin should be a descendant of the general SASExposurePlugin class.
+Using the decorator ``register_plugin`` on the sub-class registers the plugin with
+SASExposure.
+
+For the actual working method of a plugin and for a short guide on what 
+methods/attributes to override in order to implement a new plugin, see the 
+docstring of SASExposurePlugin.
+
+"""
+
+
 import os
 import h5py
 import numpy as np
 import warnings
+import re
+
+__all__ = []
 
 from exposure import SASExposure
 from ..io import twodim
@@ -15,18 +35,96 @@ def register_plugin(pluginclass, idx=None):
     SASExposure.register_IOplugin(pluginclass(), idx)
     return pluginclass
 
-@register_plugin
 class SASExposurePlugin(object):
+    """Base class for SASExposure I/O plugins. For an actually working plugin, the
+    following attributes and methods can/need to be overridden:
+    
+    Attributes
+    ----------
+    
+    `_isread` bool, if reading is supported
+    `_iswrite` bool, if writing is supported
+    `_name` string, the name of the plugin. This will be used as an `experiment_type`
+        in SASExposure
+    `_default_read_kwargs` dict, the default values of keyword arguments you are
+        relying on if loading a file by the `read()` or `read_multi()` methods. Inside
+        those methods you would like to first call _before_read(kwargs), which updates
+        the keyword argument dict received originally by the reader methods (note the
+        absence of ** in _before_read(kwargs) !!!). Note that from this attribute both
+        the version optionall defined by the subclass and the one defined by this class
+        is used, in that order.
+    `_filename_regex` a compiled regular expression (by `re.compile()`) which should
+        match the filename. This is used by the default version of `check_if_applicable`
+        to decide if a filename is eligible for this plugin to work with. You should
+        end your regex with a '$' sign as the regex will be `search()`-ed, and you should
+        supply the `re.IGNORECASE` flag in `re.compile()`
+    
+    Methods
+    -------
+    
+    `read(filename, **kwargs)`: this method does the actual reading, so you should
+        override it if you are implementing a new plug-in. Its input
+        is usually a filename, which should be further searched for by
+        `sastool.misc.findfileindirs`, giving kwargs['dirs'] as an argument.
+        If you need other keyword arguments, please define default values for them
+        in _default_read_kwargs. You should call _before_read(kwargs) first thing.
+        This function should return a dict with the fields 'Intensity', 'Error',
+        'header', 'mask', from which the latter three can be None. A generator
+        returning such dicts can also be returned. The header should be loaded
+        by calling SASHeader(...) with the appropriate arguments. It is a good
+        practice to forward all kwargs to the call to SASHeader()
+    
+    `read_multi(filenameformat, fsns, **kwargs)`: this should be a wrapper around
+        `read()`, which should not normally be overridden, except if you want to
+        use fancy indexing (e.g. the first argument can be a non-string, e.g. a
+        HDF5 File or Group). This function should consist of a loop over fsns (which
+        is guaranteed to be an iterable), and `yield`-ing results in the same format
+        as `read()` does. Thus this always returns a generator!
+        
+    `write(filename,exp,**kwargs)`: write the exposure to a file (or other object).
+        If you define this, you also have to set `_iswrite` to True.
+    
+    `check_if_applies(filename)`: this function checks if the given filename (or other
+        object) can be treated by this plugin (either read or written). The default
+        version simply checks the given filename with `_filename_regex`. If however
+        you would like to load from non-files, you have to override this function.
+        It should return True or False.
+    
+    `is_read_supported()` and `is_write_supported()`: self-explanatory functions
+    
+    Item getting and setting with dict-like indexing is also supported: this operates
+    on the default kwargs in _default_read_kwargs.
+    
+    If you make a new plug-in, do not forget to apply the decorator `register_plugin`
+    in order to make it known to SASExposure.
+    """
     _isread = False
     _iswrite = False
     _name = '__plugin'
-    _default_read_kwargs = {'dirs':[]}
+    _default_read_kwargs = {'dirs':'.', 'error_on_not_found':True}
+    _filename_regex = None
     def read(self, filename, **kwargs):
         raise NotImplementedError
+    def read_multi(self, filenameformat, fsns, **kwargs):
+        self._before_read(kwargs)
+        for f in fsns:
+            try:
+                yield self.read(filenameformat % f, **kwargs)
+            except IOError:
+                if kwargs['error_on_not_found']:
+                    raise
+                else:
+                    continue
+        return
     def write(self, filename, exp, **kwargs):
         raise NotImplementedError
     def check_if_applies(self, filename):
-        return False
+        if not isinstance(filename, basestring):
+            return False
+        if self._filename_regex is not None:
+            return (self._filename_regex.search(filename) is not None)
+        else:
+            return False
     def is_read_supported(self):
         return self._isread
     def is_write_supported(self):
@@ -56,14 +154,12 @@ class SASExposurePlugin(object):
         
 @register_plugin
 class SEPlugin_ESRF(SASExposurePlugin):
+    """SASExposure I/O plugin for EDF files (ID01 and ID02 at ESRF)"""
     _isread = True
     _name = 'EDF'
     _default_read_kwargs = {'load_mask':True,
                           'estimate_errors':True}
-    def check_if_applies(self, filename):
-        if not isinstance(filename, basestring): return False
-        filename = os.path.split(filename)[-1]
-        return filename.upper().endswith('CCD') or filename.upper().endswith('.EDF')
+    _filename_regex = re.compile('(ccd|.edf)$', re.IGNORECASE)
     def read(self, filename, **kwargs):
         """Read an EDF file (ESRF beamline ID02 SAXS pattern)
 
@@ -78,7 +174,7 @@ class SEPlugin_ESRF(SASExposurePlugin):
         self._before_read(kwargs)
         filename = misc.findfileindirs(filename, kwargs['dirs'])
         edf = twodim.readedf(filename)
-        header = SASHeader(edf)
+        header = SASHeader(edf, **kwargs)
         Intensity = edf['data'].astype(np.double)
         if kwargs['load_mask']:
             mask = SASMask(misc.findfileindirs(header['MaskFileName'], kwargs['dirs']))
@@ -109,15 +205,13 @@ class SEPlugin_ESRF(SASExposurePlugin):
     
 @register_plugin
 class SEPlugin_B1_org(SASExposurePlugin):
+    """SASExposure I/O plugin for B1 (HASYLAB, DORIS III) original measurement data."""
     _isread = True
     _name = 'B1 org'
     _default_read_kwargs = {'header_extns':['.header', '.DAT', '.dat', '.DAT.gz', '.dat.gz'],
                           'data_extns':['.cbf', '.tif', '.tiff', '.DAT', '.DAT.gz', '.dat', '.dat.gz'],
                           }
-    def check_if_applies(self, filename):
-        if not isinstance(filename, basestring): return False
-        filename = os.path.split(filename)[-1]
-        return filename.upper().startswith('ORG')
+    filename_regex = re.compile(r'org_?[^/\\]*\.[^/\\]*$', re.IGNORECASE)
     def read(self, filename, **kwargs):
         """Read an original exposition (beamline B1, HASYLAB/DESY, Hamburg)
 
@@ -169,7 +263,7 @@ class SEPlugin_B1_org(SASExposurePlugin):
                 continue
         if not dataname:
             raise IOError('Could not find 2d org file') #skip this file
-        header = SASHeader(headername)
+        header = SASHeader(headername, **kwargs)
         if dataname.lower().endswith('.cbf'):
             Intensity = twodim.readcbf(dataname)
         elif dataname.upper().endswith('.DAT') or dataname.upper().endswith('.DAT.GZ'):
@@ -186,16 +280,14 @@ class SEPlugin_B1_org(SASExposurePlugin):
 
 @register_plugin    
 class SEPlugin_B1_int2dnorm(SASExposurePlugin):
+    """SASExposure I/O plugin for B1 (HASYLAB, DORISIII) reduced data."""
     _isread = True
     _name = 'B1 int2dnorm'
     _default_read_kwargs = {'fileformat':'int2dnorm%d',
                           'logfileformat':'intnorm%d',
                           'logfileextn':'.log',
                           'data_extns':['.npy', '.mat', '.npz'], }
-    def check_if_applies(self, filename):
-        if not isinstance(filename, basestring): return False
-        filename = os.path.split(filename)[-1]
-        return filename.upper().startswith('INT2DNORM')
+    _filename_regex = re.compile(r'int2dnorm[^/\\]*\.(mat|npy|npz)$', re.IGNORECASE)
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
 
@@ -230,24 +322,22 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
             fsn = int(m.group(1))
 
         headername = misc.findfileindirs(kwargs['logfileformat'] % fsn + kwargs['logfileextn'], kwargs['dirs'])
-        header = SASHeader(headername)
+        header = SASHeader(headername, **kwargs)
         Intensity, Error = twodim.readint2dnorm(dataname)
         header.add_history('Intensity and Error matrices loaded from ' + dataname)
         return {'header':header, 'Intensity':Intensity, 'Error':Error, 'mask':None}
 
 @register_plugin
 class SEPlugin_PAXE(SASExposurePlugin):
+    """SASExposure I/O plugin for LLB PAXE (or BNC Yellow Submarine) SANS data."""
     _isread = True
     _name = 'PAXE'
     _default_read_kwargs = {'estimate_errors':True}
-    def check_if_applies(self, filename):
-        if not isinstance(filename, basestring): return False
-        filename = os.path.split(filename)[-1]
-        return filename.upper().startswith('XE') and any([filename.upper().endswith(x) for x in ['.32', '.DAT']])
+    _filename_regex = re.compile(r'xe[^/\\]*\.(dat|32)$', re.IGNORECASE)
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
         paxe = twodim.readPAXE(misc.findfileindirs(filename, dirs=kwargs['dirs']))
-        header = SASHeader(paxe[0])
+        header = SASHeader(paxe[0], **kwargs)
         Intensity = paxe[1]
         if kwargs['estimate_errors']:
             Error = np.sqrt(Intensity)
@@ -257,6 +347,7 @@ class SEPlugin_PAXE(SASExposurePlugin):
 
 @register_plugin
 class SEPlugin_BDF(SASExposurePlugin):
+    """SASExposure I/O plugin for Bessy Data Format v1 and v2"""
     _isread = True
     _name = 'BDF'
     _default_read_kwargs = {'bdfext':'.bdf',
@@ -264,10 +355,7 @@ class SEPlugin_BDF(SASExposurePlugin):
                           'read_corrected_if_present':True,
                           'load_mask':True,
                           }
-    def check_if_applies(self, filename):
-        if not isinstance(filename, basestring): return False
-        filename = os.path.split(filename)[-1]
-        return any([filename.upper().endswith(x) for x in ['.BHF', '.BDF']])
+    _filename_regex = re.compile(r'\.(bdf|bhf)$', re.IGNORECASE)
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
         data = misc.flatten_hierarchical_dict(twodim.readbdf(misc.findfileindirs(filename, kwargs['dirs'])))
@@ -285,7 +373,7 @@ class SEPlugin_BDF(SASExposurePlugin):
         Error = data[Errname]
         for dn in datanames:
             del data[dn]
-        header = SASHeader(data)
+        header = SASHeader(data, **kwargs)
         if kwargs['load_mask'] and 'CORR.Maskfile' in header:
             path, filename = os.path.split(header['CORR.Maskfile'])
             if path:
@@ -299,17 +387,15 @@ class SEPlugin_BDF(SASExposurePlugin):
 
 @register_plugin
 class SEPlugin_MAR(SASExposurePlugin):
+    """SASExposure I/O plugin for MarResearch .image files."""
     _isread = True
     _name = 'MarCCD'
     _default_read_kwargs = {'estimate_errors':True}
-    def check_if_applies(self, filename):
-        if not isinstance(filename, basestring): return False
-        filename = os.path.split(filename)[-1]
-        return filename.upper().endswith('.IMAGE')
+    _filename_regex = re.compile(r'\.image$', re.IGNORECASE)
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
         Intensity, header = twodim.readmar(misc.findfileindirs(filename, dirs=kwargs['dirs']))
-        header = SASHeader(header)
+        header = SASHeader(header, **kwargs)
         if kwargs['estimate_errors']:
             Error = np.sqrt(Intensity)
         else:
@@ -318,16 +404,14 @@ class SEPlugin_MAR(SASExposurePlugin):
 
 @register_plugin
 class SEPlugin_BerSANS(SASExposurePlugin):
+    """SASExposure I/O plugin for BerSANS two-dimensional data"""
     _isread = True
     _name = 'BerSANS'
-    def check_if_applies(self, filename):
-        if not isinstance(filename, basestring): return False
-        filename = os.path.split(filename)[-1]
-        return bool(re.match('.*?D(\d+).(\d+)$', filename))
+    _filename_regex = re.compile(r'D[^/\\]*\.(\d+)$', re.IGNORECASE)
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
         Intensity, Error, hed = twodim.readBerSANSdata(misc.findfileindirs(filename, dirs=kwargs['dirs']))
-        header = SASHeader(hed)
+        header = SASHeader(hed, **kwargs)
         if Error is None and kwargs['estimate_errors']:
             Error = np.sqrt(Intensity)
         if ('MaskFile' in header) and kwargs['load_mask']:
@@ -343,21 +427,19 @@ class SEPlugin_BerSANS(SASExposurePlugin):
 
 @register_plugin
 class SEPlugin_HDF5(SASExposurePlugin):
+    """SASExposure I/O plugin for HDF5 files."""
     _isread = True
+    _iswrite = True
     _default_read_kwargs = {'HDF5_Groupnameformat':'FSN%d',
                            'HDF5_Intensityname':'Intensity',
                            'HDF5_Errorname':'Error',
                            'estimate_error':True,
                            'load_mask':True}
     _name = 'HDF5'
+    _filename_regex = re.compile(r'\.(h5|hdf5)$', re.IGNORECASE)
     def check_if_applies(self, filename):
-        if isinstance(filename, basestring):
-            filename = os.path.split(filename)[-1]
-            return any([filename.upper().endswith(x) for x in ['H5', 'HDF5']])
-        elif isinstance(filename, h5py.highlevel.Group):
-            return True
-        else:
-            return False
+        return (SASExposurePlugin.check_if_applies(self, filename) or 
+                isinstance(filename, h5py.highlevel.Group))
         
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
@@ -365,26 +447,97 @@ class SEPlugin_HDF5(SASExposurePlugin):
             if kwargs['HDF5_Intensityname'] in hdf_group.keys():
                 Intensity = hdf_group[kwargs['HDF5_Intensityname']].value
             else:
-                raise IOError('No Intensity dataset in HDF5 group ' + hdf_group.filename + ':' + hdf_group.name)
+                # if no intensity matrix is in the group, try if this group contains
+                # more sub-groups, which correspond to measurements.
+                try:
+                    # try to get all possible fsns.
+                    fsns = [ int(re.match(misc.re_from_Cformatstring_numbers(kwargs['HDF5_Groupnameformat']), k).group(1)) for k in hdf_group.keys() if re.match(misc.re_from_Cformatstring_numbers(kwargs['HDF5_Groupnameformat']), k)]
+                    if not fsns:
+                        # if we did not find any fsns, we raise an IOError
+                        raise RuntimeError
+                    # if we did find fsns, read them one-by-one.
+                    return self.read_multi(filename, fsns, **kwargs)
+                except RuntimeError:
+                    raise IOError('No Intensity dataset in HDF5 group ' + hdf_group.filename + ':' + hdf_group.name)
             if kwargs['HDF5_Errorname'] in hdf_group.keys():
                 Error = hdf_group[kwargs['HDF5_Errorname']].value
             elif kwargs['estimate_error']:
                 Error = np.sqrt(Intensity)
-            header = SASHeader(hdf_group)
+            header = SASHeader(hdf_group, **kwargs)
             if header['maskid'] is not None and kwargs['load_mask']:
                 mask = SASMask(hdf_group.parent, maskid=header['maskid'])
             else:
                 mask = None
         return {'Intensity':Intensity, 'Error':Error, 'header':header, 'mask':mask}
+    def read_multi(self, filenameformat, fsns, **kwargs):
+        self._before_read(kwargs)
+        we_have_loaded_a_hdf5_file = False
+        try:
+            if isinstance(filenameformat, basestring):
+                try:
+                    filenameformat % 1
+                except TypeError:
+                    # filenameformat is not a format string, it is to be treated as a HDF5
+                    # file. Open it
+                    filenameformat = h5py.highlevel.File(filenameformat)
+                    we_have_loaded_a_hdf5_file = True
+                    pass
+                else:
+                    for f in fsns:
+                        yield self.read(filenameformat % f, **kwargs)
+                    return
+            if isinstance(filenameformat, h5py.highlevel.Group):
+                for f in fsns:
+                    groupname = kwargs['HDF5_Groupnameformat'] % f
+
+                    yield self.read(filenameformat[groupname], **kwargs)
+            else:
+                raise ValueError('Invalid argument "filenameformat": ' + str(filenameformat))
+        finally:
+            if we_have_loaded_a_hdf5_file:
+                filenameformat.close()
+        return
+
+    def write(self, hdf_or_filename, exposure, **kwargs):
+        """Save exposure to a HDF5 file or group.
+
+        Inputs:
+            hdf_or_filename: a file name (string) or an instance of
+                h5py.highlevel.File (equivalent to a HDF5 root group) or
+                h5py.highlevel.Group.
+            other keyword arguments are passed on as keyword arguments to the
+                h5py.highlevel.Group.create_dataset() method.
+
+        A HDF5 group will be created with the name FSN<fsn> and the available
+        matrices (Intensity, Error) will be saved. Header data is saved
+        as attributes to the HDF5 group.
+
+        If a mask is associated to this exposure, it is saved as well as a
+        sibling group of FSN<fsn> with the name <maskid>.
+        """
+        if 'compression' not in kwargs:
+            kwargs['compression'] = 'gzip'
+        with _HDF_parse_group(hdf_or_filename) as hpg:
+            groupname = 'FSN%d' % exposure.header['FSN']
+            if groupname in hpg.keys():
+                del hpg[groupname]
+            hpg.create_group(groupname)
+            for k in exposure.matrix_names:
+                if k is None:
+                    continue
+                hpg[groupname].create_dataset(k, data=getattr(exposure, k), **kwargs)
+            exposure.header.write(hpg[groupname], **kwargs)
+            if exposure.mask is not None:
+                exposure.mask.write_to_hdf5(hpg)
+        
+    
 @register_plugin
 class SEPlugin_BareImage(SASExposurePlugin):
+    """SASExposure I/O plugin for cbf and tif image files without metadata."""
     _isread = True
     _name = 'Bare image'
     _default_read_kwargs = {'estimate_errors':True}
-    def check_if_applies(self, filename):
-        if not isinstance(filename, basestring): return False
-        filename = os.path.split(filename)[-1].upper()
-        return any([filename.endswith(x) for x in ['.TIFF', '.TIF', '.CBF']])
+    _filename_regex = re.compile('\.(tif[f]?|cbf)$', re.IGNORECASE)
     def read(self, filename, **kwargs):
         """Read a "bare" image file
         """
@@ -398,6 +551,6 @@ class SEPlugin_BareImage(SASExposurePlugin):
             Error = np.sqrt(Intensity)
         else:
             Error = None
-        header = SASHeader({'__Origin__':'bare_image'})
+        header = SASHeader({'__Origin__':'bare_image'}, **kwargs)
         return {'Intensity':Intensity, 'Error':Error, 'header':header, 'mask':None}
     
