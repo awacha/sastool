@@ -12,7 +12,7 @@ import matplotlib.colors
 import collections
 
 from .header import SASHeader
-from .common import SASExposureException,
+from .common import SASExposureException
 from .curve import SASCurve, SASAzimuthalCurve, SASPixelCurve
 from .mask import SASMask
 from .. import misc
