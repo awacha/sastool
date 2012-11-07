@@ -52,22 +52,17 @@ class ArithmeticBase(object):
             raise NotImplementedError('subtraction is not implemented between %s and %s types' % (type(self), type(value)))
         return retval
     def __mul__(self, value):
-        #print "arithmetic.__mul__ starting: ",type(self),type(value)
         try:
             copier = getattr(self, 'copy')
         except AttributeError:
             obj = type(self)(self)
         else:
             obj = copier()
-        #print "calling imul"
         obj = obj.__imul__(value)
-        #print "imul returned"
         return obj
     def __rmul__(self, value):
-        #print "arithmetic.__rmul__ starting: ",type(self),type(value)
         retval = self * value
         if retval is NotImplemented:
-            #print "arithmetic.__rmul__ not implemented"
             raise NotImplementedError('multiplication is not implemented between %s and %s types' % (type(self), type(value)))
         return retval
     def __idiv__(self, value):

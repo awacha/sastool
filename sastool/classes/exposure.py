@@ -27,6 +27,7 @@ HC = scipy.constants.codata.value('Planck constant in eV s') * \
 
 __all__ = ['SASExposure']
 
+
 class SASExposureGenerator(object):
     def __init__(self):
         pass
@@ -132,19 +133,15 @@ class SASExposure(ArithmeticBase):
             # with the _SAME_ arguments with which __new__() was originally called. 
             return
         self._was_init = True
-        print "SASExposure.__init__"
         ArithmeticBase.__init__(self)
-
+        self._initialize_kwargs(kwargs)
         if not args:
-            print "  args=[]"
             #no positional arguments: create an empty SASExposure
             self.Intensity = None
             self.Error = None
             self.header = SASHeader()
             self.mask = None
-            return
         elif len(args) == 1 and isinstance(args[0], SASExposure):
-            print "  copy __init__()"
             #make a deep copy of an existing SASExposure
             if isinstance(args[0].Intensity, np.ndarray):
                 self.Intensity = args[0].Intensity.copy()
@@ -162,9 +159,7 @@ class SASExposure(ArithmeticBase):
                 self.mask = SASMask(args[0].mask)
             else:
                 self.mask = args[0].mask
-            return
         elif len(args) == 1 and isinstance(args[0], dict):
-            print "  dict __init__()"
             # create SASExposure from a dict
             a = {'Intensity':None, 'Error':None, 'header':None, 'mask':None}
             a.update(args[0])
@@ -184,9 +179,7 @@ class SASExposure(ArithmeticBase):
                 self.mask = SASMask(a['mask'])
             else:
                 self.mask = a['mask']
-            return
         elif isinstance(args[0], np.ndarray):
-            print "  ndarray __init__()"
             # convert a numpy matrix to a SASExposure
             self.Intensity = args[0]
             if len(args) > 1 and isinstance(args[1], np.ndarray):
@@ -201,7 +194,6 @@ class SASExposure(ArithmeticBase):
                 self.mask = SASMask(args[3])
             else:
                 self.mask = None
-            return
         if kwargs['maskfile'] is not None and kwargs['load_mask']:
             self.set_mask(SASMask(kwargs['maskfile'], dirs=kwargs['dirs']))
     
@@ -271,16 +263,13 @@ class SASExposure(ArithmeticBase):
                 search path. Defaults to `None`
             `load_mask`: if a mask has to be loaded. Defaults to ``True``
         """
-        print "SASExposure.__new__()"
         cls._initialize_kwargs(kwargs)
         if not args:
-            print "  args==[]"
             #no positional arguments are specified: create an empty SASExposure.
             #we cannot call SASExposure(), since this would cause an infinite loop.
             return super(SASExposure, cls).__new__(cls)
         elif (isinstance(args[0], SASExposure) or isinstance(args[0], np.ndarray)
               or isinstance(args[0], dict)):
-            print "  simple __init__()"
             # copy an existing SASExposure, make a new SASExposure from a numpy
             # array or from a dict. 
             # we cannot call SASExposure(*args,**kwargs), since it will cause an infinite loop
@@ -289,14 +278,12 @@ class SASExposure(ArithmeticBase):
             # Everything else is handled by IO plugins
             plugin = cls.get_IOplugin(args[0], 'READ')
             if len(args) == 2:
-                print "  two args"
                 if not isinstance(args[1], collections.Sequence):
                     fsns = [args[1]]
                 else:
                     fsns = args[1]
                 res = plugin.read_multi(args[0], fsns, **kwargs)
             elif len(args) == 1:
-                print "  one arg"
                 res = plugin.read(args[0], **kwargs)
             else:
                 raise ValueError('Invalid number of positional arguments.')
@@ -314,12 +301,10 @@ class SASExposure(ArithmeticBase):
                     return list(gen)
     @classmethod
     def _read_multi(cls, obj):
-        print "  SASExposure._read_multi()"
         for o in obj:
-            print "  SASExposure._read_multi() yields..."
             yield cls(o) # this will call __new__ with a dict
-        print "  SASExposure._read_multi() returns"
         return
+    
     def check_for_mask(self, isfatal=True):
         """Check if a valid mask is defined.
 
@@ -538,6 +523,14 @@ class SASExposure(ArithmeticBase):
                 return ErrorValue(other.Intensity, other.Error)
             else:
                 raise ValueError('Incompatible shape!')
+        elif isinstance(other, ErrorValue):
+            if isinstance(other.val, numbers.Number):
+                return other
+            elif isinstance(other.val, np.ndarray):
+                if other.val.shape == self.shape and other.err.shape == self.shape:
+                    return other
+                else:
+                    raise ValueError('Incompatible shape!')
         else:
             raise NotImplementedError
     def __iadd__(self, other):
@@ -1371,4 +1364,9 @@ class SASExposure(ArithmeticBase):
                                   np.arctan(self.D / \
                                             self.header['DistCalibrated'])) / \
                            self.header['WavelengthCalibrated']
+    @property
+    def tth(self):
+        """Two-theta matrix"""
+        return np.arctan(self.D / self.header['DistCalibrated'])
+        
     ### ------------------------ Simple arithmetics ---------------------------

@@ -11,6 +11,7 @@ import itertools
 import datetime
 import math
 import re
+import warnings
 
 
 __all__ = ['SASHeader']
@@ -232,27 +233,22 @@ class SASHeader(dict):
         4) ``SASHeader(<fileformat>, <fsn>, **kwargs)``: loading possibly more
         files.
         """
-        print "SASHeader.__new__()"
         kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
         if not args:
-            print "  empty __new__()"
             return super(SASHeader, cls).__new__(cls)
         elif (isinstance(args[0], SASHeader) or isinstance(args[0], dict)) or isinstance(args[0], tuple):
-            print "  simple __new__()"
             return super(SASHeader, cls).__new__(cls)
         else:
             #everything from now on is handled by plug-ins.
             # Everything else is handled by IO plugins
             plugin = cls.get_IOplugin(args[0], 'READ')
             if len(args) == 2:
-                print "  two args"
                 if not isinstance(args[1], collections.Sequence):
                     fsns = [args[1]]
                 else:
                     fsns = args[1]
                 res = plugin.read_multi(args[0], fsns, **kwargs)
             elif len(args) == 1:
-                print "  one arg"
                 res = plugin.read(args[0], **kwargs)
             else:
                 raise ValueError('Invalid number of positional arguments.')
@@ -270,11 +266,8 @@ class SASHeader(dict):
                     return list(gen)
     @classmethod
     def _read_multi(cls, lis):
-        print "SASHeader._read_multi()"
         for l in lis:
-            print "SASHeader._read_multi() yields..."
             yield cls(l)
-        print "SASHeader._read_multi() returns"
         return
     @classmethod
     def _autoguess_experiment_type(cls, file_or_dict):
@@ -304,14 +297,11 @@ class SASHeader(dict):
         if hasattr(self, '_was_init'):
             return
         self._was_init = True
-        print "SASHeader.__init__()"
         self._key_aliases = {}
         kwargs = SASHeader._set_default_kwargs_for_readers(kwargs)
         if not args:
-            print "  empty __init__()"
             super(SASHeader, self).__init__()
         elif isinstance(args[0], SASHeader):
-            print "  __init__() from SASHeader"
             super(SASHeader, self).__init__(args[0])
             # copy over protected attributes
             for fn in args[0]._protectedfields_to_copy: #IGNORE:W0212
@@ -327,11 +317,9 @@ class SASHeader(dict):
                     # exception, which is forwarded to the upper level.
                     setattr(self, fn, attr.type(attr))
         elif isinstance(args[0], tuple):
-            print "  __init__() from tuple"
             self.update(args[0][0])
             self._key_aliases = args[0][1]
         else:
-            print "  __init__() from plugin"
             # search for a plugin to handle this
             try:
                 plugin = self.get_IOplugin(args[0], 'READ', **kwargs)
@@ -352,7 +340,7 @@ class SASHeader(dict):
         elif key.endswith('Error'):
             val = 0
         elif key.startswith('Monitor'):
-            val = 0
+            val = 1
         elif key == '__particle__':
             val = 'photon'
         elif key == 'Energy':
@@ -392,7 +380,16 @@ class SASHeader(dict):
         return val
     def __unicode__(self):
         """Print a short summary of this header"""
-        return "FSN %s; %s; %s mm; %s eV" % (self['FSN'], self['Title'], self['Dist'], self['Energy'])
+        if 'FSN' in self: fsn = self['FSN']
+        else: fsn = '<no FSN>'
+        if 'Title' in self: title = self['Title']
+        else: title = '<no title>'
+        if 'Dist' in self: dist = self['Dist']
+        else: dist = '<no dist>'
+        if 'Energy' in self: energy = self['Energy']
+        else: energy = '<no energy>'
+            
+        return "FSN %s; %s; %s mm; %s eV" % (fsn, title, dist, energy)
     __str__ = __unicode__
     def __repr__(self):
         return "<SASHeader: " + unicode(self) + '>'
@@ -402,8 +399,25 @@ class SASHeader(dict):
             return super(SASHeader, self).__getitem__(self._key_aliases[key])
         else:
             return super(SASHeader, self).__getitem__(key)
-    def __setitem__(self, key, value):
+    def __setitem__(self, key, value, notricks=False):
         """ respond to header[key]=value requests, implements key aliasing."""
+        if key.startswith('Energy') and not notricks:
+            # set the wavelength as well.
+            if self.__getitem__('__particle__') == 'photon':
+                self.__setitem__(key.replace('Energy', 'Wavelength'), HC / value, notricks=True)
+            elif self.__getitem__('__particle__') == 'neutron':
+                self.__setitem__(key.replace('Energy', 'Wavelength'), (NEUTRON_WAVELENGTH_CONVERTOR / value) ** 0.5, notricks=True)
+            else:
+                warnings.warn('Particle type not defined in header')
+            self.__setitem__(key, value, notricks=True)
+        elif key.startswith('Wavelength') and not notricks:
+            if self.__getitem__('__particle__') == 'photon':
+                self.__setitem__(key.replace('Wavelength', 'Energy'), HC / value, notricks=True)
+            elif self.__getitem__('__particle__') == 'neutron':
+                self.__setitem__(key.replace('Wavelength', 'Energy'), NEUTRON_WAVELENGTH_CONVERTOR / value ** 2, notricks=True)
+            else:
+                warnings.warn('Particle type not defined in header')
+            self.__setitem__(key, value, notricks=True)
         if key in self._key_aliases:
             return self.__setitem__(self._key_aliases[key], value)
         else:
@@ -446,11 +460,11 @@ class SASHeader(dict):
         return [i for i in self.iteritems()]
     def iterkeys(self):
         """ Iterator version of keys()."""
-        return itertools.chain(super(SASHeader, self).iterkeys(), self._key_aliases.iterkeys())
+        return itertools.chain(super(SASHeader, self).iterkeys(), itertools.ifilter(lambda x: x in self, self._key_aliases.iterkeys()))
     def itervalues(self):
         """ Iterator version of values()."""
         return itertools.chain(super(SASHeader, self).itervalues(),
-                 itertools.imap(lambda x:self[self._key_aliases[x]], self._key_aliases.iterkeys()))
+                 itertools.imap(lambda x:self[self._key_aliases[x]], itertools.ifilter(lambda x:x in self, self._key_aliases.iterkeys())))
     def iteritems(self):
         """ Iterator version of items()."""
         return itertools.izip(self.iterkeys(), self.itervalues())
@@ -480,7 +494,7 @@ class SASHeader(dict):
             raise ValueError('No plugin can handle ' + str(filename))
         return plugin[0]
     def write(self, writeto, **kwargs):
-        plugin = self.get_IOplugin(writeto, 'WRITE')
+        plugin = self.get_IOplugin(writeto, 'WRITE', **kwargs)
         plugin.write(writeto, self, **kwargs)
         
     # ------------------------ History manipulation ---------------------------

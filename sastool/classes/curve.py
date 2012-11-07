@@ -83,15 +83,17 @@ class GeneralCurve(ArithmeticBase):
         elif isinstance(args[0], basestring):
             kwargs_for_loadtxt = kwargs.copy()
             del kwargs_for_loadtxt['special_names']
+            del kwargs_for_loadtxt['autodetect_columnnames']
             columnnames = itertools.chain(self._special_names.values(),
                                         itertools.imap(lambda x:'column%d' % x,
                                                        itertools.count(len(self._special_names))
                                                        )
                                         )
-            with open(args[0], 'rt') as f:
-                firstline = f.readline()
-                if firstline.startswith('#'):
-                    columnnames = firstline[1:].strip().split()
+            if kwargs['autodetect_columnnames']:
+                with open(args[0], 'rt') as f:
+                    firstline = f.readline()
+                    if firstline.startswith('#'):
+                        columnnames = firstline[1:].strip().split()
             m = np.loadtxt(args[0], **kwargs_for_loadtxt)
             for i, cn in itertools.izip(range(m.shape[1]), columnnames):
                 self.add_dataset(cn, m[:, i])
@@ -130,6 +132,8 @@ class GeneralCurve(ArithmeticBase):
     def _initialize_kwargs_for_readers(self, kwargs):
         if 'special_names' not in kwargs:
             kwargs['special_names'] = collections.OrderedDict(self._default_special_names)
+        if 'autodetect_columnnames' not in kwargs:
+            kwargs['autodetect_columnnames'] = True
         return kwargs
 
     def _get_xname(self):          return self.get_specialname('x')
@@ -544,7 +548,7 @@ class GeneralCurve(ArithmeticBase):
             errorrequested: True if error should be returned (true Gaussian
                 error-propagation of the trapezoid formula)
         """
-        y = self.x * self.y ** exponent
+        y = self.y * self.x ** exponent
         m = np.trapz(y, self.x)
         if errorrequested:
             err = self.dy * self.x ** exponent

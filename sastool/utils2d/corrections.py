@@ -7,7 +7,7 @@ Corrections for 2D small-angle scattering images
 '''
 import numpy as np
 
-def twotheta(matrix,bcx,bcy,pixsizeperdist):
+def twotheta(matrix, bcx, bcy, pixsizeperdist):
     """Calculate the two-theta matrix for a scattering matrix
     
     Inputs:
@@ -19,10 +19,10 @@ def twotheta(matrix,bcx,bcy,pixsizeperdist):
     Outputs:
         the two theta matrix, same shape as 'matrix'.
     """
-    col,row=np.meshgrid(range(matrix.shape[1]),range(matrix.shape[0]))
-    return np.arctan(np.sqrt((row-bcx)**2+(col-bcy)**2)*pixsizeperdist)
+    col, row = np.meshgrid(range(matrix.shape[1]), range(matrix.shape[0]))
+    return np.arctan(np.sqrt((row - bcx) ** 2 + (col - bcy) ** 2) * pixsizeperdist)
 
-def solidangle(twotheta,sampletodetectordistance):
+def solidangle(twotheta, sampletodetectordistance):
     """Solid-angle correction for two-dimensional SAS images
     
     Inputs:
@@ -32,9 +32,9 @@ def solidangle(twotheta,sampletodetectordistance):
     The output matrix is of the same shape as twotheta. The scattering intensity
         matrix should be multiplied by it.
     """
-    return sampletodetectordistance**2/np.cos(twotheta)**3
+    return sampletodetectordistance ** 2 / np.cos(twotheta) ** 3
 
-def angledependentabsorption(twotheta,transmission):
+def angledependentabsorption(twotheta, transmission):
     """Correction for angle-dependent absorption of the sample
     
     Inputs:
@@ -47,8 +47,8 @@ def angledependentabsorption(twotheta,transmission):
         sample transmission by itself, as the 2*theta -> 0 limit of this matrix
         is unity.
     """
-    mud=-np.log(transmission);
-    cor=np.ones(twotheta.shape)
+    mud = -np.log(transmission);
+    cor = np.ones(twotheta.shape)
     
-    cor[twotheta>0]=transmission*mud*(1-1/np.cos(twotheta[twotheta>0]))/(np.exp(-mud/np.cos(twotheta[twotheta>0]))-np.exp(-mud))
+    cor[twotheta > 0] = transmission * mud * (1 - 1 / np.cos(twotheta[twotheta > 0])) / (np.exp(-mud / np.cos(twotheta[twotheta > 0])) - np.exp(-mud))
     return cor

@@ -5,6 +5,7 @@ import numbers
 import collections
 import datetime
 import h5py
+import cPickle as pickle
 
 from header import SASHeader, SASHistory
 from ..io import header
@@ -243,10 +244,10 @@ class SHPlugin_HDF5(SASHeaderPlugin):
         """Write the parameter structure to a HDF entity (group or dataset) as
         attributes. hdf_entity should be an instance of h5py.highlevel.Dataset
         or h5py.highlevel.Group or h5py.highlevel.File."""
-        with _HDF_parse_group(hdf_entity) as hdf_entity:
+        with _HDF_parse_group(hdf_entity, mode='a') as hdf_entity:
             for k in hed:
                 if k == 'History':
-                    hdf_entity.attrs[k] = unicode(hed[k])
+                    hdf_entity.attrs[k] = str(hed[k])
                 elif isinstance(hed[k], bool):
                     hdf_entity.attrs[k] = int(hed[k])
                 elif isinstance(hed[k], numbers.Number):
@@ -300,7 +301,7 @@ class SHPlugin_BDF(SASHeaderPlugin):
                 hed['YPixel'] = hed['CORR.PixelSizeY'] * 10
             for h in hed['HIS']:
                 hed['History'].add('BDF: ' + h)
-            if 'CORR.SampleThickness' in self:
+            if 'CORR.SampleThickness' in hed:
                 ka['Thickness'] = 'CORR.SampleThickness'
             if 'CORR.SampleThicknessError' in hed:
                 ka['ThicknessError'] = 'CORR.SampleThicknessError'
@@ -395,4 +396,23 @@ class SHPlugin_BerSANS(SASHeaderPlugin):
         ka = {'maskid':'MaskFile'}
         hed['__particle__'] = 'neutron'
         return (hed, ka)
-    
+
+@register_plugin
+class SHPlugin_ASA_SAS(SASHeaderPlugin):
+    _isread = True
+    _name = 'SAXSEVAL SAS file'
+    _filename_regex = re.compile(r'\.sas$', re.IGNORECASE)
+    def read(self, filename, **kwargs):
+        self._before_read(kwargs)
+        if isinstance(filename, basestring):
+            with open(misc.findfileindirs(filename, kwargs['dirs']), 'r') as f:
+                hed1 = pickle.load(f)
+        else:
+            hed1 = filename
+        hed = hed1['params']
+        if 'datasettype' in hed1:
+            hed['datasettype'] = hed1['datasettype']
+        hed['__Origin__'] = 'SAXSEVAL SAS file'
+        hed['__particle__'] = 'photon'
+        ka = {'Date':'params.Datetime', 'MeasTime':'params.LiveTime', 'FSN':'basename'}
+        return (hed, ka)

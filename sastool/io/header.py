@@ -233,9 +233,6 @@ of the same length as the field names in logfile_data.')
         f.write(k + ':\t' + unicode(data[k]) + '\n')
     f.close()
 
-
-
-
 def readB1header(filename):
     """Read beamline B1 (HASYLAB, Hamburg) header data
 

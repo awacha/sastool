@@ -21,6 +21,7 @@ import h5py
 import numpy as np
 import warnings
 import re
+import scipy.io
 
 __all__ = []
 
@@ -282,6 +283,7 @@ class SEPlugin_B1_org(SASExposurePlugin):
 class SEPlugin_B1_int2dnorm(SASExposurePlugin):
     """SASExposure I/O plugin for B1 (HASYLAB, DORISIII) reduced data."""
     _isread = True
+    _iswrite = True
     _name = 'B1 int2dnorm'
     _default_read_kwargs = {'fileformat':'int2dnorm%d',
                           'logfileformat':'intnorm%d',
@@ -326,7 +328,12 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         Intensity, Error = twodim.readint2dnorm(dataname)
         header.add_history('Intensity and Error matrices loaded from ' + dataname)
         return {'header':header, 'Intensity':Intensity, 'Error':Error, 'mask':None}
-
+    def write(self, filename, ex, **kwargs):
+        self._before_read(kwargs)
+        folder = os.path.split(filename)[0]
+        scipy.io.savemat(filename, {'Intensity':ex.Intensity, 'Error':ex.Error})
+        ex.header.write(os.path.join(folder, kwargs['logfileformat'] % ex.header['FSN'] + kwargs['logfileextn']))
+        
 @register_plugin
 class SEPlugin_PAXE(SASExposurePlugin):
     """SASExposure I/O plugin for LLB PAXE (or BNC Yellow Submarine) SANS data."""
@@ -517,7 +524,7 @@ class SEPlugin_HDF5(SASExposurePlugin):
         """
         if 'compression' not in kwargs:
             kwargs['compression'] = 'gzip'
-        with _HDF_parse_group(hdf_or_filename) as hpg:
+        with _HDF_parse_group(hdf_or_filename, mode='a') as hpg:
             groupname = 'FSN%d' % exposure.header['FSN']
             if groupname in hpg.keys():
                 del hpg[groupname]

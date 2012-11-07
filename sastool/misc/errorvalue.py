@@ -92,13 +92,11 @@ class ErrorValue(ArithmeticBase):
         self.err = np.sqrt(self.err ** 2 + value.err ** 2)
         return self
     def __imul__(self, value):
-        #print "Errorvalue.__imul__"
         try:
             value = ErrorValue(value)
         except ValueError:
-            #print "Errorvalue.__imul__ not implemented."
             return NotImplemented
-        self.err = np.sqrt(self.err * self.err * value.val * value.val +
+        self.err = np.sqrt(self.err * self.err * value.val * value.val + 
                              value.err * value.err * self.val * self.val)
         self.val = self.val * value.val
         return self
