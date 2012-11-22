@@ -1,12 +1,10 @@
-'''
-Created on Jul 25, 2012
+"""Stand-alone fitting utilities"""
 
-@author: andris
-'''
 import numpy as np
 from sastool.misc import easylsq
 from scipy.special import gamma, psi
 from sastool.classes import ErrorValue
+
 
 __all__ = ['fit_shullroess']
 
@@ -67,6 +65,26 @@ def fit_shullroess(q, Intensity, Error, R0=None, r=None):
     return A, r0, n, r, maxwellian(r, r0, n), statdict
 
 def maxwellian(r, r0, n):
+    """Maxwellian-like distribution of spherical particles
+    
+    Inputs:
+    -------
+        r: np.ndarray or scalar
+            radii
+        r0: positive scalar or ErrorValue
+            mean radius
+        n: positive scalar or ErrorValue
+            "n" parameter
+    
+    Output:
+    -------
+        the distribution function and its uncertainty as an ErrorValue containing arrays.
+        The uncertainty of 'r0' and 'n' is taken into account.
+        
+    Notes:
+    ------
+        M(r)=2*r^n/r0^(n+1)*exp(-r^2/r0^2) / gamma((n+1)/2)
+    """
     r0 = ErrorValue(r0)
     n = ErrorValue(n)
 

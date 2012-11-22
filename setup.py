@@ -14,19 +14,14 @@ npy_incdirs = [os.path.join(x, 'numpy/core/include') for x in incdirs]
 incdirs.extend(npy_incdirs)
 
 #Extension modules written in Cython
-ext_modules = [Extension("sastool.io._io", ["sastool/io/_io.pyx"],
-                         include_dirs=incdirs),
-               Extension("sastool.sim._sim", ["sastool/sim/_sim.pyx"],
-                         include_dirs=incdirs),
-               Extension("sastool.utils2d._integrate",
-                         ["sastool/utils2d/_integrate.pyx"],
-                         include_dirs=incdirs),
-               Extension("sastool.fitting._fitfunction",
-                         ["sastool/fitting/_fitfunction.pyx"],
-                         include_dirs=incdirs),
-               ]
 
-setup(name='sastool', version='0.2.3', author='Andras Wacha',
+pyxfiles = []
+for dir_, subdirs, files in os.walk('sastool'):
+    pyxfiles.extend([os.path.join(dir_, f) for f in files if f.endswith('.pyx')])
+
+ext_modules = [Extension(p.replace('/', '.')[:-4], [p], include_dirs=incdirs) for p in pyxfiles]
+
+setup(name='sastool', version='0.2.4', author='Andras Wacha',
       author_email='awacha@gmail.com', url='http://github.com/awacha/sastool',
       description='Python macros for [A]SA(X|N)S data processing, fitting, plotting etc.',
       packages=find_packages(),

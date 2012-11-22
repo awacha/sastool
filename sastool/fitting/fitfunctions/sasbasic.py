@@ -4,7 +4,7 @@ from scipy.special import sinc, sici
 
 __all__ = ['Fsphere', 'Guinier', 'Guinier_thickness', 'Guinier_crosssection',
            'GuinierPorod', 'PorodGuinier', 'PorodGuinierPorod',
-           'DampedPowerlaw', 'LogNormSpheres']
+           'DampedPowerlaw', 'LogNormSpheres', 'PowerlawPlusConstant', 'PowerlawGuinierPorodConst']
 
 # Helper functions
 def Fsphere(q, R):
@@ -195,3 +195,38 @@ def LogNormSpheres(q, A, mu, sigma, N=1000):
         return 4 * np.pi / q1 ** 3 * (np.sin(qR) - qR * np.cos(qR))
     I = (Fsphere_outer(q, R) ** 2 * np.outer(np.ones_like(q), P))
     return A * I.sum(1) / P.sum()
+
+def PowerlawGuinierPorodConst(q, A, alpha, G, Rg, beta, C):
+    """Sum of a Power-law, a Guinier-Porod curve and a constant.
+    
+    Inputs:
+    -------
+        ``q``: independent variable (momentum transfer)
+        ``A``: scaling factor of the power-law
+        ``alpha``: power-law exponent
+        ``G``: scaling factor of the Guinier-Porod curve
+        ``Rg``: Radius of gyration
+        ``beta``: power-law exponent of the Guinier-Porod curve
+        ``C``: additive constant
+    
+    Formula:
+    --------
+        ``A*q^alpha + GuinierPorod(q,G,Rg,beta) + C``
+    """
+    return PowerlawPlusConstant(q, A, alpha, C) + GuinierPorod(q, G, Rg, beta)
+
+def PowerlawPlusConstant(q, A, alpha, C):
+    """A power-law curve plus a constant
+    
+    Inputs:
+    -------
+        ``q``: independent variable (momentum transfer)
+        ``A``: scaling factor
+        ``alpha``: exponent
+        ``C``: additive constant
+    
+    Formula:
+    --------
+        ``A*q^alpha + C``
+    """
+    return A * q ** alpha + C

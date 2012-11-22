@@ -6,7 +6,7 @@ Created on Jun 15, 2012
 
 import numpy as np
 import os
-import scipy
+import scipy.io
 import matplotlib.nxutils
 import matplotlib.pyplot as plt
 import h5py
@@ -312,5 +312,30 @@ and maskid argument was omitted.')
         return self.edit_function(matrix, lambda a:a <= 0, whattodo)
     def edit_function(self, matrix, func, whattodo='mask'):
         return self.edit_general(func(matrix), whattodo)
+    def edit_badpixels(self, matrix, factor=100, whattodo='mask'):
+        """Find pixels whose intensity is much larger than its neighbours'.
+        
+        Inputs:
+        -------
+            matrix: np.ndarray
+                the scattering matrix to be masked
+            factor: positive number
+                this value controls what is deemed as "much larger": those pixels,
+                where:
+                
+                abs(pix-mean)<std*factor
+                
+                where pix is the pixel intensity and mean and std are the mean and std
+                intensities of all its 8 neighbours.
+        """
+        assert(matrix.shape == self.shape)
+        sides = np.array((matrix[2:, 1:-1], matrix[:-2, 1:-1], matrix[1:-1, 2:],
+                        matrix[1:-1, :-2], matrix[2:, 2:], matrix[:-2, :-2],
+                        matrix[2:, :-2], matrix[:-2, 2:]))
+        mean = sides.mean(axis=0)
+        std = sides.std(axis=0)
+        idx = np.zeros(self.shape, np.bool)
+        idx[1:-1, 1:-1] = np.absolute(matrix[1:-1, 1:-1] - mean) < factor * std
+        return self.edit_general(idx, whattodo)
     def __getitem__(self, key):
         return self.__class__(self.mask[key], maskid=self.maskid + '$trim')
