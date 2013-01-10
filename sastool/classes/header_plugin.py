@@ -84,7 +84,7 @@ class SHPlugin_ESRF(SASHeaderPlugin):
     _isread = True
     _name = 'EDF ID02'
     _filename_regex = re.compile('(ccd|.edf)$', re.IGNORECASE)
-    def read_from_ESRF_ID02(self, filename_or_edf, **kwargs):
+    def read(self, filename_or_edf, **kwargs):
         """Read header data from an ESRF ID02 EDF file.
 
         Inputs:
@@ -416,3 +416,17 @@ class SHPlugin_ASA_SAS(SASHeaderPlugin):
         hed['__particle__'] = 'photon'
         ka = {'Date':'params.Datetime', 'MeasTime':'params.LiveTime', 'FSN':'basename'}
         return (hed, ka)
+
+@register_plugin
+class SHPlugin_bare_image(SASHeaderPlugin):
+    _isread = True
+    _name = 'bare_image'
+    _filename_regex = re.compile('(.tif|.cbf|.jpg|.jpeg)$', re.IGNORECASE)
+    def read(self, filename_or_dict, **kwargs):
+        """Reader for an empty header.
+        """
+        self._before_read(kwargs)
+        if isinstance(filename_or_dict, basestring):
+            filename_or_dict = {'__Origin__':'bare_image'}
+        return (filename_or_dict, {})
+

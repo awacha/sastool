@@ -209,10 +209,10 @@ class SEPlugin_B1_org(SASExposurePlugin):
     """SASExposure I/O plugin for B1 (HASYLAB, DORIS III) original measurement data."""
     _isread = True
     _name = 'B1 org'
-    _default_read_kwargs = {'header_extns':['.header', '.DAT', '.dat', '.DAT.gz', '.dat.gz'],
-                          'data_extns':['.cbf', '.tif', '.tiff', '.DAT', '.DAT.gz', '.dat', '.dat.gz'],
-                          }
-    filename_regex = re.compile(r'org_?[^/\\]*\.[^/\\]*$', re.IGNORECASE)
+    _default_read_kwargs = {'header_extns':['.header', '.DAT.gz', '.dat.gz', '.DAT', '.dat'],
+                          'data_extns':['.cbf', '.tif', '.tiff', '.DAT.gz', '.DAT', '.dat.gz', '.dat'],
+                          'estimate_errors':True}
+    _filename_regex = re.compile(r'org_?[^/\\]*\.[^/\\]*$', re.IGNORECASE)
     def read(self, filename, **kwargs):
         """Read an original exposition (beamline B1, HASYLAB/DESY, Hamburg)
 
@@ -237,10 +237,11 @@ class SEPlugin_B1_org(SASExposurePlugin):
         data_extn = [x for x in kwargs['data_extns'] if filename.upper().endswith(x.upper())]
 
         # if an extension is found, remove it to get the basename.
-        if header_extn + data_extn: # is not empty
-            basename = os.path.splitext(filename)[0]
-        else:
-            basename = filename
+        basename = filename
+        for x in header_extn + data_extn:
+            if filename.upper().endswith(x.upper()):
+                basename = filename[:-len(x)]
+                break
 
         #prepend the already found extension (if any) to the list of possible
         # file extensions, both for header and data.

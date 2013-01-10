@@ -338,4 +338,8 @@ and maskid argument was omitted.')
         idx[1:-1, 1:-1] = np.absolute(matrix[1:-1, 1:-1] - mean) < factor * std
         return self.edit_general(idx, whattodo)
     def __getitem__(self, key):
-        return self.__class__(self.mask[key], maskid=self.maskid + '$trim')
+        m = self.mask[key]
+        if isinstance(m, np.ndarray):
+            return self.__class__(self.mask[key], maskid=self.maskid + '$trim')
+        else:
+            return m

@@ -289,10 +289,10 @@ class SASExposure(ArithmeticBase):
                 raise ValueError('Invalid number of positional arguments.')
             if isinstance(res, dict):
                 obj = super(SASExposure, cls).__new__(cls)
-                obj.__init__(res) # now the _was_init hack comes handy.
+                obj.__init__(res, **kwargs) # now the _was_init hack comes handy.
                 return obj
             else:
-                gen = cls._read_multi(res)
+                gen = cls._read_multi(res, **kwargs)
                 if len(args) == 2 and not isinstance(args[1], collections.Sequence):
                     return list(gen)[0]
                 elif kwargs['generator'] :
@@ -300,9 +300,9 @@ class SASExposure(ArithmeticBase):
                 else:
                     return list(gen)
     @classmethod
-    def _read_multi(cls, obj):
+    def _read_multi(cls, obj, **kwargs):
         for o in obj:
-            yield cls(o) # this will call __new__ with a dict
+            yield cls(o, **kwargs) # this will call __new__ with a dict
         return
     
     def check_for_mask(self, isfatal=True):
@@ -1149,7 +1149,15 @@ class SASExposure(ArithmeticBase):
             if isinstance(kwargs_default['drawcolorbar'], matplotlib.axes.Axes):
                 kwargs_default['axes'].figure.colorbar(ret, cax=kwargs_default['drawcolorbar'])
             else:
-                kwargs_default['axes'].figure.colorbar(ret, ax=kwargs_default['axes'])
+                # try to find a suitable colorbar axes: check if the plot target axes already
+                # contains some images, then check if their colorbars exist as axes.
+                cax = [i.colorbar[1] for i in kwargs_default['axes'].images if i.colorbar is not None]
+                cax = [c for c in cax if c in c.figure.axes]
+                if cax:
+                    cax = cax[0]
+                else:
+                    cax = None
+                kwargs_default['axes'].figure.colorbar(ret, cax=cax, ax=kwargs_default['axes'])
         kwargs_default['axes'].figure.canvas.draw()
         if return_matrix:
             return ret, mat

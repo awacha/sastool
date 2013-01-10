@@ -149,13 +149,20 @@ def SAStrans2D(double pixsizedivdist, double wavelength, Py_ssize_t N,
         raise ValueError('sphere array should have at least 6 columns')
     if cylinders.shape[1]<9:
         raise ValueError('cylinder array should have at least 9 columns')
+    if not isfinite(centerx):
+        centerx=N/2.
+    if not isfinite(centery):
+        centery=N/2.0
     Intensity=np.zeros((N,M),np.double)
     for row from 0<=row<N:
         for column from 0<=column<M:
-            qx=(row-centerx)*pixsizedivdist
-            qy=(column-centery)*pixsizedivdist
-            q=sqrt(qx**2+qy**2+1)/(4*M_PI/wavelength)
-            qx/=q; qy/=q; qz=1/q;
+            qx=(row-centerx)*pixsizedivdist # x component of the scattered wave vector
+            qy=(column-centery)*pixsizedivdist # y component of the scattered wave vector
+            q=sqrt(qx**2+qy**2+1)
+            qx=qx/q*2*M_PI/wavelength
+            qy=qy/q*2*M_PI/wavelength
+            qz=(1-1/q)*2*M_PI/wavelength
+            q=sqrt(qx**2+qy**2+qz**2)
             Areal=0;
             Aimag=0;
             for i from 0<=i<spheres.shape[0]:
