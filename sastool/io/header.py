@@ -118,6 +118,7 @@ _logfile_data = [('FSN', 'FSN', None, lambda x: int(float(x))),
                  ('Sample rotation around x axis', 'RotXsample', None, float),
                  ('Sample rotation around y axis', 'RotYsample', None, float),
                  ('History', 'History', _linearize_history, _delinearize_history),
+                 ('Date', 'Date', None, dateutil.parser.parse),
                 ]
 
 def readB1logfile(filename):
@@ -129,17 +130,17 @@ def readB1logfile(filename):
     Output: A dictionary.
     """
     dic = dict()
-    fid = open(filename, 'r') #try to open. If this fails, an exception is raised
+    fid = open(filename, 'r')  # try to open. If this fails, an exception is raised
     for l in fid:
         l = l.strip()
         if l[0] in '#!%\'':
-            continue #treat this line as a comment
+            continue  # treat this line as a comment
         try:
-            #find the first tuple in _logfile_data where the first element of the
+            # find the first tuple in _logfile_data where the first element of the
             # tuple is the starting of the line.
             ld = [ld for ld in _logfile_data if l.split(':', 1)[0].strip() == ld[0]][0]
         except IndexError:
-            #line is not recognized. We can still try to load it: find the first
+            # line is not recognized. We can still try to load it: find the first
             # semicolon. If found, the part of the line before it is stripped
             # from whitespaces and will be the key. The part after it is stripped
             # from whitespaces and parsed with misc.parse_number(). If no
@@ -156,7 +157,7 @@ def readB1logfile(filename):
             reader = ld[3]
         vals = reader(l.split(':', 1)[1].strip())
         if isinstance(ld[1], tuple):
-            #more than one field names. The reader function should return a 
+            # more than one field names. The reader function should return a 
             # tuple here, a value for each field.
             if len(vals) != len(ld[1]):
                 raise ValueError('Cannot read %d values from line %s in file!' % (len(ld[1]), l))
@@ -180,55 +181,55 @@ def writeB1logfile(filename, data):
     """
     allkeys = data.keys()
     f = open(filename, 'wt')
-    for ld in _logfile_data: #process each line
+    for ld in _logfile_data:  # process each line
         linebegin = ld[0]
         fieldnames = ld[1]
-        #set the default formatter if it is not given
+        # set the default formatter if it is not given
         if len(ld) < 3:
             formatter = unicode
         elif ld[2] is None:
             formatter = unicode
         else:
             formatter = ld[2]
-        #this will contain the formatted values.
+        # this will contain the formatted values.
         formatted = ''
         if isinstance(fieldnames, basestring):
-            #scalar field name, just one field. Formatter should be a callable.
+            # scalar field name, just one field. Formatter should be a callable.
             if fieldnames not in allkeys:
-                #this field has already been processed
+                # this field has already been processed
                 continue
             try:
                 formatted = formatter(data[fieldnames])
             except KeyError:
-                #field not found in param structure
+                # field not found in param structure
                 continue
         elif isinstance(fieldnames, tuple):
-            #more than one field names in a tuple. In this case, formatter can
+            # more than one field names in a tuple. In this case, formatter can
             # be a tuple of callables...
             if all([(fn not in allkeys) for fn in fieldnames]):
-                #if all the fields have been processed:
+                # if all the fields have been processed:
                 continue
             if isinstance(formatter, tuple) and len(formatter) == len(fieldnames):
                 formatted = ' '.join([ft(data[fn]) for ft, fn in zip(formatter, fieldnames)])
-            #...or a single callable...
+            # ...or a single callable...
             elif not isinstance(formatter, tuple):
                 formatted = formatter([data[fn] for fn in fieldnames])
-            #...otherwise raise an exception.
+            # ...otherwise raise an exception.
             else:
                 raise SyntaxError('Programming error: formatter should be a scalar or a tuple\
 of the same length as the field names in logfile_data.')
-        else: #fieldnames is neither a string, nor a tuple.
+        else:  # fieldnames is neither a string, nor a tuple.
             raise SyntaxError('Invalid syntax (programming error) in logfile_data in writeparamfile().')
-        #try to get the values
+        # try to get the values
         f.write(linebegin + ':\t' + formatted + '\n')
         if isinstance(fieldnames, tuple):
-            for fn in fieldnames: #remove the params treated.
+            for fn in fieldnames:  # remove the params treated.
                 if fn in allkeys:
                     allkeys.remove(fn)
         else:
             if fieldnames in allkeys:
                 allkeys.remove(fieldnames)
-    #write untreated params
+    # write untreated params
     for k in allkeys:
         f.write(k + ':\t' + unicode(data[k]) + '\n')
     f.close()
@@ -252,7 +253,7 @@ def readB1header(filename):
 
         header=readB1header('ORG00123.DAT')
     """
-    #Planck's constant times speed of light: incorrect
+    # Planck's constant times speed of light: incorrect
     # constant in the old program on hasjusi1, which was
     # taken over by the measurement program, to keep
     # compatibility with that.
@@ -351,7 +352,7 @@ def readehf(filename):
     for l in f:
         l = l.strip()
         if not l: continue
-        if l.endswith('}'): break #last line of header
+        if l.endswith('}'): break  # last line of header
         try:
             left, right = l.split('=', 1)
         except ValueError:
@@ -377,7 +378,7 @@ def readbhfv2(filename, load_data=False, bdfext='.bdf', bhfext='.bhf'):
         basename = filename[:-len(bdfext)]
     elif filename.endswith(bhfext):
         basename = filename[:-len(bhfext)]
-    else: #assume a single file of header and data.
+    else:  # assume a single file of header and data.
         basename, bhfext = os.path.splitext(filename)
         bdfext = bhfext
     headername = basename + bhfext
@@ -410,22 +411,22 @@ def readbhfv2(filename, load_data=False, bdfext='.bdf', bhfext='.bhf'):
     header['__Origin__'] = 'BDFv2'
     header['__particle__'] = 'photon'
 
-    #now open the data if needed
+    # now open the data if needed
     if load_data:
         f = open(dataname, 'rb')
         try:
             s = f.read()
         except IOError as ioe:
-            #an ugly bug (M$ KB899149) in W!nd0w$ causes an error if loading too
+            # an ugly bug (M$ KB899149) in W!nd0w$ causes an error if loading too
             # large a file from a network drive and opening it read-only.
             if ioe.errno == 22:
                 f.close()
                 try:
-                    #one work-around is to open it read-write.
+                    # one work-around is to open it read-write.
                     f = open(dataname, 'r+b')
                     s = f.read()
                 except IOError:
-                    #if this does not work, inform the user to either obtain
+                    # if this does not work, inform the user to either obtain
                     # write permission for that file or copy it to a local drive
                     f.close()
                     raise IOError(22, """
@@ -453,7 +454,7 @@ Sorry for the inconvenience.""", ioe.filename)
                 header[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i]:], dtype=np.uint8)
             else:
                 header[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i] * dt.itemsize:], dtype=dt)
-            #conversion: Matlab saves the array in Fortran-style ordering (columns first).
+            # conversion: Matlab saves the array in Fortran-style ordering (columns first).
             # Python however loads in C-style: rows first. We need to take care:
             #   1) reshape from linear to (ysize,xsize) and not (xsize,ysize)
             #   2) transpose (swaps columns and rows)
@@ -494,20 +495,20 @@ def readbhfv1(filename, load_data=False, bdfext='.bdf', bhfext='.bhf'):
         basename = filename[:-len(bdfext)]
     elif filename.endswith(bhfext):
         basename = filename[:-len(bhfext)]
-    else: #assume a single file of header and data.
+    else:  # assume a single file of header and data.
         basename, bhfext = os.path.splitext(filename)
         bdfext = bhfext
     headername = basename + bhfext
     dataname = basename + bdfext
     bdf = {}
-    bdf['his'] = [] #empty list for history
-    bdf['C'] = {} # empty list for bdf file descriptions
+    bdf['his'] = []  # empty list for history
+    bdf['C'] = {}  # empty list for bdf file descriptions
     namelists = {}
     valuelists = {}
-    with open(headername, 'rb') as fid: #if fails, an exception is raised
+    with open(headername, 'rb') as fid:  # if fails, an exception is raised
         for line in fid:
             if not line.strip():
-                continue  #empty line
+                continue  # empty line
             mat = line.split(None, 1)
             prefix = mat[0]
             if prefix == '#C':
@@ -556,16 +557,16 @@ def readbhfv1(filename, load_data=False, bdfext='.bdf', bhfext='.bhf'):
         try:
             s = f.read()
         except IOError as ioe:
-            #an ugly bug (M$ KB899149) in W!nd0w$ causes an error if loading too
+            # an ugly bug (M$ KB899149) in W!nd0w$ causes an error if loading too
             # large a file from a network drive and opening it read-only.
             if ioe.errno == 22:
                 f.close()
                 try:
-                    #one work-around is to open it read-write.
+                    # one work-around is to open it read-write.
                     f = open(dataname, 'r+b')
                     s = f.read()
                 except IOError:
-                    #if this does not work, inform the user to either obtain
+                    # if this does not work, inform the user to either obtain
                     # write permission for that file or copy it to a local drive
                     f.close()
                     raise IOError(22, """
@@ -593,7 +594,7 @@ Sorry for the inconvenience.""", ioe.filename)
                 bdf[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i]:], dtype=np.uint8)
             else:
                 bdf[names[i]] = np.fromstring(s1[-xsize[i] * ysize[i] * dt.itemsize:], dtype=dt)
-            #conversion: Matlab saves the array in Fortran-style ordering (columns first).
+            # conversion: Matlab saves the array in Fortran-style ordering (columns first).
             # Python however loads in C-style: rows first. We need to take care:
             #   1) reshape from linear to (ysize,xsize) and not (xsize,ysize)
             #   2) transpose (swaps columns and rows)
@@ -731,5 +732,5 @@ def readBerSANS(filename):
     if hed['Comment'].startswith('\n'):
         hed['Comment'] = hed['Comment'][1:]
     hed['__particle__'] = 'neutron'
-    hed['Wavelength'] *= 10; #convert from nanometres to Angstroems
+    hed['Wavelength'] *= 10;  # convert from nanometres to Angstroems
     return hed

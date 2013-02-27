@@ -144,7 +144,7 @@ class SHPlugin_B1_int2dnorm(SASHeaderPlugin):
     _isread = True
     _name = 'B1 log'
     _iswrite = True
-    _filename_regex = re.compile(r'intnorm[^/\\]*\.log$', re.IGNORECASE)
+    _filename_regex = re.compile(r'(intnorm[^/\\]*\.log$|\.param$)', re.IGNORECASE)
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
         if isinstance(filename, basestring):
@@ -305,7 +305,7 @@ class SHPlugin_BDF(SASHeaderPlugin):
                 ka['Thickness'] = 'CORR.SampleThickness'
             if 'CORR.SampleThicknessError' in hed:
                 ka['ThicknessError'] = 'CORR.SampleThicknessError'
-        #common to BDFv1 and v2
+        # common to BDFv1 and v2
         hed['History'].add('History imported from BDF file')
         ka['Energy'] = 'M.Energy'
         ka['Dist'] = 'M.SD'
@@ -430,3 +430,16 @@ class SHPlugin_bare_image(SASHeaderPlugin):
             filename_or_dict = {'__Origin__':'bare_image'}
         return (filename_or_dict, {})
 
+
+# DO NOT PUT NEW PLUGINS BELOW THIS LINE! The copydict plugin should be the last.
+
+@register_plugin
+class SHPlugin_copydict(SASHeaderPlugin):
+    _isread = True
+    _name = 'dummy'
+    _filename_regex = None
+    def check_if_applies(self, arg):
+        return True
+    def read(self, dict_to_copy, **kwargs):
+        self._before_read(kwargs)
+        return (dict_to_copy, {})

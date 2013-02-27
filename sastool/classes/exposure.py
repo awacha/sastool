@@ -10,6 +10,9 @@ import numbers
 import matplotlib.pyplot as plt
 import matplotlib.colors
 import collections
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .header import SASHeader
 from .common import SASExposureException
@@ -21,7 +24,7 @@ from ..misc.arithmetic import ArithmeticBase
 from ..misc.errorvalue import ErrorValue
 
 import scipy.constants
-#Planck constant times speed of light in eV*Angstroem units
+# Planck constant times speed of light in eV*Angstroem units
 HC = scipy.constants.codata.value('Planck constant in eV s') * \
     scipy.constants.codata.value('speed of light in vacuum') * 1e10
 
@@ -81,6 +84,7 @@ class SASExposure(ArithmeticBase):
         present, only the given file sequence numbers are read (if they are
         present).
     """
+    _instancecount = 0
     matrix_names = ['Intensity', 'Error']
     matrices = dict([('Intensity', 'Scattered intensity'),
                                       ('Error', 'Error of intensity')])
@@ -128,7 +132,7 @@ class SASExposure(ArithmeticBase):
         usual cases of object construction.
         """
         if hasattr(self, '_was_init'):
-            #an ugly hack to avoid duplicate __init__()-s, since whenever __new__()
+            # an ugly hack to avoid duplicate __init__()-s, since whenever __new__()
             # returns an instance of this class, the __init__() method is executed
             # with the _SAME_ arguments with which __new__() was originally called. 
             return
@@ -136,13 +140,13 @@ class SASExposure(ArithmeticBase):
         ArithmeticBase.__init__(self)
         self._initialize_kwargs(kwargs)
         if not args:
-            #no positional arguments: create an empty SASExposure
+            # no positional arguments: create an empty SASExposure
             self.Intensity = None
             self.Error = None
             self.header = SASHeader()
             self.mask = None
         elif len(args) == 1 and isinstance(args[0], SASExposure):
-            #make a deep copy of an existing SASExposure
+            # make a deep copy of an existing SASExposure
             if isinstance(args[0].Intensity, np.ndarray):
                 self.Intensity = args[0].Intensity.copy()
             else:
@@ -161,7 +165,7 @@ class SASExposure(ArithmeticBase):
                 self.mask = args[0].mask
         elif len(args) == 1 and isinstance(args[0], dict):
             # create SASExposure from a dict
-            a = {'Intensity':None, 'Error':None, 'header':None, 'mask':None}
+            a = {'Intensity':None, 'Error':None, 'header':SASHeader(), 'mask':None}
             a.update(args[0])
             if isinstance(a['Intensity'], np.ndarray):
                 self.Intensity = a['Intensity'].copy()
@@ -194,9 +198,12 @@ class SASExposure(ArithmeticBase):
                 self.mask = SASMask(args[3])
             else:
                 self.mask = None
+        if not isinstance(self.header, SASHeader):
+            self.header = SASHeader(self.header)
         if kwargs['maskfile'] is not None and kwargs['load_mask']:
             self.set_mask(SASMask(kwargs['maskfile'], dirs=kwargs['dirs']))
-    
+        SASExposure._instancecount += 1
+        logger.debug('New SASExposure instantiated. Now alive: ' + str(SASExposure._instancecount) + ' specimens.')
     def __new__(cls, *args, **kwargs):
         """Load files or just create an empty instance or copy.
 
@@ -265,15 +272,15 @@ class SASExposure(ArithmeticBase):
         """
         cls._initialize_kwargs(kwargs)
         if not args:
-            #no positional arguments are specified: create an empty SASExposure.
-            #we cannot call SASExposure(), since this would cause an infinite loop.
+            # no positional arguments are specified: create an empty SASExposure.
+            # we cannot call SASExposure(), since this would cause an infinite loop.
             return super(SASExposure, cls).__new__(cls)
         elif (isinstance(args[0], SASExposure) or isinstance(args[0], np.ndarray)
               or isinstance(args[0], dict)):
             # copy an existing SASExposure, make a new SASExposure from a numpy
             # array or from a dict. 
             # we cannot call SASExposure(*args,**kwargs), since it will cause an infinite loop
-            return super(SASExposure, cls).__new__(cls) #will call __init__ implicitly with args and kwargs
+            return super(SASExposure, cls).__new__(cls)  # will call __init__ implicitly with args and kwargs
         else:
             # Everything else is handled by IO plugins
             plugin = cls.get_IOplugin(args[0], 'READ')
@@ -289,7 +296,7 @@ class SASExposure(ArithmeticBase):
                 raise ValueError('Invalid number of positional arguments.')
             if isinstance(res, dict):
                 obj = super(SASExposure, cls).__new__(cls)
-                obj.__init__(res, **kwargs) # now the _was_init hack comes handy.
+                obj.__init__(res, **kwargs)  # now the _was_init hack comes handy.
                 return obj
             else:
                 gen = cls._read_multi(res, **kwargs)
@@ -302,7 +309,7 @@ class SASExposure(ArithmeticBase):
     @classmethod
     def _read_multi(cls, obj, **kwargs):
         for o in obj:
-            yield cls(o, **kwargs) # this will call __new__ with a dict
+            yield cls(o, **kwargs)  # this will call __new__ with a dict
         return
     
     def check_for_mask(self, isfatal=True):
@@ -318,7 +325,7 @@ class SASExposure(ArithmeticBase):
         """
         if self.mask is None:
             if isfatal:
-                raise SASExposureException('mask not defined') #IGNORE:W0710
+                raise SASExposureException('mask not defined')  # IGNORE:W0710
             else:
                 return False
         if self.mask.shape != self.shape:
@@ -338,14 +345,14 @@ class SASExposure(ArithmeticBase):
                 False, the list of missing field names is returned (an empty
                 list signifies that every required field is present).
         """
-        #Note, that we check for 'Dist' and 'Wavelength' instead of 'DistCalibrated'
+        # Note, that we check for 'Dist' and 'Wavelength' instead of 'DistCalibrated'
         # and 'WavelengthCalibrated', because if the latter are missing, they
         # default to the values of the uncalibrated ones.
         missing = [x for x in  ['BeamPosX', 'BeamPosY', 'Dist', 'Wavelength', 'XPixel', 'YPixel'] if x not in self.header]
 
         if missing:
             if isfatal:
-                raise SASExposureException('Fields missing from header: ' + str(missing)) #IGNORE:W0710
+                raise SASExposureException('Fields missing from header: ' + str(missing))  # IGNORE:W0710
             else:
                 return missing
         return []
@@ -354,7 +361,9 @@ class SASExposure(ArithmeticBase):
         for x in ['Intensity', 'Error', 'header', 'mask']:
             if hasattr(self, x):
                 delattr(self, x)
-        #we do not call the __del__ method of our parent class, since neither it
+        SASExposure._instancecount -= 1
+        logger.debug('A SASExposure has ben deleted. Now alive: ' + str(SASExposure._instancecount) + ' specimens.')
+        # we do not call the __del__ method of our parent class, since neither it
         # nor its ancestor has one.
     @property
     def shape(self):
@@ -392,14 +401,36 @@ class SASExposure(ArithmeticBase):
         """Respond to `del object[key]` calls. Delegate calls to self.header."""
         del self.header[key]
 
-    def sum(self, masked=True):
+    def barycenter(self, masked=True, mask=None):
+        """Calculate the center of mass of the scattering image.
+        
+        Inputs:
+            masked: if the mask should be taken into account
+            mask: if not None, an overriding mask to be used instead of
+                the defined one.
+        """
+        if mask is None and self.check_for_mask(False):
+            mask = self.mask
+        if mask is not None and masked:
+            indices = np.array(mask) != 0
+        else:
+            indices = slice(None)
+        col, row = np.meshgrid(np.arange(self.shape[1]), np.arange(self.shape[0]))
+        Imasked = self.Intensity[indices]
+        return (row[indices] * Imasked).sum() / Imasked.sum(), (col[indices] * Imasked).sum() / Imasked.sum()
+
+    def sum(self, masked=True, mask=None):
         """Calculate the sum of the pixels.
 
         Inputs:
-            masked:
+            masked: if the mask should be taken into account
+            mask: if not None, an overriding mask to be used instead of
+                the defined one.
         """
-        if self.check_for_mask(False) and masked:
-            indices = np.array(self.mask) != 0
+        if mask is None and self.check_for_mask(False):
+            mask = self.mask
+        if mask is not None and masked:
+            indices = np.array(mask) != 0
         else:
             indices = slice(None)
         isum = 0
@@ -407,33 +438,65 @@ class SASExposure(ArithmeticBase):
         try:
             isum = self.Intensity[indices].sum()
             esum = self.Error[indices].sum()
-        except TypeError: #NoneType object has no attribute __getitem__: if self.Error is None
+        except TypeError:  # NoneType object has no attribute __getitem__: if self.Error is None
             return isum
-        except ValueError: # this can occur if everything is masked
+        except ValueError:  # this can occur if everything is masked
             return ErrorValue(0, 0)
         return ErrorValue(isum, esum)
-    def max(self, masked=True):
-        if self.check_for_mask(False) and masked:
-            indices = np.array(self.mask) != 0
+    def max(self, masked=True, mask=None):
+        if mask is None and self.check_for_mask(False):
+            mask = self.mask
+        if mask is not None and masked:
+            indices = np.array(mask) != 0
         else:
             indices = slice(None)
         I = self.Intensity[indices]
         E = self.Error[indices]
         try:
             return ErrorValue(I.max(), E[I == I.max()].max())
-        except ValueError: # this can occur if everything is masked
+        except ValueError:  # this can occur if everything is masked
             return ErrorValue(np.nan, np.nan)
-    def min(self, masked=True):
-        if self.check_for_mask(False) and masked:
-            indices = np.array(self.mask) != 0
+    def min(self, masked=True, mask=None):
+        if mask is None and self.check_for_mask(False):
+            mask = self.mask
+        if mask is not None and masked:
+            indices = np.array(mask) != 0
         else:
             indices = slice(None)
         I = self.Intensity[indices]
         E = self.Error[indices]
         try:
             return ErrorValue(I.min(), E[I == I.min()].max())
-        except ValueError: # this can occur if everything is masked
+        except ValueError:  # this can occur if everything is masked
             return ErrorValue(np.nan, np.nan)
+
+    def mean(self, masked=True, mask=None):
+        if mask is None and self.check_for_mask(False):
+            mask = self.mask
+        if mask is not None and masked:
+            indices = np.array(mask) != 0
+        else:
+            indices = slice(None)
+        I = self.Intensity[indices]
+        E = self.Error[indices]
+        try:
+            return ErrorValue(I.mean(), ((E ** 2).mean()) ** 0.5)
+        except ValueError:  # this can occur if everything is masked
+            return ErrorValue(np.nan, np.nan)
+    def std(self, masked=True, mask=None):
+        if mask is None and self.check_for_mask(False):
+            mask = self.mask
+        if mask is not None and masked:
+            indices = np.array(mask) != 0
+        else:
+            indices = slice(None)
+        I = self.Intensity[indices]
+        E = self.Error[indices]
+        try:
+            return ErrorValue(I.std(), ((E ** 2).std()) ** 0.5)
+        except ValueError:  # this can occur if everything is masked
+            return ErrorValue(np.nan, np.nan)
+
 
     def trimpix(self, rowmin, rowmax, columnmin, columnmax):
         obj = self[rowmin:rowmax, columnmin:columnmax]
@@ -1054,7 +1117,7 @@ class SASExposure(ArithmeticBase):
                    'axes', 'invalid_color', 'mask_opacity', 'minvalue', 'maxvalue',
                    'return_matrix', 'fallback', 'drawcolorbar']
         kwargs_default.update(kwargs)
-        return_matrix = kwargs_default['return_matrix'] # save this as this will be removed when kwars_default is fed into imshow()
+        return_matrix = kwargs_default['return_matrix']  # save this as this will be removed when kwars_default is fed into imshow()
 
         kwargs_for_imshow = dict([(k, kwargs_default[k]) for k in kwargs_default if k not in my_kwargs])
         if isinstance(kwargs_default['zscale'], basestring):
@@ -1120,22 +1183,22 @@ class SASExposure(ArithmeticBase):
         if kwargs_default['axes'] is None:
             kwargs_default['axes'] = plt.gca()
         if mat is not None:
-            ret = kwargs_default['axes'].imshow(mat, **kwargs_for_imshow) #IGNORE:W0142
+            ret = kwargs_default['axes'].imshow(mat, **kwargs_for_imshow)  # IGNORE:W0142
         else:
             ret = None
         if kwargs_default['drawmask']:
-            #workaround: because of the colour-scaling we do here, full one and
+            # workaround: because of the colour-scaling we do here, full one and
             #   full zero masks look the SAME, i.e. all the image is shaded.
             #   Thus if we have a fully unmasked matrix, skip this section.
             #   This also conserves memory.
             if self.mask.mask.sum() != self.mask.mask.size:
-                #Mask matrix should be plotted with plt.imshow(maskmatrix, cmap=_colormap_for_mask)
+                # Mask matrix should be plotted with plt.imshow(maskmatrix, cmap=_colormap_for_mask)
                 _colormap_for_mask = matplotlib.colors.ListedColormap(['white', 'white'], '_sastool_%s' % misc.random_str(10))
-                _colormap_for_mask._init() #IGNORE:W0212
-                _colormap_for_mask._lut[:, -1] = 0 #IGNORE:W0212
-                _colormap_for_mask._lut[0, -1] = kwargs_default['mask_opacity'] #IGNORE:W0212
+                _colormap_for_mask._init()  # IGNORE:W0212
+                _colormap_for_mask._lut[:, -1] = 0  # IGNORE:W0212
+                _colormap_for_mask._lut[0, -1] = kwargs_default['mask_opacity']  # IGNORE:W0212
                 kwargs_for_imshow['cmap'] = _colormap_for_mask
-                kwargs_default['axes'].imshow(self.mask.mask, **kwargs_for_imshow) #IGNORE:W0142
+                kwargs_default['axes'].imshow(self.mask.mask, **kwargs_for_imshow)  # IGNORE:W0142
         if kwargs_default['crosshair']:
             if bcx is not None and bcy is not None:
                 ax = kwargs_default['axes'].axis()
@@ -1179,13 +1242,15 @@ class SASExposure(ArithmeticBase):
         else:
             self.header.add_history('Beam found by *%s*: %s' % (source, str(tuple(bc))))
 
-    def find_beam_semitransparent(self, bs_area, update=True, callback=None):
+    def find_beam_semitransparent(self, bs_area, threshold=0.05, update=True, callback=None):
         """Find the beam position from the area under the semitransparent
         beamstop.
 
         Inputs:
             bs_area: sequence of the coordinates of the beam-stop area rect.:
                 [row_min, row_max, column_min, column_max]
+            threshold: threshold value for eliminating low-intensity pixels. Set
+                it to None to skip this refinement.
             update: if the new value should be written in the header (default).
                 If False, the newly found beam position is only returned.
             callback: dummy parameter, kept for similar appearence as the other
@@ -1195,7 +1260,7 @@ class SASExposure(ArithmeticBase):
             the beam position (row,col).
         """
         bs_area = [min(bs_area[2:]), max(bs_area[2:]), min(bs_area[:2]), max(bs_area[:2])]
-        bc = utils2d.centering.findbeam_semitransparent(self.get_matrix(), bs_area)
+        bc = utils2d.centering.findbeam_semitransparent(self.get_matrix(), bs_area, threshold)
         if update:
             self.update_beampos(bc, source='semitransparent')
         return bc

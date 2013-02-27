@@ -6,6 +6,7 @@ Created on Jul 25, 2012
 import numpy as np
 import re
 import random
+import dateutil.parser
 
 __all__ = ['parse_list_from_string', 'normalize_listargument', 'parse_number',
          'flatten_hierarchical_dict', 're_from_Cformatstring_numbers', 'random_str']
@@ -32,18 +33,22 @@ def normalize_listargument(arg):
         return list(arg)
     return [arg]
 
-def parse_number(val):
+def parse_number(val, use_dateutilparser=False):
     """Try to auto-detect the numeric type of the value. First a conversion to
     int is tried. If this fails float is tried, and if that fails too, unicode()
     is executed. If this also fails, a ValueError is raised.
     """
-    funcs = [int, float, parse_list_from_string, unicode]
+    if use_dateutilparser:
+        funcs = [int, float, parse_list_from_string, dateutil.parser.parse, unicode]
+    else:
+        funcs = [int, float, parse_list_from_string, unicode]
+        
     if (val.strip().startswith("'") and val.strip().endswith("'")) or (val.strip().startswith('"') and val.strip().endswith('"')):
         return val[1:-1]
     for f in funcs:
         try:
             return f(val)
-        except ValueError:  #eat exception
+        except ValueError:  # eat exception
             pass
     raise ValueError(val)
 
@@ -78,7 +83,7 @@ def flatten_hierarchical_dict(original_dict, separator='.', max_recursion_depth=
     Only string keys are supported.
     """
     if max_recursion_depth is not None and max_recursion_depth <= 0:
-        #we reached the maximum recursion depth, refuse to go further
+        # we reached the maximum recursion depth, refuse to go further
         return original_dict
     if max_recursion_depth is None:
         next_recursion_depth = None

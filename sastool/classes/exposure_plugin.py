@@ -102,7 +102,7 @@ class SASExposurePlugin(object):
     _isread = False
     _iswrite = False
     _name = '__plugin'
-    _default_read_kwargs = {'dirs':'.', 'error_on_not_found':True}
+    _default_read_kwargs = {'dirs':'.', 'error_on_not_found':True, 'noheader':False}
     _filename_regex = None
     def read(self, filename, **kwargs):
         raise NotImplementedError
@@ -175,7 +175,10 @@ class SEPlugin_ESRF(SASExposurePlugin):
         self._before_read(kwargs)
         filename = misc.findfileindirs(filename, kwargs['dirs'])
         edf = twodim.readedf(filename)
-        header = SASHeader(edf, **kwargs)
+        if kwargs['noheader']:
+            header = SASHeader()
+        else:
+            header = SASHeader(edf, **kwargs)
         Intensity = edf['data'].astype(np.double)
         if kwargs['load_mask']:
             mask = SASMask(misc.findfileindirs(header['MaskFileName'], kwargs['dirs']))
@@ -191,7 +194,7 @@ class SEPlugin_ESRF(SASExposurePlugin):
                 warnings.warn('Rebinning mask: %s x %s, direction: %s' % (xbin, ybin, ['shrink', 'enlarge'][extend]))
                 mask = mask.rebin(xbin, ybin, extend)
             dummypixels = np.absolute(Intensity - header['Dummy']) <= header['DDummy']
-            #self.Intensity[dummypixels]=0
+            # self.Intensity[dummypixels]=0
             mask.mask &= (-dummypixels).reshape(Intensity.shape)
         else:
             mask = None
@@ -202,7 +205,79 @@ class SEPlugin_ESRF(SASExposurePlugin):
             Error = (0.5 * sd * sd / ps2 / I1 + Intensity) * float(sd * sd) / (ps2 * I1)
         else:
             Error = None
+        header['FileName'] = filename
         return {'header':header, 'Intensity':Intensity, 'mask':mask, 'Error':Error}
+
+@register_plugin
+class SEPlugin_CREDO(SASExposurePlugin):
+    """SASExposure I/O plugin for the CREDO instrument."""
+    _isread = True
+    _name = 'CREDO'
+    _default_read_kwargs = {'header_extns':['.param'],
+                          'data_extns':['.cbf', '.tif'],
+                          'estimate_errors':True}
+    _filename_regex = re.compile(r'_((\d+)|%(\d+)d).(cbf|tif)$', re.IGNORECASE)
+    def read(self, filename, **kwargs):
+        """Read an original exposition (CREDO)
+
+        Inputs:
+            filename: the name of the file to be loaded
+            dirs: folders to look for files in
+        """
+        self._before_read(kwargs)
+        # try to load header file
+        header_extn = [x for x in kwargs['header_extns'] if filename.upper().endswith(x.upper())]
+        data_extn = [x for x in kwargs['data_extns'] if filename.upper().endswith(x.upper())]
+
+        # if an extension is found, remove it to get the basename.
+        basename = filename
+        for x in header_extn + data_extn:
+            if filename.upper().endswith(x.upper()):
+                basename = filename[:-len(x)]
+                break
+        basename = os.path.basename(basename)
+        # prepend the already found extension (if any) to the list of possible
+        # file extensions, both for header and data.
+        header_extn.extend(kwargs['header_extns'])
+        data_extn.extend(kwargs['data_extns'])
+
+        if not kwargs['noheader']:
+            headername = ''
+    
+            for extn in header_extn:
+                try:
+                    headername = misc.findfileindirs(basename + extn, kwargs['dirs'])
+                except IOError:
+                    continue
+            if not headername:
+                raise IOError('Could not find param file. Was looking for: %s+extn where extn is in %s.' % (basename, str(header_extn)))
+        dataname = ''
+        for extn in data_extn:
+            try:
+                dataname = misc.findfileindirs(basename + extn, kwargs['dirs'])
+            except IOError:
+                continue
+        if not dataname:
+            raise IOError('Could not find 2d crd file')  # skip this file
+        if not kwargs['noheader']:
+            header = SASHeader(headername, **kwargs)
+        else:
+            header = SASHeader()
+        if dataname.lower().endswith('.cbf'):
+            Intensity, header_loaded = twodim.readcbf(dataname, load_header=True)
+        elif dataname.upper().endswith('.TIF') or dataname.upper().endswith('.TIFF'):
+            Intensity = twodim.readtif(dataname)
+            header_loaded = {}
+        else:
+            raise NotImplementedError(dataname)
+        if kwargs['estimate_errors']:
+            Error = np.sqrt(Intensity)
+        else:
+            Error = None
+        header_loaded = SASHeader(header_loaded)
+        header_loaded.update(header)
+        header_loaded['FileName'] = dataname
+        return {'header':header_loaded, 'Error':Error, 'Intensity':Intensity, 'mask':None}
     
 @register_plugin
 class SEPlugin_B1_org(SASExposurePlugin):
@@ -232,7 +307,7 @@ class SEPlugin_B1_org(SASExposurePlugin):
 
         """
         self._before_read(kwargs)
-        #try to load header file
+        # try to load header file
         header_extn = [x for x in kwargs['header_extns'] if filename.upper().endswith(x.upper())]
         data_extn = [x for x in kwargs['data_extns'] if filename.upper().endswith(x.upper())]
 
@@ -242,8 +317,8 @@ class SEPlugin_B1_org(SASExposurePlugin):
             if filename.upper().endswith(x.upper()):
                 basename = filename[:-len(x)]
                 break
-
-        #prepend the already found extension (if any) to the list of possible
+        basename = os.path.basename(basename)
+        # prepend the already found extension (if any) to the list of possible
         # file extensions, both for header and data.
         header_extn.extend(kwargs['header_extns'])
         data_extn.extend(kwargs['data_extns'])
@@ -264,10 +339,11 @@ class SEPlugin_B1_org(SASExposurePlugin):
             except IOError:
                 continue
         if not dataname:
-            raise IOError('Could not find 2d org file') #skip this file
+            raise IOError('Could not find 2d org file')  # skip this file
         header = SASHeader(headername, **kwargs)
+        header_loaded = {}
         if dataname.lower().endswith('.cbf'):
-            Intensity = twodim.readcbf(dataname)
+            Intensity, header_loaded = twodim.readcbf(dataname, load_header=True)
         elif dataname.upper().endswith('.DAT') or dataname.upper().endswith('.DAT.GZ'):
             Intensity = twodim.readjusifaorg(dataname).reshape(256, 256)
         elif dataname.upper().endswith('.TIF') or dataname.upper().endswith('.TIFF'):
@@ -278,7 +354,12 @@ class SEPlugin_B1_org(SASExposurePlugin):
             Error = np.sqrt(Intensity)
         else:
             Error = None
-        return {'header':header, 'Error':Error, 'Intensity':Intensity, 'mask':None}
+        header_loaded = SASHeader(header_loaded)
+        header_loaded.update(header)
+        header_loaded['FileName'] = dataname
+        return {'header':header_loaded, 'Error':Error, 'Intensity':Intensity, 'mask':None}
+
+
 
 @register_plugin    
 class SEPlugin_B1_int2dnorm(SASExposurePlugin):
@@ -303,7 +384,7 @@ class SEPlugin_B1_int2dnorm(SASExposurePlugin):
                 kwargs['dirs'] = [kwargs['dirs']]
             kwargs['dirs'] = [os.path.split(filename)[0]] + kwargs['dirs']
 
-        if data_extn: # is not empty
+        if data_extn:  # is not empty
             basename = os.path.splitext(filename)[0]
         else:
             basename = filename
@@ -328,6 +409,7 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         header = SASHeader(headername, **kwargs)
         Intensity, Error = twodim.readint2dnorm(dataname)
         header.add_history('Intensity and Error matrices loaded from ' + dataname)
+        header['FileName'] = dataname
         return {'header':header, 'Intensity':Intensity, 'Error':Error, 'mask':None}
     def write(self, filename, ex, **kwargs):
         self._before_read(kwargs)
@@ -344,13 +426,15 @@ class SEPlugin_PAXE(SASExposurePlugin):
     _filename_regex = re.compile(r'xe[^/\\]*\.(dat|32)$', re.IGNORECASE)
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
-        paxe = twodim.readPAXE(misc.findfileindirs(filename, dirs=kwargs['dirs']))
+        filename = misc.findfileindirs(filename, dirs=kwargs['dirs'])
+        paxe = twodim.readPAXE(filename)
         header = SASHeader(paxe[0], **kwargs)
         Intensity = paxe[1]
         if kwargs['estimate_errors']:
             Error = np.sqrt(Intensity)
         else:
             Error = None
+        header['FileName'] = filename
         return {'header':header, 'Intensity':Intensity, 'Error':Error, 'mask':None}
 
 @register_plugin
@@ -366,7 +450,8 @@ class SEPlugin_BDF(SASExposurePlugin):
     _filename_regex = re.compile(r'\.(bdf|bhf)$', re.IGNORECASE)
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
-        data = misc.flatten_hierarchical_dict(twodim.readbdf(misc.findfileindirs(filename, kwargs['dirs'])))
+        filename = misc.findfileindirs(filename, kwargs['dirs'])
+        data = misc.flatten_hierarchical_dict(twodim.readbdf(filename))
         datanames = [k for k in data if isinstance(data[k], np.ndarray)]
         if data['C.bdfVersion'] < 2:
             Intname = 'DATA'
@@ -391,6 +476,7 @@ class SEPlugin_BDF(SASExposurePlugin):
             mask = SASMask(filename, dirs=dirs)
         else:
             mask = None
+        header['FileName'] = filename
         return {'Intensity':Intensity, 'Error':Error, 'header':header, 'mask':mask}
 
 @register_plugin
@@ -402,12 +488,14 @@ class SEPlugin_MAR(SASExposurePlugin):
     _filename_regex = re.compile(r'\.image$', re.IGNORECASE)
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
-        Intensity, header = twodim.readmar(misc.findfileindirs(filename, dirs=kwargs['dirs']))
+        filename = misc.findfileindirs(filename, kwargs['dirs'])
+        Intensity, header = twodim.readmar(filename)
         header = SASHeader(header, **kwargs)
         if kwargs['estimate_errors']:
             Error = np.sqrt(Intensity)
         else:
             Error = None
+        header['FileName'] = filename
         return {'Intensity':Intensity, 'Error':Error, 'header':header, 'mask':None}
 
 @register_plugin
@@ -418,7 +506,8 @@ class SEPlugin_BerSANS(SASExposurePlugin):
     _filename_regex = re.compile(r'D[^/\\]*\.(\d+)$', re.IGNORECASE)
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
-        Intensity, Error, hed = twodim.readBerSANSdata(misc.findfileindirs(filename, dirs=kwargs['dirs']))
+        filename = misc.findfileindirs(filename, dirs=kwargs['dirs'])
+        Intensity, Error, hed = twodim.readBerSANSdata(filename)
         header = SASHeader(hed, **kwargs)
         if Error is None and kwargs['estimate_errors']:
             Error = np.sqrt(Intensity)
@@ -431,6 +520,7 @@ class SEPlugin_BerSANS(SASExposurePlugin):
             mask = SASMask(header['MaskFile'], dirs=dirs)
         else:
             mask = None
+        header['FileName'] = filename
         return {'Intensity':Intensity, 'Error':Error, 'header':header, 'mask':mask}
 
 @register_plugin
@@ -552,13 +642,14 @@ class SEPlugin_BareImage(SASExposurePlugin):
         self._before_read(kwargs)
         filename = misc.findfileindirs(filename, kwargs['dirs'])
         if filename.upper().endswith('.CBF'):
-            Intensity = twodim.readcbf(filename)
+            Intensity, header = twodim.readcbf(filename, load_header=True)
         elif filename.upper().endswith('.TIF') or filename.upper().endswith('.TIFF'):
             Intensity = twodim.readtif(filename)
+            header = SASHeader({'__Origin__':'bare_image'}, **kwargs)
         if kwargs['estimate_errors']:
             Error = np.sqrt(Intensity)
         else:
             Error = None
-        header = SASHeader({'__Origin__':'bare_image'}, **kwargs)
+        header['FileName'] = filename
         return {'Intensity':Intensity, 'Error':Error, 'header':header, 'mask':None}
     

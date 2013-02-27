@@ -15,8 +15,8 @@ def findbeam_gravity(data, mask):
          of the origin, starting from 1
     """
     # for each row and column find the center of gravity
-    data1 = data.copy() # take a copy, because elements will be tampered with
-    data1[mask == 0] = 0 # set masked elements to zero
+    data1 = data.copy()  # take a copy, because elements will be tampered with
+    data1[mask == 0] = 0  # set masked elements to zero
     # vector of x (row) coordinates
     x = np.arange(data1.shape[0])
     # vector of y (column) coordinates
@@ -80,7 +80,7 @@ def findbeam_slices(data, orig_initial, mask=None, maxiter=0, epsfcn=0.001,
         mask = np.ones(data.shape)
     data = data.astype(np.double)
     def targetfunc(orig, data, mask, orig_orig, callback):
-        #integrate four sectors
+        # integrate four sectors
         I = [None] * 4;
         p, Ints, A = radint_nsector(data, None, -1, -1, -1, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask=mask,
                              phi0=np.pi / 4 - 0.5 * sector_width, dphi=sector_width,
@@ -137,7 +137,7 @@ def findbeam_azimuthal(data, orig_initial, mask=None, maxiter=100, Ntheta=50,
             raise ValueError, 'findbeam_azimuthal: non-complete azimuthal average, please consider changing dmin, dmax and/or orig_initial!'
         p = ((I.max() - I.min()) / 2.0, t[I == I.max()][0], I.mean())
         p = scipy.optimize.leastsq(sinfun, p, (t, I))[0]
-        #print "findbeam_azimuthal: orig=",orig,"amplitude=",abs(p[0])
+        # print "findbeam_azimuthal: orig=",orig,"amplitude=",abs(p[0])
         if callback is not None:
             callback()
         return abs(p[0])
@@ -176,7 +176,7 @@ def findbeam_azimuthal_fold(data, orig_initial, mask=None, maxiter=100,
     if mask is None:
         mask = np.ones_like(data).astype(np.uint8)
     data = data.astype(np.double)
-    #the function to minimize is the sum of squared difference of two halves of
+    # the function to minimize is the sum of squared difference of two halves of
     # the azimuthal integral.
     def targetfunc(orig, data, mask, orig_orig, callback):
         I = azimintpix(data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask, Ntheta, dmin, dmax)[1]
@@ -187,7 +187,7 @@ def findbeam_azimuthal_fold(data, orig_initial, mask=None, maxiter=100,
                                 args=(data, 1 - mask, np.array(orig_initial) - extent, callback), maxiter=maxiter, disp=0)
     return orig1 + np.array(orig_initial) - extent
 
-def findbeam_semitransparent(data, pri):
+def findbeam_semitransparent(data, pri, threshold=0.05):
     """Find beam with 2D weighting of semitransparent beamstop area
 
     Inputs:
@@ -197,38 +197,48 @@ def findbeam_semitransparent(data, pri):
             index (ie. A[Y,X] is the element of A from the Xth column and the
             Yth row). You can get these by zooming on the figure and retrieving
             the result of axis() (like in Matlab)
-
+        threshold: do not count pixels if their intensity falls below
+            max_intensity*threshold. max_intensity is the highest count rate
+            in the current row or column, respectively. Set None to disable
+            this feature.
+            
     Outputs: bcx,bcy
         the x and y coordinates of the primary beam
     """
-    threshold = 0.05
     rowmin = np.floor(min(pri[2:]))
     rowmax = np.ceil(max(pri[2:]))
     colmin = np.floor(min(pri[:2]))
     colmax = np.ceil(max(pri[:2]))
-    #beam area on the scattering image
-    B = data[rowmin:rowmax, colmin:colmax];
-    #print B.shape
-    #row and column indices
-    Ri = np.arange(rowmin, rowmax)
-    Ci = np.arange(colmin, colmax)
-    #print len(Ri)
-    #print len(Ci)
-    Ravg = np.mean(B, 1)    #average over column index, will be a concave curve
-    Cavg = np.mean(B, 0)    #average over row index, will be a concave curve
-    #find the maxima im both directions and their positions
-    maxR = max(Ravg);    maxRpos = Ri[Ravg == maxR][0]
-    maxC = max(Cavg);    maxCpos = Ci[Cavg == maxC][0]
-    #cut off pixels which are smaller than threshold*peak_height
-    Rmin = Ri[(Ravg >= (Ravg[0] + (maxR - Ravg[0]) * threshold)) & (Ri < maxRpos)][0]
-    Rmax = Ri[(Ravg >= (Ravg[-1] + (maxR - Ravg[-1]) * threshold)) & (Ri > maxRpos)][-1]
-    Cmin = Ci[(Cavg >= (Cavg[0] + (maxC - Cavg[0]) * threshold)) & (Ci < maxCpos)][0]
-    Cmax = Ci[(Cavg >= (Cavg[-1] + (maxC - Cavg[-1]) * threshold)) & (Ci > maxCpos)][-1]
+    
+    if threshold is not None:
+        # beam area on the scattering image
+        B = data[rowmin:rowmax, colmin:colmax];
+        # print B.shape
+        # row and column indices
+        Ri = np.arange(rowmin, rowmax)
+        Ci = np.arange(colmin, colmax)
+        # print len(Ri)
+        # print len(Ci)
+        Ravg = B.mean(1)  # average over column index, will be a concave curve
+        Cavg = B.mean(0)  # average over row index, will be a concave curve
+        # find the maxima im both directions and their positions
+        maxR = Ravg.max();    maxRpos = Ravg.argmax()
+        maxC = Cavg.max();    maxCpos = Cavg.argmax()
+        # cut off pixels which are smaller than threshold*peak_height
+        Rmin = Ri[((Ravg - Ravg[0]) >= ((maxR - Ravg[0]) * threshold)) & (Ri < maxRpos)][0]
+        Rmax = Ri[((Ravg - Ravg[-1]) >= ((maxR - Ravg[-1]) * threshold)) & (Ri > maxRpos)][-1]
+        Cmin = Ci[((Cavg - Cavg[0]) >= ((maxC - Cavg[0]) * threshold)) & (Ci < maxCpos)][0]
+        Cmax = Ci[((Cavg - Cavg[-1]) >= ((maxC - Cavg[-1]) * threshold)) & (Ci > maxCpos)][-1]
+    else:
+        Rmin = rowmin
+        Rmax = rowmax
+        Cmin = colmin
+        Cmax = colmax
     d = data[Rmin:Rmax + 1, Cmin:Cmax + 1]
     x = np.arange(Rmin, Rmax + 1)
     y = np.arange(Cmin, Cmax + 1)
-    bcx = np.sum(np.sum(d, 1) * x) / np.sum(d)
-    bcy = np.sum(np.sum(d, 0) * y) / np.sum(d)
+    bcx = (d.sum(1) * x).sum() / d.sum()
+    bcy = (d.sum(0) * y).sum() / d.sum()
     return bcx, bcy
 
 def findbeam_radialpeak(data, orig_initial, mask, rmin, rmax, maxiter=100,
@@ -260,7 +270,7 @@ def findbeam_radialpeak(data, orig_initial, mask, rmin, rmax, maxiter=100,
         def targetfunc(orig, data, mask, orig_orig, callback):
             I = radintpix(data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask, pix)[1]
             p = misc.findpeak(pix, I)[2]
-            #print orig[0] + orig_orig[0], orig[1] + orig_orig[1], p
+            # print orig[0] + orig_orig[0], orig[1] + orig_orig[1], p
             if callback is not None:
                 callback()
             return abs(p)
@@ -269,7 +279,7 @@ def findbeam_radialpeak(data, orig_initial, mask, rmin, rmax, maxiter=100,
             I = radintpix(data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask, pix)[1]
             fp = misc.findpeak(pix, I)
             p = -(fp[6] + fp[4])
-            #print orig[0] + orig_orig[0], orig[1] + orig_orig[1], p
+            # print orig[0] + orig_orig[0], orig[1] + orig_orig[1], p
             if callback is not None:
                 callback()
             return p

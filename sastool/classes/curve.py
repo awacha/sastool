@@ -29,8 +29,8 @@ def errtrapz(x, yerr):
     """
     x = np.array(x)
     yerr = np.array(yerr)
-    return 0.5 * np.sqrt((x[1] - x[0]) ** 2 * yerr[0] ** 2 +
-                        np.sum((x[2:] - x[:-2]) ** 2 * yerr[1:-1] ** 2) +
+    return 0.5 * np.sqrt((x[1] - x[0]) ** 2 * yerr[0] ** 2 + 
+                        np.sum((x[2:] - x[:-2]) ** 2 * yerr[1:-1] ** 2) + 
                         (x[-1] - x[-2]) ** 2 * yerr[-1] ** 2)
 
 class ControlledVectorAttribute(object):
@@ -57,23 +57,23 @@ class ControlledVectorAttribute(object):
             obj._controlled_attributes.remove(self.name)
 
 class GeneralCurve(ArithmeticBase):
-    _xtolpcnt = 1e-2 # tolerance percent in abscissa (1e-2 corresponds to 1%)
+    _xtolpcnt = 1e-2  # tolerance percent in abscissa (1e-2 corresponds to 1%)
     _dxepsilon = 1e-6
     _default_special_names = [('x', 'X'), ('y', 'Y'), ('dy', 'DY'), ('dx', 'DX')]
-
+    _lastaxes = None
     def __init__(self, *args, **kwargs):
         ArithmeticBase.__init__(self)
         kwargs = self._initialize_kwargs_for_readers(kwargs)
         self._controlled_attributes = []
         self._special_names = kwargs['special_names']
         if len(args) == 0:
-            #empty constructor
+            # empty constructor
             self.x = None
             self.y = None
             self.dy = None
             self.dx = None
         elif isinstance(args[0], type(self)):
-            #copy constructor
+            # copy constructor
             self._special_names = args[0]._special_names
             for name in args[0]._controlled_attributes:
                 self.add_dataset(name, getattr(args[0], name))
@@ -106,14 +106,14 @@ class GeneralCurve(ArithmeticBase):
             self.add_dataset(name, a)
 
     def __getattribute__(self, name):
-        #hack to allow instance descriptors. http://blog.brianbeck.com/post/74086029/instance-descriptors
+        # hack to allow instance descriptors. http://blog.brianbeck.com/post/74086029/instance-descriptors
         value = object.__getattribute__(self, name)
         if isinstance(value, ControlledVectorAttribute):
             value = value.__get__(self, self.__class__)
         return value
 
     def __setattr__(self, name, value):
-        #hack to allow instance descriptors. http://blog.brianbeck.com/post/74086029/instance-descriptors
+        # hack to allow instance descriptors. http://blog.brianbeck.com/post/74086029/instance-descriptors
         if hasattr(self, '_special_names') and name in self._special_names.values():
             self.add_dataset(name, value)
         try:
@@ -295,17 +295,17 @@ class GeneralCurve(ArithmeticBase):
                 self.dy = np.zeros_like(self.y)
             self.dy = np.sqrt(self.dy ** 2 + other.err ** 2)
         elif isinstance(other, GeneralCurve):
-            self.x = 0.5 * (self.x + other.x)  #IGNORE:E1103
-            self.y = self.y + other.y          #IGNORE:E1103
+            self.x = 0.5 * (self.x + other.x)  # IGNORE:E1103
+            self.y = self.y + other.y  # IGNORE:E1103
             if not hasattr(self, 'dx') and hasattr(other, 'dx'):
-                self.dx = other.dx             #IGNORE:E1103
+                self.dx = other.dx  # IGNORE:E1103
             elif hasattr(self, 'dx') and hasattr(other, 'dx'):
-                self.dx = 0.5 * (self.dx + other.dx)   #IGNORE:E1103
-            #the other two cases do not need explicit treatment.
+                self.dx = 0.5 * (self.dx + other.dx)  # IGNORE:E1103
+            # the other two cases do not need explicit treatment.
             if not hasattr(self, 'dy') and hasattr(other, 'dy'):
-                self.dy = other.dy   #IGNORE:E1103
+                self.dy = other.dy  # IGNORE:E1103
             elif hasattr(self, 'dy') and hasattr(other, 'dy'):
-                self.dy = np.sqrt(self.dy ** 2 + other.dy ** 2)   #IGNORE:E1103
+                self.dy = np.sqrt(self.dy ** 2 + other.dy ** 2)  # IGNORE:E1103
         else:
             return NotImplemented
         return self
@@ -320,7 +320,7 @@ class GeneralCurve(ArithmeticBase):
                 self.dx = other.dx
             elif hasattr(self, 'dx') and hasattr(other, 'dx'):
                 self.dx = 0.5 * (self.dx + other.dx)
-            #the other two cases do not need explicit treatment.
+            # the other two cases do not need explicit treatment.
             if not hasattr(self, 'dy') and hasattr(other, 'dy'):
                 self.dy = other.dy
             elif hasattr(self, 'dy') and hasattr(other, 'dy'):
@@ -356,7 +356,7 @@ class GeneralCurve(ArithmeticBase):
         if isinstance(other, GeneralCurve):
             if not hasattr(obj, 'dy'):
                 obj.dy = np.zeros_like(obj.y)
-            other = GeneralCurve(other) #avoid modifying other by making a copy of it.
+            other = GeneralCurve(other)  # avoid modifying other by making a copy of it.
             if not hasattr(other, 'dy'):
                 other.dy = np.zeros_like(other.dy)
             obj.dy = ((obj.y ** (other.y - 1) * other.y * obj.dy) ** 2 + (np.log(obj.y) * obj.y ** other.y * other.dy) ** 2) ** 0.5
@@ -387,6 +387,7 @@ class GeneralCurve(ArithmeticBase):
         else:
             ax = plt
         idx = np.isfinite(self.y) & np.isfinite(self.x) & (self.y > 0) & (self.x > 0)
+        self._lastaxes = ax
         return ax.loglog(self.x[idx], self.y[idx], *args, **kwargs)
     def plot(self, *args, **kwargs):
         if 'axes' in kwargs:
@@ -394,6 +395,7 @@ class GeneralCurve(ArithmeticBase):
             del kwargs['axes']
         else:
             ax = plt
+        self._lastaxes = ax
         return ax.plot(self.x, self.y, *args, **kwargs)
     def semilogx(self, *args, **kwargs):
         if 'axes' in kwargs:
@@ -402,6 +404,7 @@ class GeneralCurve(ArithmeticBase):
         else:
             ax = plt
         idx = np.isfinite(self.y) & np.isfinite(self.x) & (self.x > 0)
+        self._lastaxes = ax
         return ax.semilogx(self.x[idx], self.y[idx], *args, **kwargs)
     def semilogy(self, *args, **kwargs):
         idx = np.isfinite(self.y) & np.isfinite(self.x) & (self.y > 0)
@@ -410,6 +413,7 @@ class GeneralCurve(ArithmeticBase):
             del kwargs['axes']
         else:
             ax = plt
+        self._lastaxes = ax
         return ax.semilogy(self.x[idx], self.y[idx], *args, **kwargs)
     def errorbar(self, *args, **kwargs):
         if hasattr(self, 'dx'):
@@ -425,6 +429,7 @@ class GeneralCurve(ArithmeticBase):
             del kwargs['axes']
         else:
             ax = plt
+        self._lastaxes = ax
         return ax.errorbar(self.x, self.y, dy, dx, *args, **kwargs)
     def trim(self, xmin= -np.inf, xmax=np.inf, ymin= -np.inf, ymax=np.inf):
         idx = (self.x <= xmax) & (self.x >= xmin) & (self.y >= ymin) & (self.y <= ymax)
@@ -433,7 +438,7 @@ class GeneralCurve(ArithmeticBase):
             d[k] = self.__getattribute__(k)[idx]
         return type(self)(d)
     def trimzoomed(self):
-        axis = plt.axis()
+        axis = self._lastaxes.axis()
         return self.trim(*axis)
     def sanitize(self, minval= -np.inf, maxval=np.inf, fieldname='y', discard_nonfinite=True):
         self_as_array = np.array(self)
@@ -557,7 +562,7 @@ class GeneralCurve(ArithmeticBase):
         else:
             return m
     def get_controlled_attributes(self):
-        return ([x for x in self._special_names.values() if hasattr(self, x)] +
+        return ([x for x in self._special_names.values() if hasattr(self, x)] + 
             [x for x in self._controlled_attributes \
              if x not in self._special_names.keys() and \
              x not in self._special_names.values()])

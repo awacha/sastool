@@ -22,10 +22,11 @@ import numpy as np
 import scipy.misc
 import scipy.io
 import datetime
-
+import dateutil.parser
+import re
 import header
 
-from _io import cbfdecompress # IGNORE:E0611
+from _io import cbfdecompress  # IGNORE:E0611
 """Decompress algorithm for the byte-offset encoding found in CBF files.
 Implemented in `Cython` for the sake of speed."""
 
@@ -74,7 +75,7 @@ def readPAXE(filename):
     """
     return header.readPAXE(filename, load_data=True)
 
-def readcbf(name):
+def readcbf(name, load_header=False, load_data=True):
     """Read a cbf (crystallographic binary format) file from a Dectris PILATUS
     detector.
 
@@ -82,6 +83,10 @@ def readcbf(name):
     ------
     name: string
         the file name
+    load_header: bool
+        if the header data is to be loaded.
+    load_data: bool
+        if the binary data is to be loaded.
 
     Output
     ------
@@ -92,25 +97,87 @@ def readcbf(name):
     currently only Little endian, "signed 32-bit integer" type and
     byte-offset compressed data are accepted.
     """
-    def getvaluefromheader(hed, caption, separator=':'):
-        tmp = [x.split(separator)[1].strip() for x in hed if x.startswith(caption)]
-        if len(tmp) == 0:
-            raise ValueError ('Caption %s not present in CBF header!' % caption)
-        else:
-            return tmp[0]
-    f = open(name, 'rb')
-    cbfbin = f.read()
-    f.close()
+    with open(name, 'rb') as f:
+        cbfbin = f.read()
     datastart = cbfbin.find('\x0c\x1a\x04\xd5') + 4
     hed = [x.strip() for x in cbfbin[:datastart].split('\n')]
-    if getvaluefromheader(hed, 'X-Binary-Element-Type') != '"signed 32-bit integer"':
-        raise NotImplementedError('element type is not "signed 32-bit integer" in CBF, but %s.' % getvaluefromheader(header, 'X-Binary-Element-Type'))
-    if getvaluefromheader(hed, 'conversions', '=') != '"x-CBF_BYTE_OFFSET"':
+    header = {}
+    readingmode = None
+    for i in xrange(len(hed)):
+        if not hed[i]:
+            # skip empty header lines
+            continue
+        elif hed[i] == ';':
+            continue
+        elif hed[i].startswith('_array_data.header_convention'):
+            header['CBF_header_convention'] = hed[i][len('_array_data.header_convention'):].strip().replace('"', '')
+        elif hed[i].startswith('_array_data.header_contents'):
+            readingmode = 'PilatusHeader'
+        elif hed[i].startswith('_array_data.data'):
+            readingmode = 'CIFHeader'
+        elif readingmode == 'PilatusHeader':
+            if not hed[i].startswith('#'):
+                continue
+            line = hed[i].strip()[1:].strip()
+            try:
+                # try to interpret the line as the date.
+                header['CBF_Date'] = dateutil.parser.parse(line)
+                header['Date'] = header['CBF_Date']
+                continue
+            except ValueError:
+                # eat exception.
+                pass
+            treated = False
+            for sep in (':', '='):
+                if treated:
+                    continue
+                if line.count(sep) == 1:
+                    name, value = tuple(x.strip() for x in line.split(sep, 1))
+                    if re.match('^(?P<number>-?(\d+(.\d+)?(e-?\d+)?))\s+(?P<unit>m|s|counts|eV)$', value) is not None:
+                        m = re.match('^(?P<number>-?(\d+(.\d+)?(e-?\d+)?))\s+(?P<unit>m|s|counts|eV)$', value).groupdict()
+                        value = float(m['number'])
+                    header[name] = value
+                    treated = True
+            if treated: continue
+            if line.startswith('Pixel_size'):
+                header['XPixel'], header['YPixel'] = tuple([float(a.strip().split(' ')[0]) * 1000 for a in line[len('Pixel_size'):].split('x')])
+            elif re.match('^(?P<label>[a-zA-Z0-9,_\.\-!\?\ ]*?)\s+(?P<number>-?(\d+(.\d+)?(e-?\d+)?))\s+(?P<unit>m|s|counts|eV)$', line) is not None:
+                m = re.match('^(?P<label>[a-zA-Z0-9,_\.\-!\?\ ]*?)\s+(?P<number>-?(\d+(.\d+)?(e-?\d+)?))\s+(?P<unit>m|s|counts|eV)$', line).groupdict()
+                if m['unit'] == 'counts':
+                    header[m['label']] = int(m['number'])
+                else:
+                    header[m['label']] = float(m['number'])
+                if 'sensor' in m['label'] and 'thickness' in m['label']:
+                    header[m['label']] *= 1e6
+        elif readingmode == 'CIFHeader':
+            line = hed[i]
+            for sep in (':', '='):
+                if line.count(sep) == 1:
+                    label, content = tuple(x.strip() for x in line.split(sep, 1))
+                    if '"' in content:
+                        content = content.replace('"', '')
+                    try:
+                        content = int(content)
+                    except ValueError:
+                        pass
+                    header['CBF_' + label] = content
+        else:
+            pass
+    if header['CBF_X-Binary-Element-Type'] != 'signed 32-bit integer':
+        raise NotImplementedError('element type is not "signed 32-bit integer" in CBF, but %s.' % header['CBF_X-Binary-Element-Type'])
+    if header['CBF_conversions'] != 'x-CBF_BYTE_OFFSET':
         raise NotImplementedError('compression is not "x-CBF_BYTE_OFFSET" in CBF!')
-    dim1 = long(getvaluefromheader(hed, 'X-Binary-Size-Fastest-Dimension'))
-    dim2 = long(getvaluefromheader(hed, 'X-Binary-Size-Second-Dimension'))
-    nbytes = long(getvaluefromheader(hed, 'X-Binary-Size'))
-    return cbfdecompress(cbfbin[datastart:datastart + nbytes], dim1, dim2)
+    dim1 = header['CBF_X-Binary-Size-Fastest-Dimension']
+    dim2 = header['CBF_X-Binary-Size-Second-Dimension']
+    nbytes = header['CBF_X-Binary-Size']
+    cbfdata = cbfdecompress(cbfbin[datastart:datastart + nbytes], dim1, dim2)
+    ret = []
+    if load_data:
+        ret.append(cbfdata)
+    if load_header:
+        ret.append(header)
+    return tuple(ret)
+
 
 def readbdfv1(filename, bdfext='.bdf', bhfext='.bhf'):
     """Read bdf file (Bessy Data Format v1)
@@ -183,11 +250,11 @@ def readint2dnorm(filename):
     Error matrix does not exist, None is returned for it.
     """
     # the core of read2dintfile
-    if filename.upper().endswith('.MAT'): #Matlab
+    if filename.upper().endswith('.MAT'):  # Matlab
         m = scipy.io.loadmat(filename)
-    elif filename.upper().endswith('.NPZ'): #Numpy
+    elif filename.upper().endswith('.NPZ'):  # Numpy
         m = np.load(filename)
-    else: #loadtxt
+    else:  # loadtxt
         m = {'Intensity':np.loadtxt(filename)}
         name, ext = os.path.splitext(filename)
         errorfilename = name + '_error' + ext
@@ -223,7 +290,7 @@ def writeint2dnorm(filename, Intensity, Error=None):
         np.savez(filename, **whattosave)
     elif filename.upper().endswith('.MAT'):
         scipy.io.savemat(filename, whattosave)
-    else: #text file
+    else:  # text file
         np.savetxt(filename, Intensity)
         if Error is not None:
             name, ext = os.path.splitext(filename)
