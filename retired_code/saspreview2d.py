@@ -32,11 +32,11 @@ from .. import utils2d
 class sastool_break_loop(Exception):
     pass
 
-#Mask matrix should be plotted with plt.imshow(maskmatrix, cmap=_colormap_for_mask)
+# Mask matrix should be plotted with plt.imshow(maskmatrix, cmap=_colormap_for_mask)
 _colormap_for_mask = matplotlib.colors.ListedColormap(['white', 'white'], '_sastool_gui_saspreview2d_maskcolormap')
-_colormap_for_mask._init()             #IGNORE:W0212
-_colormap_for_mask._lut[:, -1] = 0     #IGNORE:W0212
-_colormap_for_mask._lut[0, -1] = 0.7   #IGNORE:W0212
+_colormap_for_mask._init()  # IGNORE:W0212
+_colormap_for_mask._lut[:, -1] = 0  # IGNORE:W0212
+_colormap_for_mask._lut[0, -1] = 0.7  # IGNORE:W0212
 
 class SAS2DLoader(gtk.VBox):
     _signal_handlers = {}
@@ -45,12 +45,12 @@ class SAS2DLoader(gtk.VBox):
         gtk.VBox.__init__(self)
 
         tab = gtk.Table()
-        self.pack_start(tab)
+        self.pack_start(tab, True, True, 0)
         l = gtk.Label('Data origin')
         l.set_alignment(0, 0.5)
         tab.attach(l, 0, 1, 0, 1, gtk.FILL, gtk.FILL)
         self.dataorigin_selector = gtk.combo_box_new_text()
-        #self.dataorigin_selector.append_text('<Autodetect>')
+        # self.dataorigin_selector.append_text('<Autodetect>')
         self.dataorigin_selector.append_text('B1 org')
         self.dataorigin_selector.append_text('B1 int2dnorm')
         self.dataorigin_selector.append_text('ESRF ID02')
@@ -73,7 +73,7 @@ class SAS2DLoader(gtk.VBox):
         tab.attach(self.fsn_checkbutton, 0, 1, 2, 3, gtk.FILL, gtk.FILL)
         self.fsn_checkbutton.set_active(True)
         self.fsn_checkbutton.connect('toggled', self.fsn_checkbutton_toggled)
-        self.fsn_spinbutton = gtk.SpinButton(gtk.Adjustment(0, 0, 1e10, 1, 10), digits = 0)
+        self.fsn_spinbutton = gtk.SpinButton(gtk.Adjustment(0, 0, 1e10, 1, 10), digits=0)
         self.fsn_spinbutton.connect('value-changed', self.on_openfile)
         tab.attach(self.fsn_spinbutton, 1, 2, 2, 3)
 
@@ -84,7 +84,7 @@ class SAS2DLoader(gtk.VBox):
         b.connect('clicked', patheditor.pathedit)
         hbb.pack_start(b, False)
 
-        b = gtk.Button(stock = gtk.STOCK_OPEN)
+        b = gtk.Button(stock=gtk.STOCK_OPEN)
         hbb.pack_start(b, False)
         b.connect('clicked', self.on_openfile)
 
@@ -114,7 +114,7 @@ class SAS2DLoader(gtk.VBox):
         else:
             raise NotImplementedError
         return True
-    def on_openfile(self, widget = None): #IGNORE:W0613
+    def on_openfile(self, widget=None):  # IGNORE:W0613
         if self._previously_opened is None:
             self._previously_opened = {'origin':None, 'fileformat':'', 'fsn':'', 'data':None}
         dirs = misc.get_search_path()
@@ -132,9 +132,9 @@ class SAS2DLoader(gtk.VBox):
                 return True
             else:
                 if fsn is not None:
-                    data = classes.SASExposure(fileformat, fsn, dirs = dirs, experiment_type = origin) #IGNORE:W0142
+                    data = classes.SASExposure(fileformat, fsn, dirs=dirs, experiment_type=origin)  # IGNORE:W0142
                 else:
-                    data = classes.SASExposure(fileformat, dirs = dirs, experiment_type = origin)
+                    data = classes.SASExposure(fileformat, dirs=dirs, experiment_type=origin)
                 self._previously_opened['origin'] = origin
                 self._previously_opened['fileformat'] = fileformat
                 self._previously_opened['fsn'] = fsn
@@ -161,7 +161,7 @@ class SAS2DLoader(gtk.VBox):
         try:
             if self._previously_opened['data'] is not None:
                 for func, args, kwargs in self._signal_handlers.itervalues():
-                    func(self, self._previously_opened['data'], *args, **kwargs) #IGNORE:W0142
+                    func(self, self._previously_opened['data'], *args, **kwargs)  # IGNORE:W0142
         finally:
             gtk.gdk.threads_leave()
         return False  # This is essential to unregister this from the idle callbacks.
@@ -249,7 +249,7 @@ class SAS2DPlotter(gtk.VBox):
         hb.add(b)
     def minmaxint_activate(self, cb, entry):
         entry.set_sensitive(cb.get_active())
-    def update_matrixtype(self, data, name = None):
+    def update_matrixtype(self, data, name=None):
         if name is None:
             name = self.matrixtype.get_active_text()
         matrixtype = data.get_matrix_name(name)
@@ -264,7 +264,7 @@ class SAS2DPlotter(gtk.VBox):
             self.data = None
         if not self.fig.axes:
             return
-        #find an available matrix.
+        # find an available matrix.
         self.update_matrixtype(data)
         mat = data.get_matrix(self.matrixtype.get_active_text())
         # update minimum and maximum intensities
@@ -281,7 +281,7 @@ class SAS2DPlotter(gtk.VBox):
         if minint >= maxint:
             raise ValueError('Min. value is larger than max. value')
 
-        #retrieve user's choice of zscaling
+        # retrieve user's choice of zscaling
         if self.colourscale.get_active_text() == 'Log10':
             zscale = np.log10
         elif self.colourscale.get_active_text() == 'Nat. logarithmic':
@@ -293,34 +293,34 @@ class SAS2DPlotter(gtk.VBox):
         else:
             raise NotImplementedError(self.colourscale.get_active_text())
 
-        #retrieve desired colormap
+        # retrieve desired colormap
         self.cmap = eval('matplotlib.cm.%s' % self.colourmapname.get_active_text())
 
         self.fig.axes[0].cla()
-        img, mat = data.plot2d(axis = self.fig.axes[0], interpolation = 'nearest',
-                         minvalue = minint, maxvalue = maxint, zscale = zscale,
-                         cmap = self.cmap, crosshair = self.crosshair_cb.get_active(),
-                         qrange_on_axis = self.qrange_axis_cb.get_active(),
-                         drawmask = self.plotmask_cb.get_active() and data.mask is not None,
-                         matrix = data.get_matrix_name(self.matrixtype.get_active_text()),
-                         return_matrix = True)
+        img, mat = data.plot2d(axis=self.fig.axes[0], interpolation='nearest',
+                         minvalue=minint, maxvalue=maxint, zscale=zscale,
+                         cmap=self.cmap, crosshair=self.crosshair_cb.get_active(),
+                         qrange_on_axis=self.qrange_axis_cb.get_active(),
+                         drawmask=self.plotmask_cb.get_active() and data.mask is not None,
+                         matrix=data.get_matrix_name(self.matrixtype.get_active_text()),
+                         return_matrix=True)
         self.fig.axes[0].set_title(str(data.header))
         self.fig.axes[0].set_axis_bgcolor('black')
 
         if len(self.fig.axes) > 1:
-            self.fig.colorbar(img, cax = self.fig.axes[1])
+            self.fig.colorbar(img, cax=self.fig.axes[1])
         else:
             self.fig.colorbar(img)
 
         self.fig.canvas.draw()
         self.data = data
-        self.mat = mat   #IGNORE:W0201
-    def replot(self, widget = None):     #IGNORE:W0613
+        self.mat = mat  # IGNORE:W0201
+    def replot(self, widget=None):  # IGNORE:W0613
         if not hasattr(self, 'data'):
             return
         if self.data is not None:
             self.plot2d(self.data)
-    def clear(self, widget = None):    #IGNORE:W0613
+    def clear(self, widget=None):  # IGNORE:W0613
         self.fig.clf()
         self.fig.add_subplot(111)
         self.fig.axes[0].set_axis_bgcolor('white')
@@ -330,7 +330,7 @@ class SAS2DPlotter(gtk.VBox):
 
 class SAS2DMasker(gtk.VBox):
     mask = None
-    def __init__(self, matrix_source = None):
+    def __init__(self, matrix_source=None):
         gtk.VBox.__init__(self)
         self.matrix_source = matrix_source
         tab = gtk.Table()
@@ -362,13 +362,13 @@ class SAS2DMasker(gtk.VBox):
 
         bb = gtk.HButtonBox()
         self.pack_start(bb, False)
-        b = gtk.Button(stock = gtk.STOCK_OPEN)
+        b = gtk.Button(stock=gtk.STOCK_OPEN)
         b.connect('clicked', self.openmask)
         bb.add(b)
-        b = gtk.Button(stock = gtk.STOCK_EDIT)
+        b = gtk.Button(stock=gtk.STOCK_EDIT)
         b.connect('clicked', self.editmask)
         bb.add(b)
-        b = gtk.Button(stock = gtk.STOCK_SAVE)
+        b = gtk.Button(stock=gtk.STOCK_SAVE)
         b.connect('clicked', self.savemask)
         bb.add(b)
     def maskid_changed(self, widget):
@@ -382,9 +382,9 @@ class SAS2DMasker(gtk.VBox):
         self.shape_label.set_text('%d x %d' % self.mask.mask.shape)
     def getmask(self):
         return self.mask
-    def openmask(self, widget):    #IGNORE:W0613
+    def openmask(self, widget):  # IGNORE:W0613
         if not hasattr(self, 'open_fcd'):
-            self.open_fcd = gtk.FileChooserDialog('Open mask file...', self.get_toplevel(), #IGNORE:W0201
+            self.open_fcd = gtk.FileChooserDialog('Open mask file...', self.get_toplevel(),  # IGNORE:W0201
                                                 gtk.FILE_CHOOSER_ACTION_OPEN,
                                                 (gtk.STOCK_OK, gtk.RESPONSE_OK,
                                                  gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL))
@@ -416,15 +416,15 @@ class SAS2DMasker(gtk.VBox):
             self.setmask(classes.SASMask(self.open_fcd.get_filename()))
         self.updatemaskindata()
         self.open_fcd.hide()
-    def savemask(self, widget):    #IGNORE:W0613
+    def savemask(self, widget):  # IGNORE:W0613
         pass
-    def editmask(self, widget):    #IGNORE:W0613
+    def editmask(self, widget):  # IGNORE:W0613
         if self.mask is None:
             mask_to_maskmaker = None
         else:
             mask_to_maskmaker = self.mask.mask.copy()
-        mm = maskmaker.MaskMaker(matrix = self.matrix_source.plotter.get_plotted_matrix(),
-                               mask = mask_to_maskmaker)
+        mm = maskmaker.MaskMaker(matrix=self.matrix_source.plotter.get_plotted_matrix(),
+                               mask=mask_to_maskmaker)
         if mm.run() == gtk.RESPONSE_OK:
             mask = classes.SASMask(mm.get_mask())
             if re.match('^.*_\d+$', self.mask.maskid) is None:
@@ -435,7 +435,7 @@ class SAS2DMasker(gtk.VBox):
             self.setmask(mask)
         mm.destroy()
         self.updatemaskindata(True)
-    def updatemaskindata(self, widget_or_force = None):
+    def updatemaskindata(self, widget_or_force=None):
         # this will update the mask in the currently loaded dataset, if:
         #  1) widget_or_force is None and the auto-update checkbutton is checked
         #  2) widget_or_force is not None
@@ -473,7 +473,7 @@ class SAS2DStatistics(gtk.Frame):
     def clear_table(self):
         for tw in self.table_widgets:
             self.table.remove(tw)
-    def update_table(self, statistics, clear = True):
+    def update_table(self, statistics, clear=True):
         if clear:
             self.clear_table()
         for k, i in zip(statistics.keys(), itertools.count(0)):
@@ -486,14 +486,14 @@ class SAS2DStatistics(gtk.Frame):
         self.table.show_all()
 
 class SAS2DCenterer(gtk.VBox):
-    def __init__(self, matrix_source = None):
+    def __init__(self, matrix_source=None):
         super(SAS2DCenterer, self).__init__()
         self.matrix_source = matrix_source
         self.notebook = gtk.Notebook()
         self.pack_start(self.notebook)
-        #self.notebook.set_tab_pos(gtk.POS_LEFT)
+        # self.notebook.set_tab_pos(gtk.POS_LEFT)
         self.notebook.set_scrollable(True)
-        ### semitransparent beam finding
+        # ## semitransparent beam finding
         tab = gtk.Table()
         self.notebook.append_page(tab, gtk.Label('Semitransp.'))
         l = gtk.Label('row min:')
@@ -527,14 +527,14 @@ class SAS2DCenterer(gtk.VBox):
         b = gtk.Button('Get from current zoom')
         b.connect('clicked', self.get_pri_from_zoom)
         tab.attach(b, 0, 2, 4, 5)
-        ### by-hand beam finding
+        # ## by-hand beam finding
         tab = gtk.Table()
         self.notebook.append_page(tab, gtk.Label('Click'))
         l = gtk.Label('This algorithm has\nno parameters')
         l.set_justify(gtk.JUSTIFY_CENTER)
         l.set_alignment(0.5, 0.5)
         tab.attach(l, 0, 1, 0, 1)
-        ### gravity beam finding
+        # ## gravity beam finding
         tab = gtk.Table()
         self.notebook.append_page(tab, gtk.Label('Gravity'))
         l = gtk.Label('This algorithm has\nno parameters')
@@ -542,7 +542,7 @@ class SAS2DCenterer(gtk.VBox):
         l.set_alignment(0.5, 0.5)
         tab.attach(l, 0, 1, 0, 1)
 
-        ### sectors beam finding
+        # ## sectors beam finding
         tab = gtk.Table()
         self.notebook.append_page(tab, gtk.Label('Sectors'))
         l = gtk.Label('Min. radius (pixel):')
@@ -570,7 +570,7 @@ class SAS2DCenterer(gtk.VBox):
         tab.attach(b, 0, 2, 3, 4)
         b.connect('clicked', self.shade_range, 'sector')
 
-        ### Azimuthal beam finding
+        # ## Azimuthal beam finding
         tab = gtk.Table()
         self.notebook.append_page(tab, gtk.Label('Azimuthal'))
         l = gtk.Label('Min. radius (pixel):')
@@ -597,7 +597,7 @@ class SAS2DCenterer(gtk.VBox):
         tab.attach(b, 0, 2, 3, 4)
         b.connect('clicked', self.shade_range, 'azim')
 
-        ### Radial peak beam finding
+        # ## Radial peak beam finding
         tab = gtk.Table()
         self.notebook.append_page(tab, gtk.Label('Radial peak'))
         l = gtk.Label('Min. radius (pixel):')
@@ -647,39 +647,39 @@ class SAS2DCenterer(gtk.VBox):
         self.pack_start(self.auto_apply_cb, False, True)
         hbb = gtk.HButtonBox()
         self.pack_end(hbb)
-        b = gtk.Button(stock = gtk.STOCK_EXECUTE)
+        b = gtk.Button(stock=gtk.STOCK_EXECUTE)
         b.connect('clicked', self.findcenter)
         hbb.add(b)
-        b = gtk.Button(stock = gtk.STOCK_HELP)
+        b = gtk.Button(stock=gtk.STOCK_HELP)
         b.connect('clicked', self.helpmessage)
         hbb.add(b)
-        b = gtk.Button(stock = gtk.STOCK_APPLY)
+        b = gtk.Button(stock=gtk.STOCK_APPLY)
         b.connect('clicked', self.update_dataset)
         hbb.add(b)
-        b = gtk.Button(label = 'QC')
+        b = gtk.Button(label='QC')
         b.connect('clicked', self.testbeampos)
         hbb.add(b)
-    def beampos_changed(self, spinbutton = None):
+    def beampos_changed(self, spinbutton=None):
         pass
     def centeringmode(self):
         return self.notebook.get_tab_label_text(self.notebook.get_nth_page(self.notebook.get_current_page()))
     def _findbeam_click_handler(self, event):
         if event.button == 1:
-            self._click_pos = [event.ydata, event.xdata]   #IGNORE:W0201
+            self._click_pos = [event.ydata, event.xdata]  # IGNORE:W0201
             self.matrix_source.canvas.mpl_disconnect(self._click_cid)
             del self._click_cid
         return True
-    def findcenter(self, widget):     #IGNORE:W0613
+    def findcenter(self, widget):  # IGNORE:W0613
         d = gtk.Dialog('Centering...', self.get_toplevel(), gtk.DIALOG_DESTROY_WITH_PARENT | gtk.DIALOG_MODAL, (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL))
         pb = gtk.ProgressBar()
         d.get_content_area().pack_start(pb)
-        def breakloop(*args, **kwargs):    #IGNORE:W0613
+        def breakloop(*args, **kwargs):  # IGNORE:W0613
             self._break = True
-        self._break = False   #IGNORE:W0201
+        self._break = False  # IGNORE:W0201
         d.get_action_area().get_children()[0].connect('clicked', breakloop)
         pb.set_text('Finding beam position...')
-        def callback(selfobject = self):
-            if selfobject._break:   #IGNORE:W0212
+        def callback(selfobject=self):
+            if selfobject._break:  # IGNORE:W0212
                 raise sastool_break_loop('User break')
             pb.pulse()
             while gtk.events_pending():
@@ -699,7 +699,7 @@ class SAS2DCenterer(gtk.VBox):
                 try:
                     self.matrix_source.enable_toolbar(False)
                     prevtitle = self.get_toplevel().get_title()
-                    self._click_cid = self.matrix_source.canvas.mpl_connect('button_press_event', self._findbeam_click_handler)   #IGNORE:W0201
+                    self._click_cid = self.matrix_source.canvas.mpl_connect('button_press_event', self._findbeam_click_handler)  # IGNORE:W0201
                     if hasattr(self, '_click_pos'):
                         del self._click_pos
                     while True:
@@ -739,9 +739,9 @@ class SAS2DCenterer(gtk.VBox):
                 dmax = float(self.rad_dmax_entry.get_text())
                 opt = self.rad_opttype.get_active_text()
                 d.show_all()
-                bcx, bcy = data.find_beam_radialpeak(dmin, dmax, opt, update = update, callback = callback)
+                bcx, bcy = data.find_beam_radialpeak(dmin, dmax, opt, update=update, callback=callback)
         except sastool_break_loop:
-            #User break in iteration
+            # User break in iteration
             d.hide()
             md = gtk.MessageDialog(self.get_toplevel(),
                                  gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
@@ -757,7 +757,7 @@ class SAS2DCenterer(gtk.VBox):
             md.run()
             md.destroy()
         except Exception as ex:
-            #other error
+            # other error
             md = gtk.MessageDialog(self.get_toplevel(),
                                  gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                                  gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, ex.message)
@@ -765,14 +765,14 @@ class SAS2DCenterer(gtk.VBox):
             md.run()
             md.destroy()
         else:
-            #Success, should return the beam center somewhere
+            # Success, should return the beam center somewhere
             self.beamposx_spin.set_value(bcx)
             self.beamposy_spin.set_value(bcy)
         finally:
             self.matrix_source.refresh_stats()
             d.destroy()
         return True
-    def helpmessage(self, widget):    #IGNORE:W0613
+    def helpmessage(self, widget):  # IGNORE:W0613
         if self.centeringmode() == 'Semitransp.':
             title = "Semi-transparent algorithm"
             msg = "If the scattering pattern was recorded using a semi-transparent \
@@ -809,27 +809,27 @@ radial intensity curve."
             msg = """This centering algorithm has not yet been documented.
             """
             goodfor = "None"
-        md = gtk.MessageDialog(parent = self.get_toplevel(),
-                             flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-                             type = gtk.MESSAGE_INFO, buttons = gtk.BUTTONS_OK)
+        md = gtk.MessageDialog(parent=self.get_toplevel(),
+                             flags=gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+                             type=gtk.MESSAGE_INFO, buttons=gtk.BUTTONS_OK)
         md.set_markup('<b>Description:</b>\n%s\n<b>Good for:</b>\n%s\n' % (msg, goodfor))
         md.set_title(title)
         md.run()
         md.destroy()
         return True
-    def update_dataset(self, widget):    #IGNORE:W0613
+    def update_dataset(self, widget):  # IGNORE:W0613
         bcx = self.beamposx_spin.get_value()
         bcy = self.beamposy_spin.get_value()
         self.matrix_source.data.update_beampos((bcx, bcy))
         self.matrix_source.refresh_stats()
-    def get_pri_from_zoom(self, widget):    #IGNORE:W0613
+    def get_pri_from_zoom(self, widget):  # IGNORE:W0613
         colmin, colmax, rowmin, rowmax = self.matrix_source.get_zoom()
         self.pri_cmin_entry.set_text('%.4f' % min(colmin, colmax))
         self.pri_cmax_entry.set_text('%.4f' % max(colmin, colmax))
         self.pri_rmin_entry.set_text('%.4f' % min(rowmin, rowmax))
         self.pri_rmax_entry.set_text('%.4f' % max(rowmin, rowmax))
         return True
-    def shade_range(self, widget, what):    #IGNORE:W0613
+    def shade_range(self, widget, what):  # IGNORE:W0613
         if not self.matrix_source.fig.axes:
             return
         ax = self.matrix_source.fig.axes[0].axis()
@@ -852,7 +852,7 @@ radial intensity curve."
             del t, x, y
         self.matrix_source.fig.axes[0].axis(ax)
         self.matrix_source.canvas.draw()
-    def testbeampos(self, widget):    #IGNORE:W0613
+    def testbeampos(self, widget):  # IGNORE:W0613
         """Plot a few beam position assessment images"""
         data = self.matrix_source.get_data()
         mat = self.matrix_source.get_plotted_matrix()
@@ -863,7 +863,7 @@ radial intensity curve."
         sector_width = float(self.sector_width_entry.get_text()) * np.pi / 180.
         # Normal image with cross-hair
         sp = self.matrix_source.fig.add_subplot(2, 2, 1)
-        sp.imshow(mat, cmap = self.matrix_source.get_colormap(), interpolation = 'nearest')
+        sp.imshow(mat, cmap=self.matrix_source.get_colormap(), interpolation='nearest')
         ax = sp.axis()
         sp.plot([0, mat.shape[1]], [bcx, bcx], 'w-')
         sp.plot([bcy, bcy], [0, mat.shape[0]], 'w-')
@@ -874,7 +874,7 @@ radial intensity curve."
         r = np.arange(0, maxpix)
         phi = np.linspace(0, 360, maxpix)
         azimmat = utils2d.integrate.polartransform(mat, r, phi, bcx, bcy)
-        sp.imshow(azimmat, cmap = self.matrix_source.get_colormap(), interpolation = 'nearest')
+        sp.imshow(azimmat, cmap=self.matrix_source.get_colormap(), interpolation='nearest')
         del azimmat
         del r
         del phi
@@ -885,34 +885,34 @@ radial intensity curve."
         ds = data.azimuthal_average(float(self.azim_dmin_entry.get_text()),
                                   float(self.azim_dmax_entry.get_text()),
                                   float(self.azim_Ntheta_entry.get_text()),
-                                  pixel = True,
-                                  matrix = self.matrix_source.get_data().get_matrix_name(),
-                                  errormatrix = None)
-        l1 = ds.semilogy(sp, 'b.-', label = '<-')
+                                  pixel=True,
+                                  matrix=self.matrix_source.get_data().get_matrix_name(),
+                                  errormatrix=None)
+        l1 = ds.semilogy(sp, 'b.-', label='<-')
         sp1 = sp.twinx()
-        l2 = sp1.plot(ds.x, ds.Area, 'r-', label = '->')
+        l2 = sp1.plot(ds.x, ds.Area, 'r-', label='->')
         sp.set_xlabel('Azimuth angle')
         sp.set_ylabel('Intensity')
         sp1.set_ylabel('Effective area of bins (pixel)')
-        sp.legend((l1, l2), ('<-', '->'), loc = 'best')
+        sp.legend((l1, l2), ('<-', '->'), loc='best')
         # overlapping of slices
         sp = self.matrix_source.fig.add_subplot(2, 2, 3)
         sp.set_title('Overlap of diagonal sectors')
-        ds1 = data.sector_average(1 * np.pi / 4, sector_width, symmetric_sector = False, pixel = True,
-                                matrix = self.matrix_source.get_data().get_matrix_name(), errormatrix = None)
-        ds2 = data.sector_average(3 * np.pi / 4, sector_width, symmetric_sector = False, pixel = True,
-                                matrix = self.matrix_source.get_data().get_matrix_name(), errormatrix = None)
-        ds3 = data.sector_average(5 * np.pi / 4, sector_width, symmetric_sector = False, pixel = True,
-                                matrix = self.matrix_source.get_data().get_matrix_name(), errormatrix = None)
-        ds4 = data.sector_average(7 * np.pi / 4, sector_width, symmetric_sector = False, pixel = True,
-                                matrix = self.matrix_source.get_data().get_matrix_name(), errormatrix = None)
-        ds1.semilogy(sp, 'bo-', label = '45$^\circ$')
-        ds3.semilogy(sp, 'b.-', label = '-45$^\circ$')
-        ds2.semilogy(sp, 'ro-', label = '135$^\circ$')
-        ds4.semilogy(sp, 'r.-', label = '-135$^\circ$')
+        ds1 = data.sector_average(1 * np.pi / 4, sector_width, symmetric_sector=False, pixel=True,
+                                matrix=self.matrix_source.get_data().get_matrix_name(), errormatrix=None)
+        ds2 = data.sector_average(3 * np.pi / 4, sector_width, symmetric_sector=False, pixel=True,
+                                matrix=self.matrix_source.get_data().get_matrix_name(), errormatrix=None)
+        ds3 = data.sector_average(5 * np.pi / 4, sector_width, symmetric_sector=False, pixel=True,
+                                matrix=self.matrix_source.get_data().get_matrix_name(), errormatrix=None)
+        ds4 = data.sector_average(7 * np.pi / 4, sector_width, symmetric_sector=False, pixel=True,
+                                matrix=self.matrix_source.get_data().get_matrix_name(), errormatrix=None)
+        ds1.semilogy(sp, 'bo-', label='45$^\circ$')
+        ds3.semilogy(sp, 'b.-', label='-45$^\circ$')
+        ds2.semilogy(sp, 'ro-', label='135$^\circ$')
+        ds4.semilogy(sp, 'r.-', label='-135$^\circ$')
         sp.set_xlabel('pixels')
         sp.set_ylabel('Intensity')
-        sp.legend(loc = 'best')
+        sp.legend(loc='best')
         del ds1, ds2, ds3, ds4
         self.matrix_source.canvas.draw()
 
@@ -941,50 +941,50 @@ class SAS2DGUI(gtk.Window):
         # add a matplotlib figure
         figvbox = gtk.VBox()
         hpaned.add2(figvbox)
-        self.fig = Figure(figsize = (0.5, 0.4), dpi = 72)
+        self.fig = Figure(figsize=(0.5, 0.4), dpi=72)
         def dummy():
             pass
-        self.fig.show = dummy  #monkey-patch, so waitforbuttonpress will work.
+        self.fig.show = dummy  # monkey-patch, so waitforbuttonpress will work.
         self.axes = self.fig.add_subplot(111)
 
         self.canvas = FigureCanvasGTKAgg(self.fig)
         self.canvas.set_size_request(500, 200)
         figvbox.pack_start(self.canvas, True, True, 0)
-        #self.canvas.mpl_connect('button_press_event', self._on_matplotlib_mouseclick)
+        # self.canvas.mpl_connect('button_press_event', self._on_matplotlib_mouseclick)
 
-        hb1 = gtk.HBox() # the toolbar below the figure
+        hb1 = gtk.HBox()  # the toolbar below the figure
         figvbox.pack_start(hb1, False, True, 0)
         self.graphtoolbar = NavigationToolbar2GTKAgg(self.canvas, hpaned)
         hb1.pack_start(self.graphtoolbar, True, True, 0)
 
-        #build the toolbar on the left pane
-        ex = gtk.Expander(label = 'Load measurement')
+        # build the toolbar on the left pane
+        ex = gtk.Expander(label='Load measurement')
         vb.pack_start(ex, False, True)
         self.loader = SAS2DLoader()
         self.loader.connect('open-file', self.file_opened)
         ex.add(self.loader)
         ex.set_expanded(True)
 
-        ex = gtk.Expander(label = 'Plotting')
+        ex = gtk.Expander(label='Plotting')
         vb.pack_start(ex, False, True)
         ex.set_expanded(True)
         self.plotter = SAS2DPlotter(self.fig)
         ex.add(self.plotter)
 
-        ex = gtk.Expander(label = 'Masking')
+        ex = gtk.Expander(label='Masking')
         vb.pack_start(ex, False, True)
-        self.masker = SAS2DMasker(matrix_source = self)
+        self.masker = SAS2DMasker(matrix_source=self)
         ex.add(self.masker)
 
-        ex = gtk.Expander(label = 'Centering')
+        ex = gtk.Expander(label='Centering')
         vb.pack_start(ex, False, True)
-        self.centerer = SAS2DCenterer(matrix_source = self)
+        self.centerer = SAS2DCenterer(matrix_source=self)
         ex.add(self.centerer)
 
 
-        ex = gtk.Expander(label = 'Radial averaging')
+        ex = gtk.Expander(label='Radial averaging')
         vb.pack_start(ex, False, True)
-        self.integrator = SAS2DIntegrator(matrix_source = self)
+        self.integrator = SAS2DIntegrator(matrix_source=self)
         ex.add(self.integrator)
 
         self.statistics = SAS2DStatistics()
@@ -1020,7 +1020,7 @@ class SAS2DGUI(gtk.Window):
     def replot(self):
         if self.data is not None:
             self.plotter.plot2d(self.data)
-    def refresh_stats(self, widget = None):  #IGNORE:W0613
+    def refresh_stats(self, widget=None):  # IGNORE:W0613
         if self.data is None:
             return
         mat = self.data.get_matrix(self.plotter.get_matrixtype())
@@ -1049,7 +1049,7 @@ class SAS2DGUI(gtk.Window):
                                                               ('Max. count (mask)', maxmasked),
                                                               ('Min. count (mask)', minmasked)]))
 
-    def file_opened(self, widget, exposition):    #IGNORE:W0613
+    def file_opened(self, widget, exposition):  # IGNORE:W0613
         if self.data is not None:
             del self.data
         self.data = exposition
@@ -1066,7 +1066,7 @@ class SAS2DGUI(gtk.Window):
 
 def SAS2DGUI_run():
     w = SAS2DGUI()
-    def f(widget, event, *args, **kwargs):    #IGNORE:W0613
+    def f(widget, event, *args, **kwargs):  # IGNORE:W0613
         widget.destroy()
         del widget
     w.connect('delete-event', f)

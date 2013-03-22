@@ -137,6 +137,11 @@ class SASExposurePlugin(object):
         for k in SASExposurePlugin._default_read_kwargs:
             if k not in kwargs:
                 kwargs[k] = SASExposurePlugin._default_read_kwargs[k]
+        if 'dirs' in kwargs:
+            if isinstance(kwargs['dirs'], basestring):
+                kwargs['dirs'] = [kwargs['dirs']]
+            else:
+                kwargs['dirs'] = list(kwargs['dirs'])
     def __repr__(self):
         return "<%s SASExposure I/O Plugin>" % self._name
     @property
@@ -208,77 +213,6 @@ class SEPlugin_ESRF(SASExposurePlugin):
         header['FileName'] = filename
         return {'header':header, 'Intensity':Intensity, 'mask':mask, 'Error':Error}
 
-@register_plugin
-class SEPlugin_CREDO(SASExposurePlugin):
-    """SASExposure I/O plugin for the CREDO instrument."""
-    _isread = True
-    _name = 'CREDO'
-    _default_read_kwargs = {'header_extns':['.param'],
-                          'data_extns':['.cbf', '.tif'],
-                          'estimate_errors':True}
-    _filename_regex = re.compile(r'_((\d+)|%(\d+)d).(cbf|tif)$', re.IGNORECASE)
-    def read(self, filename, **kwargs):
-        """Read an original exposition (CREDO)
-
-        Inputs:
-            filename: the name of the file to be loaded
-            dirs: folders to look for files in
-        """
-        self._before_read(kwargs)
-        # try to load header file
-        header_extn = [x for x in kwargs['header_extns'] if filename.upper().endswith(x.upper())]
-        data_extn = [x for x in kwargs['data_extns'] if filename.upper().endswith(x.upper())]
-
-        # if an extension is found, remove it to get the basename.
-        basename = filename
-        for x in header_extn + data_extn:
-            if filename.upper().endswith(x.upper()):
-                basename = filename[:-len(x)]
-                break
-        basename = os.path.basename(basename)
-        # prepend the already found extension (if any) to the list of possible
-        # file extensions, both for header and data.
-        header_extn.extend(kwargs['header_extns'])
-        data_extn.extend(kwargs['data_extns'])
-
-        if not kwargs['noheader']:
-            headername = ''
-    
-            for extn in header_extn:
-                try:
-                    headername = misc.findfileindirs(basename + extn, kwargs['dirs'])
-                except IOError:
-                    continue
-            if not headername:
-                raise IOError('Could not find param file. Was looking for: %s+extn where extn is in %s.' % (basename, str(header_extn)))
-        dataname = ''
-        for extn in data_extn:
-            try:
-                dataname = misc.findfileindirs(basename + extn, kwargs['dirs'])
-            except IOError:
-                continue
-        if not dataname:
-            raise IOError('Could not find 2d crd file')  # skip this file
-        if not kwargs['noheader']:
-            header = SASHeader(headername, **kwargs)
-        else:
-            header = SASHeader()
-        if dataname.lower().endswith('.cbf'):
-            Intensity, header_loaded = twodim.readcbf(dataname, load_header=True)
-        elif dataname.upper().endswith('.TIF') or dataname.upper().endswith('.TIFF'):
-            Intensity = twodim.readtif(dataname)
-            header_loaded = {}
-        else:
-            raise NotImplementedError(dataname)
-        if kwargs['estimate_errors']:
-            Error = np.sqrt(Intensity)
-        else:
-            Error = None
-        header_loaded = SASHeader(header_loaded)
-        header_loaded.update(header)
-        header_loaded['FileName'] = dataname
-        return {'header':header_loaded, 'Error':Error, 'Intensity':Intensity, 'mask':None}
-    
 @register_plugin
 class SEPlugin_B1_org(SASExposurePlugin):
     """SASExposure I/O plugin for B1 (HASYLAB, DORIS III) original measurement data."""
@@ -357,7 +291,106 @@ class SEPlugin_B1_org(SASExposurePlugin):
         header_loaded = SASHeader(header_loaded)
         header_loaded.update(header)
         header_loaded['FileName'] = dataname
-        return {'header':header_loaded, 'Error':Error, 'Intensity':Intensity, 'mask':None}
+        mask = None
+        if 'maskid' in header_loaded and header_loaded['maskid'] is not None:
+            maskbasename = os.path.basename(header_loaded['maskid'])
+            maskdir = os.path.dirname(header_loaded['maskid'])
+            for maskext in [''] + SASMask.supported_read_extensions:
+                try:
+                    maskname = misc.findfileindirs(maskbasename + maskext, [maskdir] + kwargs['dirs'])
+                except IOError:
+                    continue
+                mask = SASMask(maskname)
+                break
+            if mask is None:
+                warnings.warn('Could not load mask file specified in the header (%s).' % header_loaded['maskid'])
+        return {'header':header_loaded, 'Error':Error, 'Intensity':Intensity, 'mask':mask}
+
+
+@register_plugin
+class SEPlugin_CREDO(SASExposurePlugin):
+    """SASExposure I/O plugin for the CREDO instrument."""
+    _isread = True
+    _name = 'CREDO'
+    _default_read_kwargs = {'header_extns':['.param'],
+                          'data_extns':['.cbf', '.tif'],
+                          'estimate_errors':True}
+    _filename_regex = re.compile(r'_((\d+)|%(\d+)d).(cbf|tif)$', re.IGNORECASE)
+    def read(self, filename, **kwargs):
+        """Read an original exposition (CREDO)
+
+        Inputs:
+            filename: the name of the file to be loaded
+            dirs: folders to look for files in
+        """
+        self._before_read(kwargs)
+        # try to load header file
+        header_extn = [x for x in kwargs['header_extns'] if filename.upper().endswith(x.upper())]
+        data_extn = [x for x in kwargs['data_extns'] if filename.upper().endswith(x.upper())]
+
+        # if an extension is found, remove it to get the basename.
+        basename = filename
+        for x in header_extn + data_extn:
+            if filename.upper().endswith(x.upper()):
+                basename = filename[:-len(x)]
+                break
+        basename = os.path.basename(basename)
+        # prepend the already found extension (if any) to the list of possible
+        # file extensions, both for header and data.
+        header_extn.extend(kwargs['header_extns'])
+        data_extn.extend(kwargs['data_extns'])
+
+        if not kwargs['noheader']:
+            headername = ''
+    
+            for extn in header_extn:
+                try:
+                    headername = misc.findfileindirs(basename + extn, kwargs['dirs'])
+                except IOError:
+                    continue
+            if not headername:
+                raise IOError('Could not find param file. Was looking for: %s+extn where extn is in %s.' % (basename, str(header_extn)))
+        dataname = ''
+        for extn in data_extn:
+            try:
+                dataname = misc.findfileindirs(basename + extn, kwargs['dirs'])
+            except IOError:
+                continue
+        if not dataname:
+            raise IOError('Could not find 2d crd file')  # skip this file
+        if not kwargs['noheader']:
+            header = SASHeader(headername, **kwargs)
+        else:
+            header = SASHeader()
+        if dataname.lower().endswith('.cbf'):
+            Intensity, header_loaded = twodim.readcbf(dataname, load_header=True)
+        elif dataname.upper().endswith('.TIF') or dataname.upper().endswith('.TIFF'):
+            Intensity = twodim.readtif(dataname)
+            header_loaded = {}
+        else:
+            raise NotImplementedError(dataname)
+        if kwargs['estimate_errors']:
+            Error = np.sqrt(Intensity)
+        else:
+            Error = None
+        header_loaded = SASHeader(header_loaded)
+        header_loaded.update(header)
+        header_loaded['FileName'] = dataname
+        mask = None
+        if 'maskid' in header_loaded and header_loaded['maskid'] is not None:
+            maskbasename = os.path.basename(header_loaded['maskid'])
+            maskdir = os.path.dirname(header_loaded['maskid'])
+            for maskext in [''] + SASMask.supported_read_extensions:
+                try:
+                    maskname = misc.findfileindirs(maskbasename + maskext, [maskdir] + kwargs['dirs'])
+                except IOError:
+                    continue
+                mask = SASMask(maskname)
+                break
+            if mask is None:
+                warnings.warn('Could not load mask file specified in the header (%s).' % header_loaded['maskid'])
+        return {'header':header_loaded, 'Error':Error, 'Intensity':Intensity, 'mask':mask}
+    
 
 
 
@@ -410,7 +443,21 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         Intensity, Error = twodim.readint2dnorm(dataname)
         header.add_history('Intensity and Error matrices loaded from ' + dataname)
         header['FileName'] = dataname
-        return {'header':header, 'Intensity':Intensity, 'Error':Error, 'mask':None}
+        mask = None
+        if 'maskid' in header and header['maskid'] is not None:
+            maskbasename = os.path.basename(header['maskid'])
+            maskdir = os.path.dirname(header['maskid'])
+            for maskext in [''] + SASMask.supported_read_extensions:
+                try:
+                    maskname = misc.findfileindirs(maskbasename + maskext, [maskdir] + kwargs['dirs'])
+                except IOError:
+                    continue
+                mask = SASMask(maskname)
+                break
+            if mask is None:
+                warnings.warn('Could not load mask file specified in the header (%s).' % header['maskid'])
+        return {'header':header, 'Intensity':Intensity, 'Error':Error, 'mask':mask}
+    
     def write(self, filename, ex, **kwargs):
         self._before_read(kwargs)
         folder = os.path.split(filename)[0]

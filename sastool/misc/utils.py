@@ -39,16 +39,16 @@ def parse_number(val, use_dateutilparser=False):
     is executed. If this also fails, a ValueError is raised.
     """
     if use_dateutilparser:
-        funcs = [int, float, parse_list_from_string, dateutil.parser.parse, unicode]
+        funcs = [int, float, parse_list_from_string, dateutil.parser.parse, str, unicode]
     else:
-        funcs = [int, float, parse_list_from_string, unicode]
+        funcs = [int, float, parse_list_from_string, str, unicode]
         
     if (val.strip().startswith("'") and val.strip().endswith("'")) or (val.strip().startswith('"') and val.strip().endswith('"')):
         return val[1:-1]
     for f in funcs:
         try:
             return f(val)
-        except ValueError:  # eat exception
+        except ValueError as ve:  # eat exception
             pass
     raise ValueError(val)
 

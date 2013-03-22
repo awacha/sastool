@@ -133,7 +133,7 @@ class GeneralCurve(ArithmeticBase):
         if 'special_names' not in kwargs:
             kwargs['special_names'] = collections.OrderedDict(self._default_special_names)
         if 'autodetect_columnnames' not in kwargs:
-            kwargs['autodetect_columnnames'] = True
+            kwargs['autodetect_columnnames'] = False
         return kwargs
 
     def _get_xname(self):          return self.get_specialname('x')
@@ -432,6 +432,14 @@ class GeneralCurve(ArithmeticBase):
         self._lastaxes = ax
         return ax.errorbar(self.x, self.y, dy, dx, *args, **kwargs)
     def trim(self, xmin= -np.inf, xmax=np.inf, ymin= -np.inf, ymax=np.inf):
+        if xmin is None:
+            xmin = -np.inf
+        if xmax is None:
+            xmax = np.inf
+        if ymin is None:
+            ymin = -np.inf
+        if ymax is None:
+            ymax = np.inf
         idx = (self.x <= xmax) & (self.x >= xmin) & (self.y >= ymin) & (self.y <= ymax)
         d = dict()
         for k in self._controlled_attributes:
@@ -498,10 +506,21 @@ class GeneralCurve(ArithmeticBase):
         for a in set(first.get_controlled_attributes()).intersection(set(last.get_controlled_attributes())):
             d[a] = np.concatenate((getattr(first, a), getattr(last, a)))
         return cls(d)
-    def unite(self, other, xmin=None, xmax=None, xsep=None,
-              Npoints=None, scaleother=True, verbose=False, return_factor=False):
-        if not isinstance(other, type(self)):
-            raise ValueError('Argument `other` should be an instance of class %s' % type(self))
+    def scalefactor(self, other, xmin=None, xmax=None, Npoints=None):
+        """Calculate a scaling factor, by which this curve is to be multiplied to best fit the other one.
+        
+        Inputs:
+            other: the other curve (an instance of GeneralCurve or of a subclass of it)
+            xmin: lower cut-off (None to determine the common range automatically)
+            xmax: upper cut-off (None to determine the common range automatically)
+            Npoints: number of points to use in the common x-range (None defaults to the lowest value among
+                the two datasets)
+        
+        Outputs:
+            The scaling factor determined by interpolating both datasets to the same abscissa and calculating
+                the ratio of their integrals, calculated by the trapezoid formula. Error propagation is
+                taken into account.
+        """
         if xmin is None:
             xmin = max(self.x.min(), other.x.min())
         if xmax is None:
@@ -513,11 +532,16 @@ class GeneralCurve(ArithmeticBase):
         commonx = np.linspace(max(data1.x.min(), data2.x.min()), min(data2.x.max(), data1.x.max()), Npoints)
         I1 = data1.interpolate(commonx).momentum(1, True)
         I2 = data2.interpolate(commonx).momentum(1, True)
+        return I2 / I1
+    def unite(self, other, xmin=None, xmax=None, xsep=None,
+              Npoints=None, scaleother=True, verbose=False, return_factor=False):
+        if not isinstance(other, type(self)):
+            raise ValueError('Argument `other` should be an instance of class %s' % type(self))
         if scaleother:
-            factor = I1 / I2
+            factor = other.scalefactor(self, xmin, xmax, Npoints)
             retval = type(self).merge(self, factor * other, xsep)
         else:
-            factor = I2 / I1
+            factor = self.scalefactor(other, xmin, xmax, Npoints)
             retval = type(self).merge(factor * self, other, xsep)
         if verbose:
             print "Uniting two datasets."

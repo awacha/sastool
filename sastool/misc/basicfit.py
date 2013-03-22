@@ -23,7 +23,7 @@ def findpeak(x, y, dy=None, position=None, hwhm=None, baseline=None, amplitude=N
     Notes:
         A Gauss or a Lorentz curve is fitted, depending on the value of 'curve'.
     """
-    if position is None: position = x[y == y.max()]
+    if position is None: position = x[y == y.max()][0]
     if hwhm is None: hwhm = 0.5 * (x.max() - x.min())
     if baseline is None: baseline = y.min()
     if amplitude is None: amplitude = y.max() - baseline

@@ -15,7 +15,7 @@ import collections
 
 from .common import _HDF_parse_group, SASMaskException
 from .. import misc
-from ..io import twodim  #IGNORE:E0611
+from ..io import twodim  # IGNORE:E0611
 
 __all__ = ['SASMask']
 
@@ -43,6 +43,7 @@ class SASMask(object):
     """
     maskid = None
     _mask = None
+    supported_read_extensions = ['.mat', '.npz', '.npy', '.edf', '.sma']
     @staticmethod
     def _set_default_kwargs(kwargs):
         if 'dirs' not in kwargs:
@@ -71,7 +72,7 @@ class SASMask(object):
             self.mask = (maskmatrix != 0).astype(np.uint8)
             self.maskid = kwargs['maskid']
         elif isinstance(maskmatrix, SASMask):
-            #make a copy of an existing SASMask instance
+            # make a copy of an existing SASMask instance
             self.mask = maskmatrix.mask.copy()
             self.maskid = maskmatrix.maskid
         elif isinstance(maskmatrix, h5py.highlevel.Group) or \
@@ -152,7 +153,7 @@ class SASMask(object):
         if filename.lower().endswith('.mat'):
             scipy.io.savemat(filename, {self.maskid:self.mask})
         elif filename.lower().endswith('.npz'):
-            np.savez_compressed(filename, **{self.maskid:self.mask}) #IGNORE:W0142
+            np.savez_compressed(filename, **{self.maskid:self.mask})  # IGNORE:W0142
         elif filename.lower().endswith('.npy'):
             np.save(filename, self.mask)
         else:
@@ -194,8 +195,14 @@ class SASMask(object):
                     raise ValueError('More than one datasets in the HDF5 group\
 and maskid argument was omitted.')
             else:
-                self.maskid = maskid
+                if maskid not in hpg.keys():
+                    maskid_new = os.path.splitext(os.path.basename(maskid))[0]
+                    if maskid_new not in hpg.keys():
+                        raise ValueError('Cannot find mask with ID %s in the HDF5 group!' % maskid)
+                    else:
+                        maskid = maskid_new
                 self.mask = hpg[maskid].value
+                self.maskid = maskid
         return self
     def rebin(self, xbin, ybin, enlarge=False):
         """Re-bin the mask."""

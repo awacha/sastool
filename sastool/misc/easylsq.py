@@ -193,7 +193,7 @@ def nlsq_fit(x, y, dy, func, params_init, verbose=False, **kwargs):
             return (func(x, *(params.tolist())) - y)
         else:
             return (func(x, *(params.tolist())) - y) / dy
-    #do the fitting
+    # do the fitting
     if verbose:
         print "nlsq_fit: now doing the fitting..."
         t1 = time.time()
@@ -205,10 +205,10 @@ def nlsq_fit(x, y, dy, func, params_init, verbose=False, **kwargs):
         print "nlsq_fit: fitting done in %.2f seconds." % (time.time() - t1)
         print "nlsq_fit: status from scipy.optimize.leastsq(): %d (%s)" % (ier, mesg)
         print "nlsq_fit: extracting statistics."
-    #test if the covariance was singular (cov is None)
+    # test if the covariance was singular (cov is None)
     if cov is None:
-        cov = np.ones((len(par), len(par))) * np.nan #set it to a NaN matrix
-    #calculate the Pearson's R^2 parameter (coefficient of determination)
+        cov = np.ones((len(par), len(par))) * np.nan  # set it to a NaN matrix
+    # calculate the Pearson's R^2 parameter (coefficient of determination)
     if dy is None:
         sserr = np.sum(((func(x, *(par.tolist())) - y)) ** 2)
         sstot = np.sum((y - np.mean(y)) ** 2)
@@ -216,8 +216,8 @@ def nlsq_fit(x, y, dy, func, params_init, verbose=False, **kwargs):
         sserr = np.sum(((func(x, *(par.tolist())) - y) / dy) ** 2)
         sstot = np.sum((y - np.mean(y)) ** 2 / dy ** 2)
     r2 = 1 - sserr / sstot
-    #assemble the statistics dictionary
-    statdict = {'DoF' : len(x) - len(par), #degrees of freedom
+    # assemble the statistics dictionary
+    statdict = {'DoF' : len(x) - len(par),  # degrees of freedom
                 'Chi2' : (infodict['fvec'] ** 2).sum(),
                 'R2' : r2,
                 'num_func_eval' : infodict['nfev'],
@@ -228,9 +228,9 @@ def nlsq_fit(x, y, dy, func, params_init, verbose=False, **kwargs):
     statdict['Chi2_reduced'] = statdict['Chi2'] / statdict['DoF']
     statdict['Covariance'] = cov * statdict['Chi2_reduced']
     par, statdict['Covariance'] = resubstitute_fixedparams(par, params_init_orig, statdict['Covariance'])
-    #calculate the estimated errors of the fit parameters
+    # calculate the estimated errors of the fit parameters
     dpar = np.sqrt(statdict['Covariance'].diagonal())
-    #Pearson's correlation coefficients (usually 'r') in a matrix.
+    # Pearson's correlation coefficients (usually 'r') in a matrix.
     statdict['Correlation_coeffs'] = statdict['Covariance'] / np.outer(dpar,
                                                                        dpar)
     if verbose:
@@ -292,26 +292,26 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, verbose=False,
     for i in range(Ndata):
         if dys[i] is None:
             dys[i] = np.ones(len(xs[i]), np.double) * np.nan
-    #concatenate the x, y and dy vectors
+    # concatenate the x, y and dy vectors
     xcat = np.concatenate(xs)
     ycat = np.concatenate(ys)
     dycat = np.concatenate(dys)
-    #find the start and end indices for each dataset in the concatenated datasets.
+    # find the start and end indices for each dataset in the concatenated datasets.
     lens = [len(x) for x in xs]
     starts = [int(sum(lens[:i])) for i in range(len(lens))]
     ends = [int(sum(lens[:i + 1])) for i in range(len(lens))]
 
-    #flatten the initial parameter list. A single list is needed, where the
+    # flatten the initial parameter list. A single list is needed, where the
     # constrained parameters occur only once. Of course, we have to do some
     # bookkeeping to be able to find the needed parameters for each sub-range
     # later during the fit.
     paramcat = []  # this will be the concatenated list of parameters
-    param_indices = [] # this will have the same structure as params_inits (i.e.
+    param_indices = []  # this will have the same structure as params_inits (i.e.
         # a tuple of tuples of ints). Each tuple corresponds to a dataset.
         # Each integer number in each tuple holds
         # the index of the corresponding fit parameter in the 
         # concatenated parameter list.
-    for j in range(Ndata): # for each dataset
+    for j in range(Ndata):  # for each dataset
         param_indices.append([])
         jorig = j
         for i in range(Npar):
@@ -320,7 +320,7 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, verbose=False,
                 j = j - 1
             if j < 0:
                 raise ValueError('None of the parameters in the very first dataset should be `None`.')
-            if jorig == j:  #not constrained parameter
+            if jorig == j:  # not constrained parameter
                 paramcat.append(params_inits[j][i])
                 param_indices[jorig].append(len(paramcat) - 1)
             else:
@@ -332,7 +332,7 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, verbose=False,
         print "Number of parameters in each dataset:", Npar
         print "Total number of parameters:", Ndata * Npar
         print "Number of independent parameters:", len(paramcat)
-    #the flattened function
+    # the flattened function
     def func_flat(x, *params):
         y = []
         for j in range(Ndata):
@@ -342,7 +342,7 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, verbose=False,
             y.append(func(x[starts[j]:ends[j]], *pars))
         return np.concatenate(tuple(y))
 
-    #Now we reduced the problem to a single least-squares fit. Carry it out and
+    # Now we reduced the problem to a single least-squares fit. Carry it out and
     # interpret the results.
     pflat, dpflat, statdictflat = nlsq_fit(xcat, ycat, dycat, func_flat, paramcat, verbose, **kwargs)
     for n in ['func_value', 'R2', 'Chi2', 'Chi2_reduced', 'DoF', 'Covariance', 'Correlation_coeffs']:

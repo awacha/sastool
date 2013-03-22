@@ -12,18 +12,18 @@ import datetime
 import math
 import re
 import warnings
-
+import copy_reg
 
 __all__ = ['SASHeader']
 
 import scipy.constants
-#Planck constant times speed of light in eV*Angstroem units
+# Planck constant times speed of light in eV*Angstroem units
 HC = scipy.constants.codata.value('Planck constant in eV s') * \
     scipy.constants.codata.value('speed of light in vacuum') * 1e10
 
 NEUTRON_WAVELENGTH_CONVERTOR = scipy.constants.codata.value('Planck constant') ** 2 * 0.5 / \
     (scipy.constants.codata.value('neutron mass')) / \
-    scipy.constants.codata.value('electron volt-joule relationship') * 1e20# J
+    scipy.constants.codata.value('electron volt-joule relationship') * 1e20  # J
 
 class SASHistory(object):
     def __init__(self, s=''):
@@ -187,19 +187,25 @@ class SASHeader(dict):
                           'Thickness', 'Thicknessref1']
     # _fields_to_collect: these will be collected.
     _fields_to_collect = {'FSN': 'FSNs'}
-    # Testing equivalence
-    _equiv_tests = {'Dist': lambda a, b: (abs(a - b) < 1),
-                    'Energy': lambda a, b: (abs(a - b) < 1),
-                    'Temperature': lambda a, b: (abs(a - b) < 0.5),
-                    'Title': lambda a, b: (a == b),
-                   }
+    # Testing equivalence. Two SASHeaders are deemed to be equivalent (i.e. different
+    # exposures of the same sample under the same conditions are equivalent), if all
+    # criteria are fulfilled. Criteria can be given as tuples:
+    #  ('fieldname', tolerance)
+    # where tolerance can be any nonnegative real number or None. In the former case
+    # equivalence is the value of (abs(header1['fieldname']-header2['fieldname'])<tolerance.
+    # In the latter case header1['fieldname']==header2['fieldname'] is checked.
+    _equiv_tests = [('Dist', 1),
+                    ('Energy', 1),
+                    ('Temperature', 0.5),
+                    ('Title', None),
+                   ]
     # dictionary of key aliases. Note that multi-level aliases are not allowed!
     # This is a 
     _key_aliases = None
     _protectedfields_to_copy = ['_protectedfields_to_copy', '_key_aliases',
                               '_fields_to_sum', '_fields_to_average',
                               '_fields_to_collect', '_equiv_tests']
-
+    _needs_init = True
     # -- Housekeeping methods: __init__, iterators, __missing__ etc. ----------
     @staticmethod
     def _set_default_kwargs_for_readers(kwargs):
@@ -239,7 +245,7 @@ class SASHeader(dict):
         elif (isinstance(args[0], SASHeader) or isinstance(args[0], dict)) or isinstance(args[0], tuple):
             return super(SASHeader, cls).__new__(cls)
         else:
-            #everything from now on is handled by plug-ins.
+            # everything from now on is handled by plug-ins.
             # Everything else is handled by IO plugins
             plugin = cls.get_IOplugin(args[0], 'READ')
             if len(args) == 2:
@@ -304,7 +310,7 @@ class SASHeader(dict):
         elif isinstance(args[0], SASHeader):
             super(SASHeader, self).__init__(args[0])
             # copy over protected attributes
-            for fn in args[0]._protectedfields_to_copy: #IGNORE:W0212
+            for fn in args[0]._protectedfields_to_copy:  # IGNORE:W0212
                 attr = getattr(args[0], fn)
                 if hasattr(attr, 'copy'):
                     # if the attribute has a copy method, use that. E.g. dicts.
@@ -313,12 +319,19 @@ class SASHeader(dict):
                     # if the attribute is a sequence, use the [:] construct.
                     setattr(self, fn, attr[:])
                 else:
-                    #call the constructor to copy. Note that this can raise an
+                    # call the constructor to copy. Note that this can raise an
                     # exception, which is forwarded to the upper level.
                     setattr(self, fn, attr.type(attr))
         elif isinstance(args[0], tuple):
-            self.update(args[0][0])
-            self._key_aliases = args[0][1]
+            if args[0] and args[0][0] == 'PICKLED_SASHEADER':
+                self.update(args[0][1]['data'])
+                for f in args[0][1].keys():
+                    if f == 'data':
+                        continue
+                    self.__setattr__(f, args[0][1][f])
+            else:
+                self.update(args[0][0])
+                self._key_aliases = args[0][1]
         else:
             # search for a plugin to handle this
             try:
@@ -369,7 +382,7 @@ class SASHeader(dict):
             val = '<untitled>'
         elif key.endswith('Calibrated'):
             val = self[key[:-len('Calibrated')]]
-        #elif key in ['Dist', 'Energy', 'BeamPosX', 'BeamPosY', 'PixelSize']:
+        # elif key in ['Dist', 'Energy', 'BeamPosX', 'BeamPosY', 'PixelSize']:
         #    val = np.NAN
         elif key in ['XPixel', 'YPixel']:
             val = self['PixelSize']
@@ -436,7 +449,7 @@ class SASHeader(dict):
             return super(SASHeader, self).__contains__(self._key_aliases[key])
         else:
             ret = super(SASHeader, self).__contains__(key)
-            if not ret and generate_missing: # try if the key can be auto-generated by __missing__()
+            if not ret and generate_missing:  # try if the key can be auto-generated by __missing__()
                 try:
                     self.__missing__(key, dry_run=True)
                 except KeyError:
@@ -579,8 +592,14 @@ class SASHeader(dict):
         SASHeader._equiv_tests is used to decide equivalence.
         """
         return all([self._equiv_tests[k](self[k], other[k]) for k in self._equiv_tests] + 
-                   [other._equiv_tests[k](self[k], other[k]) for k in other._equiv_tests]) #IGNORE:W0212
+                   [other._equiv_tests[k](self[k], other[k]) for k in other._equiv_tests])  # IGNORE:W0212
 
     # ---------------------------- HDF5 I/O ----------------------------------
 
+    def __reduce__(self):
+        d = {'data':dict(self)}
+        d['_protectedfields_to_copy'] = self._protectedfields_to_copy
+        for f in self._protectedfields_to_copy:
+            d[f] = self.__getattribute__(f)
+        return (SASHeader, (('PICKLED_SASHEADER', d),))
 

@@ -119,6 +119,8 @@ _logfile_data = [('FSN', 'FSN', None, lambda x: int(float(x))),
                  ('Sample rotation around y axis', 'RotYsample', None, float),
                  ('History', 'History', _linearize_history, _delinearize_history),
                  ('Date', 'Date', None, dateutil.parser.parse),
+                 ('EndDate', 'EndDate', None, dateutil.parser.parse),
+                 ('CBF_Date', 'CBF_Date', None, dateutil.parser.parse),
                 ]
 
 def readB1logfile(filename):

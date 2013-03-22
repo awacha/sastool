@@ -10,9 +10,7 @@ import numbers
 import matplotlib.pyplot as plt
 import matplotlib.colors
 import collections
-import logging
 
-logger = logging.getLogger(__name__)
 
 from .header import SASHeader
 from .common import SASExposureException
@@ -84,7 +82,6 @@ class SASExposure(ArithmeticBase):
         present, only the given file sequence numbers are read (if they are
         present).
     """
-    _instancecount = 0
     matrix_names = ['Intensity', 'Error']
     matrices = dict([('Intensity', 'Scattered intensity'),
                                       ('Error', 'Error of intensity')])
@@ -202,8 +199,6 @@ class SASExposure(ArithmeticBase):
             self.header = SASHeader(self.header)
         if kwargs['maskfile'] is not None and kwargs['load_mask']:
             self.set_mask(SASMask(kwargs['maskfile'], dirs=kwargs['dirs']))
-        SASExposure._instancecount += 1
-        logger.debug('New SASExposure instantiated. Now alive: ' + str(SASExposure._instancecount) + ' specimens.')
     def __new__(cls, *args, **kwargs):
         """Load files or just create an empty instance or copy.
 
@@ -361,8 +356,6 @@ class SASExposure(ArithmeticBase):
         for x in ['Intensity', 'Error', 'header', 'mask']:
             if hasattr(self, x):
                 delattr(self, x)
-        SASExposure._instancecount -= 1
-        logger.debug('A SASExposure has ben deleted. Now alive: ' + str(SASExposure._instancecount) + ' specimens.')
         # we do not call the __del__ method of our parent class, since neither it
         # nor its ancestor has one.
     @property
@@ -418,6 +411,27 @@ class SASExposure(ArithmeticBase):
         col, row = np.meshgrid(np.arange(self.shape[1]), np.arange(self.shape[0]))
         Imasked = self.Intensity[indices]
         return (row[indices] * Imasked).sum() / Imasked.sum(), (col[indices] * Imasked).sum() / Imasked.sum()
+
+    def sigma(self, masked=True, mask=None):
+        """Calculate the FWHM extents of the image (or a portion of it, defined by the mask)
+        
+        Inputs:
+            masked: if the mask should be taken into account
+            mask: if not None, an overriding mask to be used instead of
+                the defined one.
+        """
+        if mask is None and self.check_for_mask(False):
+            mask = self.mask
+        if mask is not None and masked:
+            indices = np.array(mask) != 0
+        else:
+            indices = slice(None)
+        col, row = np.meshgrid(np.arange(self.shape[1]), np.arange(self.shape[0]))
+        Imasked = self.Intensity[indices]
+        wt = Imasked / Imasked.sum()
+        return (((row[indices] ** 2 * wt).sum() - (row[indices] * wt).sum() ** 2) ** 0.5,
+                ((col[indices] ** 2 * wt).sum() - (col[indices] * wt).sum() ** 2) ** 0.5)
+
 
     def sum(self, masked=True, mask=None):
         """Calculate the sum of the pixels.
@@ -1420,14 +1434,14 @@ class SASExposure(ArithmeticBase):
         """The distance of each pixel from the beam center in pixel units"""
         self.check_for_q()
         col, row = np.meshgrid(np.arange(self.shape[1]), np.arange(self.shape[0]))
-        return np.sqrt((col - self.header['BeamPosX']) ** 2 + (row - self.header['BeamPosY']) ** 2)
+        return np.sqrt((col - self.header['BeamPosY']) ** 2 + (row - self.header['BeamPosX']) ** 2)
     @property
     def D(self):
         """The distance of each pixel from the beam center in length units (mm)."""
         self.check_for_q()
         col, row = np.meshgrid(np.arange(self.shape[1]), np.arange(self.shape[0]))
-        return np.sqrt(((col - self.header['BeamPosX']) * self.header['XPixel']) ** 2 + 
-                       ((row - self.header['BeamPosY']) * self.header['YPixel']) ** 2)
+        return np.sqrt(((col - self.header['BeamPosY']) * self.header['YPixel']) ** 2 + 
+                       ((row - self.header['BeamPosX']) * self.header['XPixel']) ** 2)
     @property
     def q(self):
         """The magnitude of the momentum transfer (q=4*pi*sin(theta)/lambda)

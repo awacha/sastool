@@ -163,16 +163,16 @@ def readcbf(name, load_header=False, load_data=True):
                     header['CBF_' + label] = content
         else:
             pass
-    if header['CBF_X-Binary-Element-Type'] != 'signed 32-bit integer':
-        raise NotImplementedError('element type is not "signed 32-bit integer" in CBF, but %s.' % header['CBF_X-Binary-Element-Type'])
-    if header['CBF_conversions'] != 'x-CBF_BYTE_OFFSET':
-        raise NotImplementedError('compression is not "x-CBF_BYTE_OFFSET" in CBF!')
-    dim1 = header['CBF_X-Binary-Size-Fastest-Dimension']
-    dim2 = header['CBF_X-Binary-Size-Second-Dimension']
-    nbytes = header['CBF_X-Binary-Size']
-    cbfdata = cbfdecompress(cbfbin[datastart:datastart + nbytes], dim1, dim2)
     ret = []
     if load_data:
+        if header['CBF_X-Binary-Element-Type'] != 'signed 32-bit integer':
+            raise NotImplementedError('element type is not "signed 32-bit integer" in CBF, but %s.' % header['CBF_X-Binary-Element-Type'])
+        if header['CBF_conversions'] != 'x-CBF_BYTE_OFFSET':
+            raise NotImplementedError('compression is not "x-CBF_BYTE_OFFSET" in CBF!')
+        dim1 = header['CBF_X-Binary-Size-Fastest-Dimension']
+        dim2 = header['CBF_X-Binary-Size-Second-Dimension']
+        nbytes = header['CBF_X-Binary-Size']
+        cbfdata = cbfdecompress(cbfbin[datastart:datastart + nbytes], dim1, dim2)
         ret.append(cbfdata)
     if load_header:
         ret.append(header)
