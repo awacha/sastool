@@ -413,7 +413,7 @@ class SASExposure(ArithmeticBase):
         return (row[indices] * Imasked).sum() / Imasked.sum(), (col[indices] * Imasked).sum() / Imasked.sum()
 
     def sigma(self, masked=True, mask=None):
-        """Calculate the FWHM extents of the image (or a portion of it, defined by the mask)
+        """Calculate the RMS extents of the image (or a portion of it, defined by the mask)
         
         Inputs:
             masked: if the mask should be taken into account

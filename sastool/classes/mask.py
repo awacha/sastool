@@ -85,9 +85,11 @@ class SASMask(object):
         elif isinstance(maskmatrix, collections.Sequence) and len(maskmatrix) >= 2:
             self.mask = np.zeros(maskmatrix[:2], dtype=np.uint8)
             self.maskid = kwargs['maskid']
+        elif isinstance(maskmatrix, basestring):
+            raise IOError('Could not open mask file: ' + maskmatrix)
         else:
             raise NotImplementedError
-
+ 
     def __unicode__(self):
         return u'SASMask(' + self.maskid + ')'
     __str__ = __unicode__
@@ -350,3 +352,36 @@ and maskid argument was omitted.')
             return self.__class__(self.mask[key], maskid=self.maskid + '$trim')
         else:
             return m
+    def __and__(self, other):
+        obj = SASMask(self)
+        obj &= other
+        return obj
+    def __iand__(self, other):
+        if not isinstance(other, SASMask):
+            return NotImplemented
+        if not (self.shape == other.shape):
+            raise ValueError('Shape mismatch')
+        self.mask &= other.mask
+        return self
+    def __or__(self, other):
+        obj = SASMask(self)
+        obj |= other
+        return obj
+    def __ior__(self, other):
+        if not isinstance(other, SASMask):
+            return NotImplemented
+        if not (self.shape == other.shape):
+            raise ValueError('Shape mismatch')
+        self.mask |= other.mask
+        return self
+    def __xor__(self, other):
+        obj = SASMask(self)
+        obj ^= other
+        return obj
+    def __ixor__(self, other):
+        if not isinstance(other, SASMask):
+            return NotImplemented
+        if not (self.shape == other.shape):
+            raise ValueError('Shape mismatch')
+        self.mask ^= other.mask
+        return self
