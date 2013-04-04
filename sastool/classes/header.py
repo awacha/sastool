@@ -401,8 +401,9 @@ class SASHeader(dict):
         else: dist = '<no dist>'
         if 'Energy' in self: energy = self['Energy']
         else: energy = '<no energy>'
-            
-        return "FSN %s; %s; %s mm; %s eV" % (fsn, title, dist, energy)
+        if 'MeasTime' in self: meastime = self['MeasTime']
+        else: meastime = '<no exptime>'
+        return "FSN %s; %s; %s mm; %s eV; %.3f s" % (fsn, title, dist, energy, meastime)
     __str__ = __unicode__
     def __repr__(self):
         return "<SASHeader: " + unicode(self) + '>'
