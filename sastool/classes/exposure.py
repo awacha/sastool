@@ -29,12 +29,6 @@ HC = scipy.constants.codata.value('Planck constant in eV s') * \
 __all__ = ['SASExposure']
 
 
-class SASExposureGenerator(object):
-    def __init__(self):
-        pass
-    def __next__(self):
-        pass
-
 class SASExposure(ArithmeticBase):
     """A class for holding SAS exposure data, i.e. intensity, error, metadata
     and mask.

@@ -6,7 +6,7 @@ Created on Apr 5, 2012
 @author: andris
 '''
 
-__all__ = ['common', 'exposure', 'header', 'mask', 'arithmetic', 'curve', 'errorvalue']
+__all__ = ['common', 'exposure', 'header', 'mask', 'arithmetic', 'curve', 'errorvalue', 'scan']
 
 
 from sastool.misc import errorvalue
@@ -18,6 +18,7 @@ import mask
 import curve
 import exposure_plugin
 import header_plugin
+import scan
 
 from sastool.misc.errorvalue import *
 from sastool.misc.arithmetic import *
@@ -29,6 +30,7 @@ from .header import *
 from .curve import *
 from .exposure_plugin import *
 from .header_plugin import *
+from .scan import *
 
 for k in __all__[:]:
     __all__.extend(eval('%s.__all__' % k))
