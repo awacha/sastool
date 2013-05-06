@@ -2,7 +2,8 @@ import numpy as np
 import collections
 import datetime
 import dateutil.parser
-import collections
+import warnings
+import weakref
 
 from ..io import onedim
 from .curve import GeneralCurve
@@ -10,7 +11,7 @@ import re
 import time
 import os
 
-__all__ = ['ScanCurve', 'SASScan', 'read_from_spec', 'read_from_abtfio']
+__all__ = ['ScanCurve', 'SASScan', 'read_from_spec', 'read_from_abtfio', 'SASScanStore']
 
 class ScanCurve(GeneralCurve):
     pass
@@ -46,9 +47,9 @@ class SASScan(object):
             self.default_y = datadefs.default_y
             self.default_moni = datadefs.default_moni
             self._record_mode = datadefs._record_mode
-            self.filename = datadefs.filename
+            self.scanstore = datadefs.scanstore
         else:
-            if all(isinstance(x, basestring) for x in datadefs):
+            if not isinstance(datadefs, np.dtype) and all(isinstance(x, basestring) for x in datadefs):
                 datadefs = [(x, float) for x in datadefs]
             self._data = np.zeros(N, dtype=datadefs)
             self._idx = 0
@@ -65,7 +66,7 @@ class SASScan(object):
             self.default_y = -1
             self.default_moni = -2
             self._record_mode = False
-            self.filename = None
+            self.scanstore = None
         self._dtype = self._data.dtype
     @property
     def data(self):
@@ -79,39 +80,39 @@ class SASScan(object):
     def dtype(self):
         """The numpy data type"""
         return self._data.dtype
-    def start_record_mode(self, command, N, filename=None):
+    def start_record_mode(self, command, N, scanstore=None):
         self.command = command
-        if filename is not None:
-            self.filename = filename
-        if self.filename is None:
+        if scanstore is not None:
+            self.scanstore = scanstore
+        if self.scanstore is None:
             return
         self._record_mode = True
-        if not os.path.exists(self.filename):
-            init_spec_file(self.filename, self.comment, self.motors)
-        write_scan_header_to_spec(self.filename, self, N=N)
+        if self not in self.scanstore.scans:
+            self.scanstore.add_scan(self, N)
     def stop_record_mode(self):
         self._record_mode = False
-    def _convert_data(self, newdata):
-        """Convert newdata to the format of the scan."""
-        if not (isinstance(newdata, collections.Sequence) or isinstance(x, np.ndarray)):
-            raise ValueError('Only a value of an iterable type (e.g. list, tuple, np.ndarray) can be appended')
-        if len(newdata) == 0:
-            return  # do nothing
-        iterableelements = [(isinstance(x, collections.Sequence) or isinstance(x, np.ndarray)) and not isinstance(x, basestring) for x in newdata]
-        if any(iterableelements) and not all(iterableelements):
-            raise ValueError('Either all or none of the elements in newdata should be iterable.')
-        if not any(iterableelements):
-            newdata = [newdata]
-        return np.array(newdata, dtype=self.dtype)
     def append(self, newdata):
-        """Append new data to the scan."""
-        newdata = self._convert_data(newdata)
+        """Append new data to the scan.
+        
+        Input:
+            newdata: the new data. It must either be a tuple, a list of tuples or a one or two-dimensional np.ndarray.
+        """
+        if isinstance(newdata, tuple):
+            newdata = np.array([newdata], dtype=self.dtype)
+        elif isinstance(newdata, list):
+            newdata = np.array(newdata, dtype=self.dtype)
+        elif isinstance(newdata, np.ndarray) and newdata.ndim == 1:
+            newdata = np.array([tuple(newdata.tolist())], dtype=self.dtype)
+        elif isinstance(newdata, np.ndarray) and newdata.ndim == 2:
+            newdata = np.array([tuple(x) for x in newdata.tolist()], dtype=self.dtype)
+        else:
+            raise TypeError('Invalid type for data to be appended to scan.')
         if self.get_free_space() < len(newdata):
             self.add_more_space(max(len(newdata) - self.get_free_space(), self.increment))
         self._data[self._idx:self._idx + len(newdata)] = newdata
         self._idx += len(newdata)
-        write_to_spec(self.filename, newdata)
-            
+        if self.scanstore is not None and self._record_mode:
+            self.scanstore().append_data(newdata)
     def prepend(self, newdata):
         """Prepend new data to the scan."""
         if self._record_mode:
@@ -123,7 +124,7 @@ class SASScan(object):
         """Return the column denoted by 'name' as a numpy vector. Same as scan[name]."""
         return self.data[name]
     def __len__(self):
-        return self.data.shape    
+        return len(self.data)    
     def get_free_space(self):
         """Get the number of the available allocated but unoccupied rows."""
         return len(self._data) - self._idx
@@ -152,28 +153,40 @@ class SASScan(object):
             moni: column name or index of the monitor column. Can be None.
             scalebymonitor: if the ordinate should be divided by monitor.
         """
-        if x is None: x = self.default_x
-        if y is None: y = self.default_y
-        if moni is None: moni = self.default_moni
-        if not isinstance(x, basestring): x = self.dtype.names[x]
-        if not isinstance(y, basestring): y = self.dtype.names[y]
-        if not isinstance(moni, basestring): moni = self.dtype.names[moni]
-        data = self.data
-        curvedata = {'x':data[x], 'y':data[y]}
-        special_names = {'x':x, 'y':y, 'dx':x + 'Error', 'dy':y + 'Error'}
+        
+        curvedata = {'x':self.get_x(x), 'y':self.get_y(y)}
+        special_names = {'x':self.get_dataname('x', x),
+                         'y':self.get_dataname('y', y),
+                         'dx':self.get_dataname('x', x) + 'Error',
+                         'dy':self.get_dataname('y', y) + 'Error'}
         if moni is not None:
-            curvedata['monitor'] = data[moni]
-            special_names['monitor'] = moni
+            curvedata['monitor'] = self.get_moni(moni)
+            special_names['monitor'] = self.get_dataname('moni', moni)
             if scalebymonitor:
                 curvedata['y'] = curvedata['y'] / curvedata['monitor']
         return ScanCurve(curvedata, special_names=special_names)
-    
-def read_from_spec(specfilename, idx):
-    spec = onedim.readspec(specfilename)
-    scan = spec['scans'][idx - 1]
+    def get_dataname(self, what, label=None):
+        if what not in ('x', 'y', 'moni'):
+            raise ValueError('Argument "what" should be either "x" or "y" or "moni".')
+        if label is None: label = getattr(self, 'default_' + what)
+        if not isinstance(label, basestring): label = self.dtype.names[label]
+        return label
+    def get_x(self, label=None):
+        return self.data[self.get_dataname('x', label)]
+    def get_y(self, label=None):
+        return self.data[self.get_dataname('y', label)]
+    def get_moni(self, label=None):
+        return self.data[self.get_dataname('moni', label)]
+        
+def read_from_spec(specfilename, idx=None):
+    if not isinstance(specfilename, dict):
+        spec = onedim.readspec(specfilename)
+        scan = spec['scans'][idx - 1]
+    else:
+        scan = specfilename
     scn = SASScan(scan['data'].dtype, N=len(scan['data']))
     scn.data = scan['data']
-    scn.motors = spec['motors']
+    scn.motors = scan['motors']
     scn.motorpos = scan['positions']
     scn.command = scan['command']
     scn.fsn = scan['number']
@@ -187,7 +200,7 @@ def read_from_spec(specfilename, idx):
     scn.default_x = 0
     scn.default_y = -1
     scn.default_moni = -2
-    scn.comment = spec['comment']
+    scn.comment = scan['comment']
     return scn
     
 def read_from_abtfio(abtfilename):
@@ -214,45 +227,84 @@ def read_from_abtfio(abtfilename):
     scn.timestamp = float(abt['start'].strftime('%s.%f'))
     return scn
 
-def init_spec_file(specfile, comment, motors):
-    with open(specfile, 'w') as sf:
-        sf.write('#F ' + specfile + '\n')
-        dt = datetime.datetime.now()
-        sf.write('#E ' + dt.strftime('%s') + '\n')
-        sf.write('#D ' + dt.strftime('%a %b %d %H:%M:%S %Y') + '\n')
-        sf.write('#C ' + comment + '\n')
-        for i in range(len(motors) / 8 + 1):
-            sf.write('#O%d ' % i + ' '.join('%8s' % m for m in motors[i * 8:(i + 1) * 8]) + '\n')
-
-def write_scan_header_to_spec(specfile, scn, N=None):
-    if not os.path.exists(specfile):
-        raise IOError('File ' + specfile + ' does not exist!')
-    if scn.fsn is None:
-        maxfsn = 0
-        with open(specfile, 'r') as sf:
-            for l in specfile:
-                if l.startswith('#S') and int(l.split()[1]) > maxfsn:
-                    maxfsn = int(l.split()[1])
-        scn.fsn = maxfsn + 1
-    with open(specfile, 'a') as sf:
-        sf.write('\n#S ' + str(scn.fsn) + '  ' + scn.command + '\n')
-        sf.write('#D ' + datetime.datetime.fromtimestamp(scn.timestamp).strftime('%a %b %d %H:%M:%S %Y') + '\n')
-        if scn.countingtype == SASScan.COUNTING_TIME:
-            sf.write('#T ' + int(scn.countingvalue) + '  (Seconds)\n')
-        else:
-            sf.write('#M ' + int(scn.countingvalue) + '  (Counts)\n')  # I am not sure of this.
-        sf.write('#G0 0\n')
-        sf.write('#G1 0\n')
-        sf.write('#Q 0 0 0\n')
-        for i in range(len(scn.motors)):
-            sf.write('#P%d ' % i + ' '.join(str(m) for m in scn.motorpos[i * 8:(i + 1) * 8]) + '\n')
-        if N is None:
-            N = len(scn)
-        sf.write('#N ' + str(N) + '\n')
-        sf.write('#L ' + '  '.join(scn.columns()) + '\n')
     
-def write_to_spec(specfile, data):
-    with open(specfile, 'a') as sf:
-        np.savetxt(sf, data, fmt='%g', delimiter=' ', newline='\x0a')
 
+        
+class SASScanStore(object):
+    """A class for storing more scans belonging together (i.e. done by the same
+    user in the same beamtime.) Currently this corresponds to a spec file, but
+    is meant to extended later on. The API is not to be regarded as stable.
+    """
+    def __init__(self, filename, comment=None, motors=None):
+        self.scans = []
+        if not os.path.exists(filename):
+            self.datetime = datetime.datetime.now()
+            self.epoch = int(self.datetime.strftime('%s'))
+            if motors is None:
+                motors = []
+            self.motors = motors
+            self.comment = comment
+            with open(filename, 'w') as sf:
+                sf.write('#F ' + filename + '\n')
+                sf.write('#E ' + str(self.epoch) + '\n')
+                sf.write('#D ' + self.datetime.strftime('%a %b %d %H:%M:%S %Y') + '\n')
+                sf.write('#C ' + self.comment + '\n')
+                for i in range(len(self.motors) / 8 + 1):
+                    sf.write('#O%d ' % i + '  '.join('%8s' % m for m in self.motors[i * 8:(i + 1) * 8]) + '\n')
+        else:
+            spec = onedim.readspec(filename)
+            maxfsn = 0
+            self.epoch = spec['epoch']
+            self.datetime = spec['datetime']
+            self.comment = spec['comment']
+            self.motors = spec['motors']
+            self.scans = [read_from_spec(s) for s in spec['scans']]
+            if motors is not None and set(motors) != set(self.motors):
+                print set(motors)
+                print set(self.motors)
+                warnings.warn('Different motors in SPEC file!')
+            del spec
+        self.filename = filename
+    @property
+    def nextscan(self):
+        return len(self.scans) + 1
+    def add_scan(self, scn, N=None):
+        if scn.fsn is None:
+            scn.fsn = self.nextscan
+        with open(self.filename, 'a') as sf:
+            sf.write('\n#S ' + str(scn.fsn) + '  ' + scn.command + '\n')
+            sf.write('#D ' + scn.timestamp.strftime('%a %b %d %H:%M:%S %Y') + '\n')
+            if scn.countingtype == SASScan.COUNTING_TIME:
+                sf.write('#T ' + str(scn.countingvalue) + '  (Seconds)\n')
+            else:
+                sf.write('#M ' + str(scn.countingvalue) + '  (Counts)\n')  # I am not sure of this.
+            sf.write('#G0 0\n')
+            sf.write('#G1 0\n')
+            sf.write('#Q 0 0 0\n')
+            for i in range(len(scn.motors)):
+                sf.write('#P%d ' % i + ' '.join(str(m) for m in scn.motorpos[i * 8:(i + 1) * 8]) + '\n')
+            if N is None:
+                N = len(scn)
+            sf.write('#N ' + str(N) + '\n')
+            sf.write('#L ' + '  '.join(scn.columns()) + '\n')
+        self.scans.append(scn)
+        scn.scanstore = weakref.ref(self)
+    def append_data(self, data):
+        with open(self.filename, 'a') as sf:
+            np.savetxt(sf, data, fmt='%g', delimiter=' ', newline='\x0a')
+    def get_scan(self, idx):
+        if idx < 1 or idx > len(self.scans):
+            raise ValueError('Invalid scan index!')
+        return self.scans[idx - 1]
+    def __getitem__(self, value):
+        return self.get_scan(value)
+    def finalize(self):
+        for scn in self.scans:
+            self.scans.remove(scn)
+            del scn
+        del self.scans
+    def __len__(self):
+        return len(self.scans)
+    def __iter__(self):
+        return iter(self.scans)
         

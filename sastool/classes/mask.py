@@ -102,9 +102,11 @@ class SASMask(object):
     def read_from_edf(self, filename, **kwargs):
         """Read a mask from an EDF file."""
         kwargs = self._set_default_kwargs(kwargs)
-        edf = twodim.readedf(misc.findfileindirs(filename, kwargs['dirs']))
+        filename = misc.findfileindirs(filename, kwargs['dirs'])
+        edf = twodim.readedf(filename)
         self.maskid = os.path.splitext(os.path.split(edf['FileName'])[1])[0]
         self.mask = (np.absolute(edf['data'] - edf['Dummy']) > edf['DDummy']).reshape(edf['data'].shape)
+        self.filename = filename
         return self
     def read_from_mat(self, filename, fieldname=None, **kwargs):
         """Try to load a maskfile (Matlab(R) matrix file or numpy npz/npy)
@@ -137,11 +139,13 @@ class SASMask(object):
             raise ValueError('Mask %s not in the file!' % fieldname)
         self.maskid = fieldname
         self.mask = f[fieldname].astype(np.uint8)
+        self.filename = filename
     def read_from_sma(self, filename):
         """Load a mask from a *.sma file (produced by BerSANS)
         """
         self.mask = twodim.readBerSANSmask(filename).astype(np.uint8)
         self.maskid = filename.split('.')[0]
+        self.filename = filename
     def write_to_sma(self, filename=None):
         """Write mask a *.sma file (produced by BerSANS)"""
         if filename is None:
@@ -193,6 +197,7 @@ class SASMask(object):
                 if len(hpg.keys()) == 1:
                     self.maskid = hpg.keys()[0]
                     self.mask = hpg[self.maskid].value
+                    self.filename = hpg.file.filename + ':' + hpg[self.maskid].name
                 else:
                     raise ValueError('More than one datasets in the HDF5 group\
 and maskid argument was omitted.')
@@ -204,6 +209,7 @@ and maskid argument was omitted.')
                     else:
                         maskid = maskid_new
                 self.mask = hpg[maskid].value
+                self.filename = hpg.file.filename + ':' + hpg[self.maskid].name
                 self.maskid = maskid
         return self
     def rebin(self, xbin, ybin, enlarge=False):

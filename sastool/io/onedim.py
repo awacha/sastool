@@ -29,20 +29,20 @@ def readspec(filename):
             else:
                 sf['comment'] = l[2:].strip()
         elif l.startswith('#O'):
-            l = l.split(None, 1)[0]
+            l = l.split(None, 1)[1]
             if 'motors' not in sf.keys():
                 sf['motors'] = []
-            sf['motors'].extend(l.split('  ')[1:])
+            sf['motors'].extend([x.strip() for x in l.split('  ')])
         elif l.startswith('#S'):
             if 'scans' not in sf.keys():
                 sf['scans'] = []
             sf['scans'].append({})
             sf['scans'][-1]['number'] = long(l[2:].split()[0])
-            sf['scans'][-1]['command'] = l[2:].split(None, 1)[1]
+            sf['scans'][-1]['command'] = l[2:].split(None, 1)[1].strip()
             sf['scans'][-1]['data'] = []
         elif l.startswith('#T'):
             sf['scans'][-1]['countingtime'] = float(l[2:].split()[0])
-            sf['scans'][-1]['scantimeunits'] = l[2:].split()[1]
+            sf['scans'][-1]['scantimeunits'] = l[2:].split()[1].strip()
         elif l.startswith('#M'):
             sf['scans'][-1]['countingcounts'] = float(l[2:].split()[0])
         elif l.startswith('#G'):
@@ -58,17 +58,24 @@ def readspec(filename):
         elif l.startswith('#N'):
             pass
         elif l.startswith('#L'):
-            sf['scans'][-1]['Columns'] = l[3:].split('  ')
+            sf['scans'][-1]['Columns'] = [x.strip() for x in l[3:].split('  ')]
         elif len(l.strip()) == 0:
             pass
         elif l.startswith('#'):
             pass
         else:
             sf['scans'][-1]['data'].append([float(x) for x in l.split()])
+    if 'scans' not in sf:
+        sf['scans'] = []
     for s in sf['scans']:
         if 'data' in s.keys():
             s1 = [tuple(d) for d in s['data']]
             s['data'] = np.array(s1, dtype=zip(s['Columns'], [np.double] * len(s['Columns'])))
+        s['motors'] = sf['motors']
+        if 'comment' not in s:
+            s['comment'] = sf['comment']
+        if 'positions' not in s:
+            s['positions'] = [None ] * len(sf['motors'])
     return sf
 
 def readabt(filename, dirs='.'):
