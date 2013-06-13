@@ -32,7 +32,7 @@ def _delinearize_bool(b):
 
 
 def _linearize_list(l, pre_converter=lambda a:a, post_converter=lambda a:a):
-    return post_converter(' '.join([unicode(pre_converter(x)) for x in l]))
+    return post_converter(' '.join([unicode(pre_converter(x)).encode('utf-8') for x in l]))
 
 
 def _delinearize_list(l, pre_converter=lambda a:a, post_converter=list):
@@ -67,11 +67,12 @@ def _delinearize_history(history_oneliner):
 #
 # formatter function: can be (1) a function accepting a single argument
 #     (the value of the field) or (2) a tuple of functions or (3) None. In
-#     the latter case and when omitted, unicode() will be used.
+#     the latter case and when omitted, lambda x:unicode(x).encode('utf-8')
+#      will be used.
 #
 # reader function: can be (1) a function accepting a string and returning
 #     as many values as the number of field names is. Or if omitted,
-#     unicode() will be used.
+#     lambda x: str(x).decode('utf-8') will be used.
 #
 _logfile_data = [('FSN', 'FSN', None, lambda x: int(float(x))),
                  ('FSNs', 'FSNs', _linearize_list, _delinearize_list),
@@ -154,7 +155,7 @@ def readB1logfile(filename):
             else:
                 dic[l.strip()] = True
         if len(ld) < 4:
-            reader = unicode
+            reader = lambda x: x.decode('utf-8')
         else:
             reader = ld[3]
         vals = reader(l.split(':', 1)[1].strip())
@@ -188,9 +189,9 @@ def writeB1logfile(filename, data):
         fieldnames = ld[1]
         # set the default formatter if it is not given
         if len(ld) < 3:
-            formatter = unicode
+            formatter = lambda x: unicode(x).encode('utf-8')
         elif ld[2] is None:
-            formatter = unicode
+            formatter = lambda x: unicode(x).encode('utf-8')
         else:
             formatter = ld[2]
         # this will contain the formatted values.
@@ -233,7 +234,7 @@ of the same length as the field names in logfile_data.')
                 allkeys.remove(fieldnames)
     # write untreated params
     for k in allkeys:
-        f.write(k + ':\t' + unicode(data[k]) + '\n')
+        f.write(k + ':\t' + unicode(data[k]).encode('utf-8') + '\n')
     f.close()
 
 def readB1header(filename):
@@ -326,7 +327,7 @@ def _readedf_extractline(left, right):
     """
     functions = [int, float, lambda l:float(l.split(None, 1)[0]),
                lambda l:int(l.split(None, 1)[0]),
-               dateutil.parser.parse, unicode]
+               dateutil.parser.parse, lambda x:x.decode('utf-8')]
     for f in functions:
         try:
             right = f(right)

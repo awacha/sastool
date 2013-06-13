@@ -194,7 +194,7 @@ class ErrorValue(ArithmeticBase):
         mean=`self.val` and variance=`self.err`^2.
         """
         if isinstance(self.val, np.ndarray):
-            return np.random.randn(self.val.shape) * self.err + self.val # IGNORE:E1103
+            return np.random.randn(self.val.shape) * self.err + self.val  # IGNORE:E1103
         else:
             return np.random.randn() * self.err + self.val
     @classmethod
@@ -240,13 +240,13 @@ class ErrorValue(ArithmeticBase):
         if 'exceptions_to_repeat' not in kwargs:
             kwargs['exceptions_to_repeat'] = []
         meanvalue = func(*args)
-        stdcollector = meanvalue * 0 # this way we get either a number or a np.array
+        stdcollector = meanvalue * 0  # this way we get either a number or a np.array
         mciters = 0
         while mciters < kwargs['NMC']:
             try:
-                stdcollector += (func(*[do_random(a) for a in args]) - meanvalue) ** 2 #IGNORE:W0142
+                stdcollector += (func(*[do_random(a) for a in args]) - meanvalue) ** 2  # IGNORE:W0142
                 mciters += 1
-            except Exception as e: #IGNORE:W0703
+            except Exception as e:  # IGNORE:W0703
                 if any(isinstance(e, etype) for etype in kwargs['exceptions_to_skip']):
                     kwargs['NMC'] -= 1
                 elif any(isinstance(e, etype) for etype in kwargs['exceptions_to_repeat']):
@@ -254,3 +254,5 @@ class ErrorValue(ArithmeticBase):
                 else:
                     raise
         return cls(meanvalue, stdcollector ** 0.5 / (kwargs['NMC'] - 1))
+    def is_zero(self):
+        return np.abs(self.val) <= np.abs(self.err)
