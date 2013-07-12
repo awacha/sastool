@@ -160,6 +160,27 @@ class SHPlugin_B1_int2dnorm(SASHeaderPlugin):
         header.writeB1logfile(filename, hed)
 
 @register_plugin
+class SHPlugin_CREDO_Reduced(SASHeaderPlugin):
+    _isread = True
+    _name = 'CREDO Reduced'
+    _iswrite = True
+    _filename_regex = re.compile(r'(crd[^/\\]*\.log$$)', re.IGNORECASE)
+    def read(self, filename, **kwargs):
+        self._before_read(kwargs)
+        if isinstance(filename, basestring):
+            hed = header.readB1logfile(misc.findfileindirs(filename, kwargs['dirs']))
+        else:
+            hed = filename
+        hed['History'] = SASHistory()
+        if isinstance(filename, basestring):
+            hed['History'].add('CREDO Reduced logfile loaded: ' + filename)
+        hed['__particle__'] = 'photon'
+        return (hed, {})
+    def write(self, filename, hed, **kwargs):
+        header.writeB1logfile(filename, hed)
+
+
+@register_plugin
 class SHPlugin_HDF5(SASHeaderPlugin):
     _isread = True
     _iswrite = True

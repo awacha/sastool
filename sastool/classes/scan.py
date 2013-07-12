@@ -177,7 +177,31 @@ class SASScan(object):
         return self.data[self.get_dataname('y', label)]
     def get_moni(self, label=None):
         return self.data[self.get_dataname('moni', label)]
-        
+    def diff(self, n=1):
+        copy = SASScan(self)
+        copy.data = np.zeros(len(self) - n, dtype=self.data.dtype)
+        for name in self.data.dtype.names:
+            if name == self.get_dataname('x'):
+                x = self.data[name]
+                for i in range(n):
+                    x = 0.5 * (x[1:] + x[:-1])
+                copy.data[name] = x
+            else:
+                copy.data[name] = np.diff(self.data[name], n)
+        copy.comment = 'Derivative (n=%d) of ' % n + self.comment
+        return copy
+    def integrate(self):
+        copy = SASScan(self)
+        copy.data = np.zeros(len(self), dtype=self.data.dtype)
+        for name in self.data.dtype.names:
+            if name == self.get_dataname('x'):
+                x = self.data[name]
+                copy.data[name] = x
+            else:
+                copy.data[name] = np.cumsum(self.data[name])
+        copy.comment = 'Integrate of ' + self.comment
+        return copy
+    
 def read_from_spec(specfilename, idx=None):
     if not isinstance(specfilename, dict):
         spec = onedim.readspec(specfilename)
@@ -274,6 +298,7 @@ class SASScanStore(object):
         with open(self.filename, 'a') as sf:
             sf.write('\n#S ' + str(scn.fsn) + '  ' + scn.command + '\n')
             sf.write('#D ' + scn.timestamp.strftime('%a %b %d %H:%M:%S %Y') + '\n')
+            sf.write('#C ' + scn.comment + '\n')
             if scn.countingtype == SASScan.COUNTING_TIME:
                 sf.write('#T ' + str(scn.countingvalue) + '  (Seconds)\n')
             else:

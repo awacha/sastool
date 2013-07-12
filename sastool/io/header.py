@@ -234,7 +234,9 @@ of the same length as the field names in logfile_data.')
                 allkeys.remove(fieldnames)
     # write untreated params
     for k in allkeys:
-        f.write(k + ':\t' + unicode(data[k]).encode('utf-8') + '\n')
+        f.write(k + ':\t' + str(data[k]).decode('latin2').encode('utf-8') + '\n')
+                
+            
     f.close()
 
 def readB1header(filename):

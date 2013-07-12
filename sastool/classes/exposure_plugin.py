@@ -22,7 +22,15 @@ import numpy as np
 import warnings
 import re
 import scipy.io
+import datetime
 
+try:
+    import nxs
+except OSError as ose:
+    warnings.warn('NeXus library not available. ' + ose.message)
+except ImportError:
+    warnings.warn('NeXus package not installed. NeXus I/O plugins won\'t work.')
+    
 __all__ = []
 
 from exposure import SASExposure
@@ -311,7 +319,7 @@ class SEPlugin_B1_org(SASExposurePlugin):
 class SEPlugin_CREDO(SASExposurePlugin):
     """SASExposure I/O plugin for the CREDO instrument."""
     _isread = True
-    _name = 'CREDO'
+    _name = 'CREDO Raw'
     _default_read_kwargs = {'header_extns':['.param'],
                           'data_extns':['.cbf', '.tif'],
                           'estimate_errors':True}
@@ -391,9 +399,6 @@ class SEPlugin_CREDO(SASExposurePlugin):
                 warnings.warn('Could not load mask file specified in the header (%s).' % header_loaded['maskid'])
         return {'header':header_loaded, 'Error':Error, 'Intensity':Intensity, 'mask':mask}
     
-
-
-
 @register_plugin    
 class SEPlugin_B1_int2dnorm(SASExposurePlugin):
     """SASExposure I/O plugin for B1 (HASYLAB, DORISIII) reduced data."""
@@ -463,6 +468,77 @@ therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
         folder = os.path.split(filename)[0]
         scipy.io.savemat(filename, {'Intensity':ex.Intensity, 'Error':ex.Error})
         ex.header.write(os.path.join(folder, kwargs['logfileformat'] % ex.header['FSN'] + kwargs['logfileextn']))
+
+@register_plugin    
+class SEPlugin_CREDO_Reduced(SASExposurePlugin):
+    """SASExposure I/O plugin for CREDO reduced data."""
+    _isread = True
+    _iswrite = True
+    _name = 'CREDO Reduced'
+    _default_read_kwargs = {'fileformat':'crd_%d',
+                          'logfileformat':'crd_%d',
+                          'logfileextn':'.log',
+                          'data_extns':['.npz'], }
+    _filename_regex = re.compile(r'crd[^/\\]*\.(npz)$', re.IGNORECASE)
+    def read(self, filename, **kwargs):
+        self._before_read(kwargs)
+
+        data_extn = [x for x in kwargs['data_extns'] if filename.upper().endswith(x.upper())]
+
+        if os.path.isabs(filename):
+            if kwargs['dirs'] is None:
+                kwargs['dirs'] = []
+            elif isinstance(kwargs['dirs'], basestring):
+                kwargs['dirs'] = [kwargs['dirs']]
+            kwargs['dirs'] = [os.path.split(filename)[0]] + kwargs['dirs']
+
+        if data_extn:  # is not empty
+            basename = os.path.splitext(filename)[0]
+        else:
+            basename = filename
+        data_extn.extend(kwargs['data_extns'])
+
+        dataname = None
+        for extn in data_extn:
+            try:
+                dataname = misc.findfileindirs(basename + extn, kwargs['dirs'])
+            except IOError:
+                continue
+        if not dataname:
+            raise IOError('Cannot find two-dimensional file!')
+        m = re.match(kwargs['fileformat'].replace('%d', r'(\d+)'), os.path.split(basename)[1])
+        if m is None:
+            raise ValueError('Filename %s does not have the format %s, \
+therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
+        else:
+            fsn = int(m.group(1))
+
+        headername = misc.findfileindirs(kwargs['logfileformat'] % fsn + kwargs['logfileextn'], kwargs['dirs'])
+        header = SASHeader(headername, **kwargs)
+        Intensity, Error = twodim.readint2dnorm(dataname)
+        header.add_history('Intensity and Error matrices loaded from ' + dataname)
+        header['FileName'] = dataname
+        mask = None
+        if 'maskid' in header and header['maskid'] is not None:
+            maskbasename = os.path.basename(header['maskid'])
+            maskdir = os.path.dirname(header['maskid'])
+            for maskext in [''] + SASMask.supported_read_extensions:
+                try:
+                    maskname = misc.findfileindirs(maskbasename + maskext, [maskdir] + kwargs['dirs'])
+                except IOError:
+                    continue
+                mask = SASMask(maskname)
+                break
+            if mask is None:
+                warnings.warn('Could not load mask file specified in the header (%s).' % header['maskid'])
+        return {'header':header, 'Intensity':Intensity, 'Error':Error, 'mask':mask}
+    
+    def write(self, filename, ex, **kwargs):
+        self._before_read(kwargs)
+        folder = os.path.split(filename)[0]
+        np.savez_compressed(filename, Intensity=ex.Intensity, Error=ex.Error)
+        ex.header.write(os.path.join(folder, kwargs['logfileformat'] % ex.header['FSN'] + kwargs['logfileextn']))
+
         
 @register_plugin
 class SEPlugin_PAXE(SASExposurePlugin):
@@ -674,15 +750,39 @@ class SEPlugin_HDF5(SASExposurePlugin):
             exposure.header.write(hpg[groupname], **kwargs)
             if exposure.mask is not None:
                 exposure.mask.write_to_hdf5(hpg)
+
+@register_plugin
+class SEPlugin_NeXusSAS(SASExposurePlugin):
+    """SASExposure I/O plugin for NeXus SAS files."""
+    _isread = False
+    
+    def write(self, filename, ex, **kwargs):
+        self._before_read(kwargs)
+        folder = os.path.split(filename)[0]
+        entry = nxs.NXentry()
+        nxe.insert('NXsas', 'definition')
+        nxe.insert(str(ex['Date']), 'end_time')
+        nxe.insert(str(ex['Date'] - datetime.timedelta(seconds=ex['MeasTime'])), 'start_time')
+        nxe.insert(str(ex.header), 'title')
+        nxi = nxs.NXinstrument(); nxe.insert(nxi)
+        nxi.insert(str(ex['__Origin__']), 'name')
+        nxc = nxs.NXcollimator(); nxi.insert(nxc)
+        nxg = nxs.NXgeometry(); nxc.insert(nxg)
+        nxsh = nxs.NXshape(); nxg.insert(nxsh)
+        nxsh.insert('nxcylinder', 'shape')
+        nxsh.insert(1, 'size')
+        nxd = nxs.NXdetector(); nxi.insert(nxd)
+        nxd.insert('aequatorial_angle')
         
+        entry.save(filename, 'w5')
     
 @register_plugin
 class SEPlugin_BareImage(SASExposurePlugin):
     """SASExposure I/O plugin for cbf and tif image files without metadata."""
     _isread = True
-    _name = 'Bare image'
+    _name = 'NXsas'
     _default_read_kwargs = {'estimate_errors':True}
-    _filename_regex = re.compile('\.(tif[f]?|cbf)$', re.IGNORECASE)
+    _filename_regex = re.compile('\.(n5|nx5)$', re.IGNORECASE)
     def read(self, filename, **kwargs):
         """Read a "bare" image file
         """
