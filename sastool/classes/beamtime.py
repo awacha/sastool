@@ -48,9 +48,11 @@ class SASBeamTime(object):
         self._headercache = []
         self.callbackfunc = callbackfunc
         self._cache_headers()
-    def _cache_headers(self):
-        del self._headercache
+    def _cache_headers(self, force=False):
+        if force:
+            self._headercache = []
         regex = re.compile(formatstring_to_regexp(self.headerformat))
+        have_fsns = [h['FSN'] for h in self._headercache]
         fsns = set()
         for d in self.path:
             fsns.update(set([int(m.groupdict()['fsn']) for m in [regex.match(f) for f in os.listdir(d)] if m is not None]))
@@ -58,13 +60,12 @@ class SASBeamTime(object):
             fsns = set(f for f in fsns if f >= self.minfsn)
         if self.maxfsn is not None:
             fsns = set(f for f in fsns if f <= self.maxfsn)
+        fsns = [f for f in fsns if f not in have_fsns]
         def _load(fsn):
-            self.callbackfunc()
+            if callable(self.callbackfunc):
+                self.callbackfunc()
             return sastool.classes.SASHeader(self.headerformat % f, dirs=self.path)
-        if self.callbackfunc is not None:
-            self._headercache = [_load(f) for f in fsns]
-        else:
-            self._headercache = [sastool.classes.SASHeader(self.headerformat % f, dirs=self.path) for f in fsns]
+        self._headercache = sorted(self._headercache + [_load(f) for f in fsns], key=lambda h:h['FSN'])
             
     def find(self, *args, **kwargs):
         """Find one or more headers matching given criteria.
@@ -109,7 +110,7 @@ class SASBeamTime(object):
     def load_exposure(self, header, *args, **kwargs):
         if isinstance(header, sastool.classes.SASHeader) or isinstance(header, dict):
             return sastool.classes.SASExposure(self.exposureformat % header['FSN'], *args, dirs=self.path, **kwargs)
-        else:
+        else:  # argument 'header' is a number
             return sastool.classes.SASExposure(self.exposureformat % header, *args, dirs=self.path, **kwargs)
     def find_exposure(self, *args, **kwargs):
         foundheaders = self.find(*args, **kwargs)
@@ -130,5 +131,5 @@ class SASBeamTime(object):
         return
     def __iter__(self):
         return iter(self._headercache)
-    def refresh_cache(self):
-        self._cache_headers()
+    def refresh_cache(self, force=False):
+        self._cache_headers(force)

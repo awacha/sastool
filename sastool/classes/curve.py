@@ -431,7 +431,7 @@ class GeneralCurve(ArithmeticBase):
             ax = plt
         self._lastaxes = ax
         return ax.errorbar(self.x, self.y, dy, dx, *args, **kwargs)
-    def trim(self, xmin= -np.inf, xmax=np.inf, ymin= -np.inf, ymax=np.inf):
+    def trim(self, xmin=-np.inf, xmax=np.inf, ymin=-np.inf, ymax=np.inf):
         if xmin is None:
             xmin = -np.inf
         if xmax is None:
@@ -448,7 +448,7 @@ class GeneralCurve(ArithmeticBase):
     def trimzoomed(self):
         axis = self._lastaxes.axis()
         return self.trim(*axis)
-    def sanitize(self, minval= -np.inf, maxval=np.inf, fieldname='y', discard_nonfinite=True):
+    def sanitize(self, minval=-np.inf, maxval=np.inf, fieldname='y', discard_nonfinite=True):
         self_as_array = np.array(self)
         indices = (getattr(self, fieldname) > minval) & \
             (getattr(self, fieldname) < maxval)
@@ -533,6 +533,7 @@ class GeneralCurve(ArithmeticBase):
         I1 = data1.interpolate(commonx).momentum(1, True)
         I2 = data2.interpolate(commonx).momentum(1, True)
         return I2 / I1
+    
     def unite(self, other, xmin=None, xmax=None, xsep=None,
               Npoints=None, scaleother=True, verbose=False, return_factor=False):
         if not isinstance(other, type(self)):
@@ -556,6 +557,7 @@ class GeneralCurve(ArithmeticBase):
             return retval, factor
         else:
             return retval
+        
     def invert(self):
         """Calculate the inverse (i.e. swap x with y). No check is done if this
         makes sense! Other fields than x,y,dx,dy are lost from the inverted curve.

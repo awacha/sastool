@@ -6,7 +6,7 @@ Created on Apr 5, 2012
 @author: andris
 '''
 
-__all__ = ['common', 'exposure', 'header', 'mask', 'arithmetic', 'curve', 'errorvalue', 'scan', 'beamtime']
+__all__ = ['common', 'exposure', 'header', 'mask', 'arithmetic', 'curve', 'errorvalue', 'scan', 'beamtime', ]
 
 
 from sastool.misc import errorvalue

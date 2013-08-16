@@ -56,7 +56,11 @@ def readspec(filename):
         elif l.startswith('#Q'):
             pass
         elif l.startswith('#N'):
-            pass
+            n = tuple(float(x) for x in l[2:].strip().split())
+            if len(n) == 1:
+                sf['scans'][-1]['N'] = n[0]
+            else:
+                sf['scans'][-1]['N'] = n
         elif l.startswith('#L'):
             sf['scans'][-1]['Columns'] = [x.strip() for x in l[3:].split('  ')]
         elif len(l.strip()) == 0:

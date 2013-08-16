@@ -28,12 +28,16 @@ class SASScan(object):
                 the data type is something that numpy understands (e.g. int,
                 float, long or '<i8' etc. Or just a list of column names, in
                 which case all columns will be assumed to be floats.
-            N: the number of rows to initialize the scan with.
+            N: the number of rows to initialize the scan with. Can be a tuple of
+                integers as well. In this case a multi-dimensional scan (imaging)
+                is considered.
             Nincrement: the amount of rows to increment the space with if needed.
         """
         if isinstance(datadefs, SASScan):
             self._data = datadefs._data.copy()
             self._idx = datadefs._idx
+            if hasattr(datadefs, '_N'):
+                self._N = datadefs._N
             self.increment = datadefs.increment
             self.motors = datadefs.motors[:]
             self.motorpos = datadefs.motorpos[:]
@@ -51,7 +55,14 @@ class SASScan(object):
         else:
             if not isinstance(datadefs, np.dtype) and all(isinstance(x, basestring) for x in datadefs):
                 datadefs = [(x, float) for x in datadefs]
-            self._data = np.zeros(N, dtype=datadefs)
+            if isinstance(N, tuple):
+                Nrows = reduce(lambda a, b:a * b, N)
+            else:
+                Nrows = N
+            self._data = np.zeros(Nrows, dtype=datadefs)
+            for f in self._data.dtype.names:
+                self._data[f] = np.NAN
+            self._N = N
             self._idx = 0
             self.increment = Nincrement
             self.motors = []
@@ -123,6 +134,8 @@ class SASScan(object):
     def get_column(self, name):
         """Return the column denoted by 'name' as a numpy vector. Same as scan[name]."""
         return self.data[name]
+    def get_image(self, name):
+        return self._data[name].reshape(self._N[::-1])
     def __len__(self):
         return len(self.data)    
     def get_free_space(self):
@@ -132,7 +145,6 @@ class SASScan(object):
         """Allocate more rows."""
         if N is None:
             N = self.increment
-        print "Extending space by ", N
         assert N > 0
         self._data = np.hstack((self._data, np.zeros(N, dtype=self.dtype)))
     def columns(self):
@@ -214,6 +226,7 @@ def read_from_spec(specfilename, idx=None):
     scn.motorpos = scan['positions']
     scn.command = scan['command']
     scn.fsn = scan['number']
+    scn._N = scan['N']
     if 'countingtime' in scan:
         scn.countingvalue = scan['countingtime']
         scn.countingtype = SASScan.COUNTING_TIME
@@ -284,8 +297,6 @@ class SASScanStore(object):
             self.motors = spec['motors']
             self.scans = [read_from_spec(s) for s in spec['scans']]
             if motors is not None and set(motors) != set(self.motors):
-                print set(motors)
-                print set(self.motors)
                 warnings.warn('Different motors in SPEC file!')
             del spec
         self.filename = filename
@@ -310,7 +321,10 @@ class SASScanStore(object):
                 sf.write('#P%d ' % i + ' '.join(str(m) for m in scn.motorpos[i * 8:(i + 1) * 8]) + '\n')
             if N is None:
                 N = len(scn)
-            sf.write('#N ' + str(N) + '\n')
+            if isinstance(N, tuple):
+                sf.write('#N ' + '  '.join([str(x) for x in N]) + '\n')
+            else:
+                sf.write('#N ' + str(N) + '\n')
             sf.write('#L ' + '  '.join(scn.columns()) + '\n')
         self.scans.append(scn)
         scn.scanstore = weakref.ref(self)

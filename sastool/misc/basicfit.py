@@ -33,7 +33,7 @@ def findpeak(x, y, dy=None, position=None, hwhm=None, baseline=None, amplitude=N
     return pos.val, pos.err, hwhm.val, hwhm.err, baseline.val, baseline.err, ampl.val, ampl.err
 
 def findpeak_single(x, y, dy=None, position=None, hwhm=None, baseline=None, amplitude=None, curve='Lorentz'):
-    """Find a (positive) peak in the dataset.
+    """Find a (positive or negative) peak in the dataset.
 
     Inputs:
         x, y, dy: abscissa, ordinate and the error of the ordinate (can be None)
@@ -43,8 +43,21 @@ def findpeak_single(x, y, dy=None, position=None, hwhm=None, baseline=None, ampl
         peak position, hwhm, baseline, amplitude as ErrorValue instances
 
     Notes:
-        A Gauss or a Lorentz curve is fitted, depending on the value of 'curve'.
+        A Gauss or a Lorentz curve is fitted, depending on the value of 'curve'. The abscissa
+        should be sorted, ascending.
     """
+    # decide if the peak is positive or negative. Positive if the left and right hand sides
+    # of the interval are more below the maximum than above the minimum. Negative if they are
+    # more above the minimum than below the maximum.
+    if ((y.max() - y[0]) >= (y[0] - y.min())) and ((y.max() - y[-1]) >= (y[-1] - y.min())):
+        sign = +1
+    elif ((y.max() - y[0]) <= (y[0] - y.min())) and ((y.max() - y[-1]) <= (y[-1] - y.min())):
+        sign = -1
+    else:
+        warnings.warn('Cannot safely determine if the fitted peak should be positive or negative. Assuming positive.')
+        sign = +1
+    # switch peak direction to up.
+    y = y * sign
     if position is None: position = x[y == y.max()][0]
     if hwhm is None: hwhm = 0.5 * (x.max() - x.min())
     if baseline is None: baseline = y.min()
@@ -58,7 +71,8 @@ def findpeak_single(x, y, dy=None, position=None, hwhm=None, baseline=None, ampl
             return amplitude_ * hwhm_ ** 2 / (hwhm_ ** 2 + (position_ - x_) ** 2) + baseline_
     p, dp = nlsq_fit(x, y, dy, fitfunc,
                                      (amplitude, position, hwhm, baseline))[:2]
-    return ErrorValue(p[1], dp[1]), ErrorValue(abs(p[2]), dp[2]), ErrorValue(p[3], dp[3]), ErrorValue(p[0], dp[0])
+    
+    return ErrorValue(p[1], dp[1]), ErrorValue(abs(p[2]), dp[2]), sign * ErrorValue(p[3], dp[3]), sign * ErrorValue(p[0], dp[0])
 
 
 def findpeak_multi(x, y, dy, N, Ntolerance, Nfit=None, curve='Lorentz'):
