@@ -34,7 +34,24 @@ def Guinier(q, G, Rg):
     --------
         ``G*exp(-(q^2*Rg^2)/3)``
     """
-    return G * np.exp(-(q * Rg) ** 2 / 3.0)
+    return GeneralGuinier(q,G,Rg,3)
+
+def GeneralGuinier(q, G, Rg, s):
+    """Generalized Guinier scattering
+
+    Inputs:
+    -------
+        ``q``: independent variable
+        ``G``: factor
+        ``Rg``: radius of gyration
+        ``s``: dimensionality parameter (can be 1, 2, 3)
+
+    Formula:
+    --------
+        ``G*q**(3-s)*exp(-(q^2*Rg^2)/s)``
+    """
+    return G * q**(3-s)*np.exp(-(q * Rg) ** 2 / s)
+
 
 def Guinier_thickness(q, G, Rg):
     """Guinier scattering of a thin lamella
@@ -49,7 +66,7 @@ def Guinier_thickness(q, G, Rg):
     --------
         ``G/q^2 * exp(-q^2*Rg^2)``
     """
-    return G / q ** 2 * np.exp(-q ** 2 * Rg ** 2)
+    return GeneralGuinier(q,G,Rg,1)
 
 def Guinier_crosssection(q, G, Rg):
     """Guinier scattering of a long rod
@@ -64,7 +81,7 @@ def Guinier_crosssection(q, G, Rg):
     --------
         ``G/q * exp(-q^2*Rg^2/2)``
     """
-    return G / q * np.exp(-q ** 2 * Rg ** 2 / 2.0)
+    return GeneralGuinier(q,G,Rg,2)
 
 def GuinierPorod(q, G, Rg, alpha):
     """Empirical Guinier-Porod scattering
@@ -248,31 +265,40 @@ def PowerlawPlusConstant(q, A, alpha, C):
     return A * q ** alpha + C
 
 def _PG_qsep(alpha, Rg):
-    return (-1.5 * alpha) ** 0.5 / np.abs(Rg)
+    return _PGgen_qsep(alpha,Rg,3)
 
 def _PG_G(alpha, Rg, A):
-    return A * np.exp(-alpha * 0.5) * (-1.5 * alpha) ** (alpha * 0.5) * Rg ** (-alpha)
+    return _PGgen_G(alpha, Rg, 3, A)
 
 def _PG_A(alpha, Rg, G):
-    return G * Rg ** alpha * np.exp(alpha * 0.5) * (-1.5 * alpha) ** (-alpha * 0.5)
+    return _PGgen_A(alpha, Rg, 3, G)
 
 def _PGcs_qsep(alpha, Rg):
-    return (1 - alpha) ** 0.5 / Rg
+    return _PGgen_qsep(alpha, Rg, 2)
 
 def _PGcs_G(alpha, Rg, A):
-    return A * np.exp(0.5 - 0.5 * alpha) * Rg ** (1 - alpha) * (1 - alpha) ** (0.5 * alpha - 0.5)
+    return _PGgen_G(alpha, Rg, 2, A)
 
 def _PGcs_A(alpha, Rg, G):
-    return G * np.exp(0.5 * alpha - 0.5) * Rg ** (alpha - 1) * (1 - alpha) ** (0.5 - 0.5 * alpha)
+    return _PGgen_A(alpha, Rg, 2, G)
 
 def _PGt_qsep(alpha, Rg):
-    return ((2 - alpha) * 0.5) ** 0.5 / Rg
+    return _PGgen_qsep(alpha, Rg, 1)
 
 def _PGt_G(alpha, Rg, A):
-    return A * (1 - 0.5 * alpha) ** (0.5 * alpha - 1) * np.exp(1 - 0.5 * alpha) * Rg ** (2 - alpha)
+    return _PGgen_G(alpha, Rg, 1, A)
 
 def _PGt_A(alpha, Rg, G):
-    return G * (1 - 0.5 * alpha) ** (1 - 0.5 * alpha) * np.exp(0.5 * alpha - 1) * Rg ** (alpha - 2)
+    return _PGgen_A(alpha,Rg, 1, G)
+
+def _PGgen_qsep(alpha, Rg, s):
+    return ((3*s-s**2-alpha*s)*0.5)**0.5/Rg
+
+def _PGgen_A(alpha, Rg, s, G):
+    return G*Rg**(alpha+s-3)*(3*s-s**2-alpha*s)**(0.5*(3-alpha-s))*np.exp(0.5*(alpha+s-3))
+
+def _PGgen_G(alpha, Rg, s, A):
+    return A*Rg**(3-alpha-s)*(3*s-s**2-alpha *s)**(0.5*(alpha-3+s))*np.exp(0.5*(3-alpha-s))
 
 def GuinierPorodMulti(q, G, *Rgsalphas):
     """Empirical multi-part Guinier-Porod scattering
@@ -365,6 +391,68 @@ def PorodGuinierMulti(q, A, *alphasRgs):
         indices[q < qsep] = False
     constraints.append(indices)
     return np.piecewise(q, constraints, funcs)
+
+def GeneralGuinierPorod(q, factor, *args, startswith='Guinier'):
+    """Empirical generalized multi-part Guinier-Porod scattering
+    
+    Inputs:
+    -------
+        ``q``: independent variable
+        ``factor``: factor for the first branch
+        ``startswith``: 'Guinier' if the first branch is a Guinier curve, 
+             anything else if it is a power-law.
+        other arguments (*args): the defining arguments of the consecutive
+             parts: radius of gyration (``Rg``) and dimensionality 
+             parameter (``s``) for Guinier and exponent (``alpha``) for 
+             power-law parts.
+    
+    Formula:
+    --------
+        The intensity is a piecewise function with continuous first derivatives.
+        The separating points in ``q`` between the consecutive parts and the
+        intensity factors of them (except the first) are determined from 
+        conditions of smoothness (continuity of the function and its first
+        derivative) at the border points of the intervals. Guinier-type
+        (``G*q**(3-s)*exp(-q^2*Rg1^2/s)``) and Power-law type (``A*q^alpha``) 
+        parts follow each other in alternating sequence. The exact number of
+        parts is determined from the number of positional arguments (*args).
+        
+    Literature:
+    -----------
+        B. Hammouda: A new Guinier-Porod model. J. Appl. Crystallogr. (2010) 43,
+            716-719.
+    """
+    if startswith=='Guinier':
+        funcs=[lambda q:GeneralGuinier(q,factor, args[0],args[1])]
+        i=2
+        guiniernext=False
+    else:
+        funcs = [lambda q: Powerlaw(q, A, args[0])]
+        i=1
+        guiniernext=True
+    indices = np.ones_like(q, dtype=np.bool)
+    constraints = []
+    while i<len(args):
+        if guiniernext:
+            # args[i] is a radius of gyration, args[i+1] is a dimensionality parameter, args[i-1] is a power-law exponent
+            qsep = _PGgen_qsep(args[i - 1], args[i], args[i+1])
+            factor = _PGgen_G(args[i - 1], args[i], args[i+1], factor)
+            funcs.append(lambda q, G=factor, Rg=args[i], s=args[i+1]: GeneralGuinier(q, G, Rg,s))
+            guiniernext=False
+            i+=2
+        else:
+            # args[i] is an exponent, args[i-2] is a radius of gyration, args[i-1] is a dimensionality parameter
+            qsep = _PGgen_qsep(args[i], args[i - 2], args[i-1])
+            factor = _PGgen_A(args[i], args[i - 2], args[i-1], factor)
+            funcs.append(lambda q, a=factor, alpha=args[i]: a * q ** alpha)
+            guiniernext=True
+            i+=1
+        # this belongs to the previous 
+        constraints.append(indices & (q < qsep))
+        indices[q < qsep] = False
+    constraints.append(indices)
+    return np.piecewise(q, constraints, funcs)
+    
 
 class GeneralGuinierPorod(object):
     """Factory class for generalized piecewise Guinier-Power law functions.
