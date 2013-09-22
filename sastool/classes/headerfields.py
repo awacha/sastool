@@ -101,6 +101,13 @@ class SASHeaderField(object):
     def __iter__(cls):
         return iter(cls._allknownfields)
     
+    @classmethod
+    def get_instance(cls, name):
+        try:
+            return [x for x in cls._allknownfields if x.fieldname == name][0]
+        except IndexError:
+            raise ValueError('Unknown SAS field: %s' % str(name))
+    
 SASHeaderField(type_=str,
                fieldname='__Origin__',
                mnemonic='String to uniquely identify the experiment type',
@@ -144,6 +151,20 @@ SASHeaderField(type_=datetime.datetime,
                collect_mode=SASHeaderFieldCollectMode.LIST
                )
 
+SASHeaderField(type_=datetime.datetime,
+               fieldname='StartDate',
+               mnemonic='Start date of the measurement',
+               default=datetime.datetime.now(),
+               collect_mode=SASHeaderFieldCollectMode.LIST
+               )
+
+SASHeaderField(type_=datetime.datetime,
+               fieldname='EndDate',
+               mnemonic='End date of the measurement',
+               default=datetime.datetime.now(),
+               collect_mode=SASHeaderFieldCollectMode.LIST
+               )
+
 SASHeaderField(type_=float,
                fieldname='Dist',
                mnemonic='Sample-to-detector distance',
@@ -152,7 +173,8 @@ SASHeaderField(type_=float,
                unit='mm',
                can_error=True,
                can_calibrated=True,
-               collect_mode=SASHeaderFieldCollectMode.LIST)
+               collect_mode=SASHeaderFieldCollectMode.LIST,
+               custom_tostring=lambda x:'%.2f' % x)
 
 SASHeaderField(type_=float,
                fieldname='Energy',
@@ -162,7 +184,8 @@ SASHeaderField(type_=float,
                unit='eV',
                can_error=True,
                can_calibrated=True,
-               collect_mode=SASHeaderFieldCollectMode.LIST)
+               collect_mode=SASHeaderFieldCollectMode.LIST,
+               custom_tostring=lambda x:'%.2f' % x)
 
 SASHeaderField(type_=float,
                fieldname='MeasTime',

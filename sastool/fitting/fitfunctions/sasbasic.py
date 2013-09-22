@@ -3,7 +3,7 @@ from .basic import Powerlaw
 from scipy.special import sinc, sici
 
 __all__ = ['Fsphere', 'Guinier', 'Guinier_thickness', 'Guinier_crosssection',
-           'GuinierPorod', 'PorodGuinier', 'PorodGuinierPorod',
+           'GuinierPorod', 'PorodGuinier', 'PorodGuinierPorod', 'GuinierPorodMulti', 'PorodGuinierMulti',
            'DampedPowerlaw', 'LogNormSpheres', 'PowerlawPlusConstant', 'PowerlawGuinierPorodConst']
 
 # Helper functions
@@ -78,7 +78,7 @@ def GuinierPorod(q, G, Rg, alpha):
 
     Formula:
     --------
-        ``G * exp(-q^2*Rg^2/2)`` if ``q<q_sep`` and ``a*q^alpha`` otherwise.
+        ``G * exp(-q^2*Rg^2/3)`` if ``q<q_sep`` and ``a*q^alpha`` otherwise.
         ``q_sep`` and ``a`` are determined from conditions of smoothness at
         the cross-over.
 
@@ -87,11 +87,7 @@ def GuinierPorod(q, G, Rg, alpha):
         B. Hammouda: A new Guinier-Porod model. J. Appl. Crystallogr. (2010) 43,
             716-719.
     """
-    qsep = (3 * (-alpha) * 0.5) ** 0.5 / Rg
-    a = G * np.exp(alpha * 0.5) * qsep ** (-alpha)
-    return np.piecewise(q, (q < qsep, q >= qsep),
-                        (lambda x:Guinier(x, G, Rg), lambda x:Powerlaw(x, a, alpha))
-                        )
+    return GuinierPorodMulti(q, G, Rg, alpha)
 
 def PorodGuinier(q, a, alpha, Rg):
     """Empirical Porod-Guinier scattering
@@ -105,7 +101,7 @@ def PorodGuinier(q, a, alpha, Rg):
 
     Formula:
     --------
-        ``G * exp(-q^2*Rg^2/2)`` if ``q>q_sep`` and ``a*q^alpha`` otherwise.
+        ``G * exp(-q^2*Rg^2/3)`` if ``q>q_sep`` and ``a*q^alpha`` otherwise.
         ``q_sep`` and ``G`` are determined from conditions of smoothness at
         the cross-over.
 
@@ -114,11 +110,7 @@ def PorodGuinier(q, a, alpha, Rg):
         B. Hammouda: A new Guinier-Porod model. J. Appl. Crystallogr. (2010) 43,
             716-719.
     """
-    qsep = (3 * (-alpha) * 0.5) ** 0.5 / Rg
-    G = a * np.exp(-alpha * 0.5) * qsep ** alpha
-    return np.piecewise(q, (q > qsep, q <= qsep),
-                        (lambda x:Guinier(x, G, Rg), lambda x:Powerlaw(x, a, alpha))
-                        )
+    return PorodGuinierMulti(q, a, alpha, Rg)
 
 def PorodGuinierPorod(q, a, alpha, Rg, beta):
     """Empirical Porod-Guinier-Porod scattering
@@ -133,7 +125,7 @@ def PorodGuinierPorod(q, a, alpha, Rg, beta):
 
     Formula:
     --------
-        ``a*q^alpha`` if ``q<q_sep1``. ``G * exp(-q^2*Rg^2/2)`` if
+        ``a*q^alpha`` if ``q<q_sep1``. ``G * exp(-q^2*Rg^2/3)`` if
         ``q_sep1<q<q_sep2`` and ``b*q^beta`` if ``q_sep2<q``.
         ``q_sep1``, ``q_sep2``, ``G`` and ``b`` are determined from conditions
         of smoothness at the cross-overs.
@@ -143,11 +135,35 @@ def PorodGuinierPorod(q, a, alpha, Rg, beta):
         B. Hammouda: A new Guinier-Porod model. J. Appl. Crystallogr. (2010) 43,
             716-719.
     """
-    qsep = (3 * (-alpha) * 0.5) ** 0.5 / Rg
-    G = a * np.exp(-alpha * 0.5) * qsep ** alpha
-    return np.piecewise(q, (q < qsep, q >= qsep),
-                        (lambda x:Powerlaw(x, a, alpha), lambda x:GuinierPorod(x, G, Rg, beta))
-                        )
+    return PorodGuinierMulti(q, a, alpha, Rg, beta)
+
+def GuinierPorodGuinier(q, G, Rg1, alpha, Rg2):
+    """Empirical Guinier-Porod-Guinier scattering
+    
+    Inputs:
+    -------
+        ``q``: independent variable
+        ``G``: factor for the first Guinier-branch
+        ``Rg1``: the first radius of gyration
+        ``alpha``: the power-law exponent
+        ``Rg2``: the second radius of gyration
+    
+    Formula:
+    --------
+        ``G*exp(-q^2*Rg1^2/3)`` if ``q<q_sep1``.
+        ``A*q^alpha`` if ``q_sep1 <= q  <=q_sep2``.
+        ``G2*exp(-q^2*Rg2^2/3)`` if ``q_sep2<q``.
+        The parameters ``A``,``G2``, ``q_sep1``, ``q_sep2`` are determined
+        from conditions of smoothness at the cross-overs.
+        
+    Literature:
+    -----------
+        B. Hammouda: A new Guinier-Porod model. J. Appl. Crystallogr. (2010) 43,
+            716-719.
+        
+    """
+    return GuinierPorodMulti(q, G, Rg1, alpha, Rg2)
+
 
 def DampedPowerlaw(q, a, alpha, sigma):
     """Damped power-law
@@ -230,3 +246,146 @@ def PowerlawPlusConstant(q, A, alpha, C):
         ``A*q^alpha + C``
     """
     return A * q ** alpha + C
+
+def _PG_qsep(alpha, Rg):
+    return (-1.5 * alpha) ** 0.5 / np.abs(Rg)
+
+def _PG_G(alpha, Rg, A):
+    return A * np.exp(-alpha * 0.5) * (-1.5 * alpha) ** (alpha * 0.5) * Rg ** (-alpha)
+
+def _PG_A(alpha, Rg, G):
+    return G * Rg ** alpha * np.exp(alpha * 0.5) * (-1.5 * alpha) ** (-alpha * 0.5)
+
+def _PGcs_qsep(alpha, Rg):
+    return (1 - alpha) ** 0.5 / Rg
+
+def _PGcs_G(alpha, Rg, A):
+    return A * np.exp(0.5 - 0.5 * alpha) * Rg ** (1 - alpha) * (1 - alpha) ** (0.5 * alpha - 0.5)
+
+def _PGcs_A(alpha, Rg, G):
+    return G * np.exp(0.5 * alpha - 0.5) * Rg ** (alpha - 1) * (1 - alpha) ** (0.5 - 0.5 * alpha)
+
+def _PGt_qsep(alpha, Rg):
+    return ((2 - alpha) * 0.5) ** 0.5 / Rg
+
+def _PGt_G(alpha, Rg, A):
+    return A * (1 - 0.5 * alpha) ** (0.5 * alpha - 1) * np.exp(1 - 0.5 * alpha) * Rg ** (2 - alpha)
+
+def _PGt_A(alpha, Rg, G):
+    return G * (1 - 0.5 * alpha) ** (1 - 0.5 * alpha) * np.exp(0.5 * alpha - 1) * Rg ** (alpha - 2)
+
+def GuinierPorodMulti(q, G, *Rgsalphas):
+    """Empirical multi-part Guinier-Porod scattering
+    
+    Inputs:
+    -------
+        ``q``: independent variable
+        ``G``: factor for the first Guinier-branch
+        other arguments: [Rg1, alpha1, Rg2, alpha2, Rg3 ...] the radii of 
+        gyration and power-law exponents of the consecutive parts
+    
+    Formula:
+    --------
+        The intensity is a piecewise function with continuous first derivatives.
+        The separating points in ``q`` between the consecutive parts and the
+        intensity factors of them (except the first) are determined from 
+        conditions of smoothness (continuity of the function and its first
+        derivative) at the border points of the intervals. Guinier-type
+        (``G*exp(-q^2*Rg1^2/3)``) and Power-law type (``A*q^alpha``) parts
+        follow each other in alternating sequence.
+        
+    Literature:
+    -----------
+        B. Hammouda: A new Guinier-Porod model. J. Appl. Crystallogr. (2010) 43,
+            716-719.
+    """
+    scalefactor = G
+    funcs = [lambda q: Guinier(q, G, Rgsalphas[0])]
+    indices = np.ones_like(q, dtype=np.bool)
+    constraints = []
+    for i in range(1, len(Rgsalphas)):
+        if i % 2:
+            # Rgsalphas[i] is an exponent, Rgsalphas[i-1] is a radius of gyration
+            qsep = _PG_qsep(Rgsalphas[i], Rgsalphas[i - 1])
+            scalefactor = _PG_A(Rgsalphas[i], Rgsalphas[i - 1], scalefactor)
+            funcs.append(lambda q, a=scalefactor, alpha=Rgsalphas[i]: Powerlaw(q, a, alpha))
+        else:
+            # Rgsalphas[i] is a radius of gyration, Rgsalphas[i-1] is a power-law exponent
+            qsep = _PG_qsep(Rgsalphas[i - 1], Rgsalphas[i])
+            scalefactor = _PG_G(Rgsalphas[i - 1], Rgsalphas[i], scalefactor)
+            funcs.append(lambda q, G=scalefactor, Rg=Rgsalphas[i]: Guinier(q, G, Rg))
+        # this belongs to the previous 
+        constraints.append(indices & (q < qsep))
+        indices[q < qsep] = False
+    constraints.append(indices)
+    return np.piecewise(q, constraints, funcs)
+
+def PorodGuinierMulti(q, A, *alphasRgs):
+    """Empirical multi-part Porod-Guinier scattering
+    
+    Inputs:
+    -------
+        ``q``: independent variable
+        ``A``: factor for the first Power-law-branch
+        other arguments: [alpha1, Rg1, alpha2, Rg2, alpha3 ...] the radii of 
+        gyration and power-law exponents of the consecutive parts
+    
+    Formula:
+    --------
+        The intensity is a piecewise function with continuous first derivatives.
+        The separating points in ``q`` between the consecutive parts and the
+        intensity factors of them (except the first) are determined from 
+        conditions of smoothness (continuity of the function and its first
+        derivative) at the border points of the intervals. Guinier-type
+        (``G*exp(-q^2*Rg1^2/3)``) and Power-law type (``A*q^alpha``) parts
+        follow each other in alternating sequence.
+        
+    Literature:
+    -----------
+        B. Hammouda: A new Guinier-Porod model. J. Appl. Crystallogr. (2010) 43,
+            716-719.
+    """
+    scalefactor = A
+    funcs = [lambda q: Powerlaw(q, A, alphasRgs[0])]
+    indices = np.ones_like(q, dtype=np.bool)
+    constraints = []
+    for i in range(1, len(alphasRgs)):
+        if i % 2:
+            # alphasRgs[i] is a radius of gyration, alphasRgs[i-1] is a power-law exponent
+            qsep = _PG_qsep(alphasRgs[i - 1], alphasRgs[i])
+            scalefactor = _PG_G(alphasRgs[i - 1], alphasRgs[i], scalefactor)
+            funcs.append(lambda q, G=scalefactor, Rg=alphasRgs[i]: Guinier(q, G, Rg))
+        else:
+            # alphasRgs[i] is an exponent, alphasRgs[i-1] is a radius of gyration
+            qsep = _PG_qsep(alphasRgs[i], alphasRgs[i - 1])
+            scalefactor = _PG_A(alphasRgs[i], alphasRgs[i - 1], scalefactor)
+            funcs.append(lambda q, a=scalefactor, alpha=alphasRgs[i]: a * q ** alpha)
+        # this belongs to the previous 
+        constraints.append(indices & (q < qsep))
+        indices[q < qsep] = False
+    constraints.append(indices)
+    return np.piecewise(q, constraints, funcs)
+
+class GeneralGuinierPorod(object):
+    """Factory class for generalized piecewise Guinier-Power law functions.
+    """ 
+    def __init__(self, *parts):
+        """Initialize the newly created object.
+        
+        Inputs: the type of the consecutive parts as strings. Can be:
+            'Power', 'Guinier', 'Guinier_cross', 'Guinier_thick'
+            
+        Note that a Guinier-type part should be followed by a power-law
+        and vice verse.
+        """
+        if 'GG' in (''.join(p[0] for p in parts)).upper():
+            raise ValueError('Two Guinier curves cannot follow each other!')
+        if 'PP' in (''.join(p[0] for p in parts)).upper():
+            raise ValueError('Two power-law curves cannot follow each other!')
+        self._parts = parts
+    def __call__(self, q, factor, *Rgsalphas):
+        if len(self._parts) != len(Rgsalphas):
+            raise ValueError('Invalid number of arguments! Expected: %d. Got: %d.' % (len(self._parts), len(Rgsalphas)))
+        for i in range(len(self._parts)):
+            pass
+             

@@ -3,6 +3,7 @@ Created on Jul 25, 2012
 
 @author: andris
 '''
+
 import matplotlib.pyplot as plt
 import numbers
 import time
@@ -47,7 +48,7 @@ class Pauser(object):
         """Make a UI pause without regard to the current pause state."""
         if prompt is None:
             prompt = 'Paused. Press ENTER to continue...'
-        if not plt.get_fignums():   # empty list: no figures are open
+        if not plt.get_fignums():  # empty list: no figures are open
             raw_input(prompt)
         else:  # a figure is open
             if matplotlib.get_backend().upper().startswith('GTK'):
@@ -60,7 +61,7 @@ class Pauser(object):
                 title_before = unicode(plt.gcf().canvas.topLevelWidget().windowTitle())
             else:
                 title_before = u'Figure %d' % plt.gcf().number
-            while True:  #wait until a key is pressed. Blink the title meanwhile.
+            while True:  # wait until a key is pressed. Blink the title meanwhile.
                 plt.gcf().canvas.set_window_title(prompt)
                 result = plt.gcf().waitforbuttonpress(1)
                 if result:  # waitforbuttonpress returns True for keypress, False for mouse click and None for timeout

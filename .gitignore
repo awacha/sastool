@@ -8,3 +8,6 @@ sastool/_version.py~
 sastool/fitting/_fitfunction.c
 tests/data_reduction
 tests/centering
+/.gitignore~
+/MANIFEST.in~
+/setup.py~

@@ -10,6 +10,7 @@ import rc
 import errorvalue
 import arithmetic
 import numerictests
+import matplotlib_scales
 
 from searchpath import *
 from pathutils import *

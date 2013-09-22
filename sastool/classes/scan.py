@@ -72,7 +72,7 @@ class SASScan(object):
             self.fsn = 0
             self.comment = ''
             self.command = ''
-            self.timestamp = datetime.datetime.now()
+            self.timestamp = float(datetime.datetime.now().strftime('%s.%f'))
             self.default_x = 0
             self.default_y = -1
             self.default_moni = -2
@@ -308,7 +308,7 @@ class SASScanStore(object):
             scn.fsn = self.nextscan
         with open(self.filename, 'a') as sf:
             sf.write('\n#S ' + str(scn.fsn) + '  ' + scn.command + '\n')
-            sf.write('#D ' + scn.timestamp.strftime('%a %b %d %H:%M:%S %Y') + '\n')
+            sf.write('#D ' + datetime.datetime.fromtimestamp(scn.timestamp).strftime('%a %b %d %H:%M:%S %Y') + '\n')
             sf.write('#C ' + scn.comment + '\n')
             if scn.countingtype == SASScan.COUNTING_TIME:
                 sf.write('#T ' + str(scn.countingvalue) + '  (Seconds)\n')

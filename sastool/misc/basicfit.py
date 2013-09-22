@@ -20,6 +20,7 @@ def findpeak(x, y, dy=None, position=None, hwhm=None, baseline=None, amplitude=N
         x, y, dy: abscissa, ordinate and the error of the ordinate (can be None)
         position, hwhm, baseline, amplitude: first guesses for the named parameters
         curve: 'Gauss' or 'Lorentz' (default)
+        
     Outputs:
         peak position, error of peak position, hwhm, error of hwhm, baseline,
             error of baseline, amplitude, error of amplitude.
@@ -32,15 +33,18 @@ def findpeak(x, y, dy=None, position=None, hwhm=None, baseline=None, amplitude=N
     pos, hwhm, baseline, ampl = findpeak_single(x, y, dy, position, hwhm, baseline, amplitude, curve)
     return pos.val, pos.err, hwhm.val, hwhm.err, baseline.val, baseline.err, ampl.val, ampl.err
 
-def findpeak_single(x, y, dy=None, position=None, hwhm=None, baseline=None, amplitude=None, curve='Lorentz'):
+def findpeak_single(x, y, dy=None, position=None, hwhm=None, baseline=None, amplitude=None, curve='Lorentz', return_stat=False):
     """Find a (positive or negative) peak in the dataset.
 
     Inputs:
         x, y, dy: abscissa, ordinate and the error of the ordinate (can be None)
         position, hwhm, baseline, amplitude: first guesses for the named parameters
         curve: 'Gauss' or 'Lorentz' (default)
+        return_stat: return fitting statistics from easylsq.nlsq_fit()
+        
     Outputs:
-        peak position, hwhm, baseline, amplitude as ErrorValue instances
+        peak position, hwhm, baseline, amplitude as ErrorValue instances and the statistics 
+        dictionary if requested.
 
     Notes:
         A Gauss or a Lorentz curve is fitted, depending on the value of 'curve'. The abscissa
@@ -65,17 +69,20 @@ def findpeak_single(x, y, dy=None, position=None, hwhm=None, baseline=None, ampl
     if dy is None: dy = np.ones_like(x)
     if curve.upper().startswith('GAUSS'):
         def fitfunc(x_, amplitude_, position_, hwhm_, baseline_):
-            return amplitude_ * np.exp(0.5 * (x_ - position_) ** 2 / hwhm_ ** 2) + baseline_
+            return amplitude_ * np.exp(-0.5 * (x_ - position_) ** 2 / hwhm_ ** 2) + baseline_
     elif curve.upper().startswith('LORENTZ'):
         def fitfunc(x_, amplitude_, position_, hwhm_, baseline_):
             return amplitude_ * hwhm_ ** 2 / (hwhm_ ** 2 + (position_ - x_) ** 2) + baseline_
-    p, dp = nlsq_fit(x, y, dy, fitfunc,
-                                     (amplitude, position, hwhm, baseline))[:2]
-    
-    return ErrorValue(p[1], dp[1]), ErrorValue(abs(p[2]), dp[2]), sign * ErrorValue(p[3], dp[3]), sign * ErrorValue(p[0], dp[0])
+    p, dp, stat = nlsq_fit(x, y, dy, fitfunc,
+                                     (amplitude, position, hwhm, baseline))
+    if return_stat:
+        stat['func_value'] = stat['func_value'] * sign
+        return ErrorValue(p[1], dp[1]), ErrorValue(abs(p[2]), dp[2]), sign * ErrorValue(p[3], dp[3]), sign * ErrorValue(p[0], dp[0]), stat
+    else:
+        return ErrorValue(p[1], dp[1]), ErrorValue(abs(p[2]), dp[2]), sign * ErrorValue(p[3], dp[3]), sign * ErrorValue(p[0], dp[0])
 
 
-def findpeak_multi(x, y, dy, N, Ntolerance, Nfit=None, curve='Lorentz'):
+def findpeak_multi(x, y, dy, N, Ntolerance, Nfit=None, curve='Lorentz', return_xfit=False, return_stat=False):
     """Find multiple peaks in the dataset given by vectors x and y.
 
     Points are searched for in the dataset where the N points before and
@@ -94,6 +101,17 @@ def findpeak_multi(x, y, dy, N, Ntolerance, Nfit=None, curve='Lorentz'):
             peak positions.
         curve: the type of the curve to be fitted to the peaks. Can be
             'Lorentz' or 'Gauss'
+        return_xfit: if the abscissa used for fitting is to be returned.
+        return_stat: if the fitting statistics is to be returned for each
+            peak.
+            
+    Outputs:
+        position, hwhm, baseline, amplitude, (xfit): lists
+        
+    Notes:
+        Peaks are identified where the curve grows N points before and 
+        decreases N points after. On noisy curves Ntolerance may improve
+        the results, i.e. decreases the 2*N above mentioned criteria.
     """
     if Nfit is None:
         Nfit = N
@@ -121,7 +139,7 @@ def findpeak_multi(x, y, dy, N, Ntolerance, Nfit=None, curve='Lorentz'):
     # first we have to sort out other non-peaks, i.e. found points
     # which have other found points with higher values in their [-N,N]
     # neighbourhood.
-    pos = []; ampl = []; hwhm = []; baseline = [];
+    pos = []; ampl = []; hwhm = []; baseline = []; xfit = []; stat = []
     dy1 = None
     for i in range(len(ypeak)):
         if not [j for j in range(i + 1, len(ypeak)) + range(0, i) if abs(peakpospix[j] - peakpospix[i]) <= N and ypeak[i] < ypeak[j]]:
@@ -129,10 +147,18 @@ def findpeak_multi(x, y, dy, N, Ntolerance, Nfit=None, curve='Lorentz'):
             idx = peakpospix[i]
             if dy is not None:
                 dy1 = dy[(idx - Nfit):(idx + Nfit + 1)]
-            pos_, hwhm_, baseline_, ampl_ = findpeak_single(x[(idx - Nfit):(idx + Nfit + 1)], y[(idx - Nfit):(idx + Nfit + 1)], dy1, position=x[idx])
+            xfit_ = x[(idx - Nfit):(idx + Nfit + 1)]
+            pos_, hwhm_, baseline_, ampl_, stat_ = findpeak_single(xfit_, y[(idx - Nfit):(idx + Nfit + 1)], dy1, position=x[idx], return_stat=True)
             
+            stat.append(stat_)
+            xfit.append(xfit_)
             pos.append(pos_)
             ampl.append(ampl_)
             hwhm.append(hwhm_)
             baseline.append(baseline_)
-    return pos, hwhm, baseline, ampl
+    results = [pos, hwhm, baseline, ampl]
+    if return_xfit:
+        results.append(xfit)
+    if return_stat:
+        results.append(stat)
+    return tuple(results)

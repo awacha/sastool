@@ -135,7 +135,8 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
            np.ndarray[np.double_t, ndim=1] q=None,
            bint returnavgq=False, double phi0=0, double dphi=0,
            returnmask=False, bint symmetric_sector=False,
-           bint doslice=False, bint returnpixel=False):
+           bint doslice=False, bint returnpixel=False,
+           int errorpropagation=2):
     """ Radial averaging of scattering images.
     
     Inputs:
@@ -175,6 +176,14 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
             the width of the slice in pixel units.
         returnpixel: return pixel coordinates for integrated bins. False by
             default.
+        errorpropagation: an integer number determining the type of error 
+            propagation. Can be:
+            0: intensities falling to the same q-bin are assumed to be independent
+                measurements of the same quantity, thus they will be weighted by
+                the inverse squared of the error bars, and the error will be the
+                inverse of the sum of these inverses.
+            1: error bars are simply averaged
+            2: squared error propagation of independent quantities
     
     If any of 'wavelength', 'distance' or 'res' is zero or negative, pixel-based
     integration is done, with q denoting pixel everywhere.
@@ -262,6 +271,8 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
             if flagerror and not isfinite(dataerr[ix,iy]):
                 #disregard nonfinite (NaN or inf) pixels.
                 continue
+            if flagerror and errorpropagation==0 and dataerr[ix,iy]<=0:
+                continue
             # coordinates of the pixel in length units (mm)
             x=((ix-bcx)*xres)
             y=((iy-bcy)*yres)
@@ -292,10 +303,16 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
                     continue
                 #we reach this point only if q1 is in the l-th bin. Calculate
                 # the contributions of this pixel to the weighted average.
+                if flagerror:
+                    if errorpropagation==2:
+                        Error[l]+=dataerr[ix,iy]**2*w
+                    elif errorpropagation==1:
+                        Error[l]+=dataerr[ix,iy]*w
+                    else:
+                        Error[l]+=1/dataerr[ix,iy]**2*w
+                        w/=dataerr[ix,iy]**2
                 qout[l]+=q1*w
                 Intensity[l]+=data[ix,iy]*w
-                if flagerror:
-                    Error[l]+=dataerr[ix,iy]**2*w
                 Area[l]+=1
                 weight[l]+=w
                 if returnmask:
@@ -309,7 +326,14 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
             qout[l]/=weight[l]
             Intensity[l]/=weight[l]
             if flagerror:
-                Error[l]=sqrt(Error[l]/weight[l])
+                if Error[l]==0:
+                    pass
+                elif errorpropagation==2:
+                    Error[l]=sqrt(Error[l]/weight[l])
+                elif errorpropagation==1:
+                    Error[l]=Error[l]/weight[l]
+                else:
+                    Error[l]=sqrt(1/(Error[l]/weight[l]))
             pixelout[l]/=weight[l]
     #cleanup memory
     free(qmax)
@@ -336,7 +360,8 @@ def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
            np.ndarray[np.double_t, ndim=1] q=None,
            bint returnavgq=False, double phi0=0, double dphi=0,
            Py_ssize_t Nsector=4,
-           returnmask=False, bint doslice=False, bint returnpixel=False):
+           returnmask=False, bint doslice=False, bint returnpixel=False,
+           int errorpropagation =2):
     """ Radial averaging of scattering images: several sectors at once.
     
     Inputs:
@@ -376,6 +401,14 @@ def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
             the width of the slice in pixel units.
         returnpixel: return pixel coordinates for integrated bins. False by
             default.
+        errorpropagation: an integer number determining the type of error 
+            propagation. Can be:
+            0: intensities falling to the same q-bin are assumed to be independent
+                measurements of the same quantity, thus they will be weighted by
+                the inverse squared of the error bars, and the error will be the
+                inverse of the sum of these inverses.
+            1: error bars are simply averaged
+            2: squared error propagation of independent quantities
     
     If any of 'wavelength', 'distance' or 'res' is zero or negative, pixel-based
     integration is done, with q denoting pixel everywhere.
@@ -466,6 +499,8 @@ def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
             if flagerror and not isfinite(dataerr[ix,iy]):
                 #disregard nonfinite (NaN or inf) pixels.
                 continue
+            if flagerror and errorpropagation==0 and dataerr[ix,iy]<=0:
+                continue
             # coordinates of the pixel in length units (mm)
             x=((ix-bcx)*xres)
             y=((iy-bcy)*yres)
@@ -504,6 +539,14 @@ def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
                     continue
                 #we reach this point only if q1 is in the l-th bin. Calculate
                 # the contributions of this pixel to the weighted average.
+                if flagerror:
+                    if errorpropagation==2:
+                        Error[l, sector_idx]+=dataerr[ix,iy]**2*w
+                    elif errorpropagation==1:
+                        Error[l,sector_idx]+=dataerr[ix,iy]*w
+                    else:
+                        Error[l,sector_idx]+=1/dataerr[ix,iy]**2
+                        w/=dataerr[ix,iy]**2
                 qout[l,sector_idx]+=q1*w
                 Intensity[l,sector_idx]+=data[ix,iy]*w
                 if flagerror:
@@ -522,7 +565,14 @@ def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
                 qout[l,sector_idx]/=weight[l*Nsector+sector_idx]
                 Intensity[l,sector_idx]/=weight[l*Nsector+sector_idx]
                 if flagerror:
-                    Error[l,sector_idx]=sqrt(Error[l,sector_idx]/weight[l*Nsector+sector_idx])
+                    if Error[l, sector_idx]==0:
+                        pass
+                    elif errorpropagation==2:
+                        Error[l,sector_idx]=sqrt(Error[l,sector_idx]/weight[l*Nsector+sector_idx])
+                    elif errorpropagation==1:
+                        Error[l,sector_idx]=Error[l,sector_idx]/weight[l*Nsector+sector_idx]
+                    else:
+                        Error[l,sector_idx]=sqrt(1/(Error[l, sector_idx]/weight[l*Nsector+sector_idx]))
                 pixelout[l,sector_idx]/=weight[l*Nsector+sector_idx]
     #cleanup memory
     free(qmax)
@@ -553,7 +603,7 @@ def radint_fullq(np.ndarray[np.double_t,ndim=2] data not None,
            np.ndarray[np.uint8_t, ndim=2] mask,
            np.ndarray[np.double_t, ndim=1] q=None,
            bint returnavgq=False,
-           returnmask=False):
+           returnmask=False,int errorpropagation =2):
     """ Radial averaging of scattering images.
     
     Inputs:
@@ -579,6 +629,14 @@ def radint_fullq(np.ndarray[np.double_t,ndim=2] data not None,
             False by default.
         returnmask: True if the effective mask matrix is to be returned
             (0 for pixels taken into account, 1 for all the others).
+        errorpropagation: an integer number determining the type of error 
+            propagation. Can be:
+            0: intensities falling to the same q-bin are assumed to be independent
+                measurements of the same quantity, thus they will be weighted by
+                the inverse squared of the error bars, and the error will be the
+                inverse of the sum of these inverses.
+            1: error bars are simply averaged
+            2: squared error propagation of independent quantities
 
     
     Outputs: q, Intensity, Error, Area, [effective mask]
@@ -645,6 +703,8 @@ def radint_fullq(np.ndarray[np.double_t,ndim=2] data not None,
             if flagerror and not isfinite(dataerr[ix,iy]):
                 #disregard nonfinite (NaN or inf) pixels.
                 continue
+            if flagerror and errorpropagation==0 and dataerr[ix,iy]<=0:
+                continue
             # coordinates of the pixel in length units (mm)
             x=((ix-bcx)*xres)
             y=((iy-bcy)*yres)
@@ -664,10 +724,16 @@ def radint_fullq(np.ndarray[np.double_t,ndim=2] data not None,
                     continue
                 #we reach this point only if q1 is in the l-th bin. Calculate
                 # the contributions of this pixel to the weighted average.
+                if flagerror:
+                    if errorpropagation==2:
+                        Error[l]+=dataerr[ix,iy]**2*w
+                    elif errorpropagation==1:
+                        Error[l]+=dataerr[ix,iy]*w
+                    else:
+                        Error[l]+=1/dataerr[ix,iy]**2
+                        w/=dataerr[ix,iy]**2
                 qout[l]+=q1*w
                 Intensity[l]+=data[ix,iy]*w
-                if flagerror:
-                    Error[l]+=w*dataerr[ix,iy]**2
                 Area[l]+=1
                 weight[l]+=w
                 if returnmask:
@@ -679,7 +745,14 @@ def radint_fullq(np.ndarray[np.double_t,ndim=2] data not None,
             qout[l]/=weight[l]
             Intensity[l]/=weight[l]
             if flagerror:
-                Error[l]=sqrt(Error[l]/weight[l])
+                if Error[l]==0:
+                    pass
+                elif errorpropagation==2:
+                    Error[l]=sqrt(Error[l]/weight[l])
+                elif errorpropagation==1:
+                    Error[l]=Error[l]/weight[l]
+                else:
+                    Error[l]=sqrt(1/(Error[l]/weight[l]))
     #cleanup memory
     free(qmax)
     free(weight)
@@ -699,7 +772,8 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
             np.ndarray[np.double_t, ndim=2] dataerr, # error can be None
             double wavelength, double distance, res, double bcx, double bcy,
             np.ndarray[np.uint8_t, ndim=2] mask, Ntheta=100,
-            double qmin=0, double qmax=INFINITY, bint returnmask=False):
+            double qmin=0, double qmax=INFINITY, bint returnmask=False,
+            int errorpropagation =2):
     """Perform azimuthal integration of image, with respect to q values
 
     Inputs:
@@ -715,6 +789,16 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
         qmax: the upper bound of the circle stripe (expressed in q units)
         returnmask: if True, a mask is returned, only the pixels taken into
             account being unmasked (0). 
+        errorpropagation: an integer number determining the type of error 
+            propagation. Can be:
+            0: intensities falling to the same q-bin are assumed to be independent
+                measurements of the same quantity, thus they will be weighted by
+                the inverse squared of the error bars, and the error will be the
+                inverse of the sum of these inverses.
+            1: error bars are simply averaged
+            2: squared error propagation of independent quantities
+
+
     Outputs: theta,I,[E],A,[mask]
     
     Note: if any of 'wavelength', 'distance' or 'res' is nonpositive, q means pixel
@@ -740,6 +824,7 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
     I=np.zeros(Ntheta1,dtype=np.double) # vector of intensities
     A=np.zeros(Ntheta1,dtype=np.double) # vector of effective areas
     E=np.zeros(Ntheta1,dtype=np.double)
+    weight=np.zeros(Ntheta1, dtype=np.double)
     if returnmask:
         maskout=np.ones([data.shape[0],data.shape[1]],dtype=np.uint8)
     
@@ -752,9 +837,12 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
                 continue
             if flagerror and not isfinite(dataerr[ix,iy]):
                 continue
+            if flagerror and errorpropagation==0 and dataerr[ix,iy]<=0:
+                continue
             x=(ix-bcx)*resx
             y=(iy-bcy)*resy
             d=sqrt(x**2+y**2)
+            w=1
             if flagq:
                 q=4*M_PI*sin(0.5*atan2(d,distance))/wavelength
             else:
@@ -765,18 +853,32 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
             index=<Py_ssize_t>floor(phi/(2*M_PI)*Ntheta1)
             if index>=Ntheta1:
                 continue
-            I[index]+=data[ix,iy]
             if flagerror:
-                E[index]+=dataerr[ix,iy]**2
+                if errorpropagation==2:
+                    E[index]+=dataerr[ix,iy]**2
+                elif errorpropagation==1:
+                    E[index]+=dataerr[ix,iy]
+                else:
+                    E[index]+=1/dataerr[ix,iy]**2
+                    w=1/dataerr[ix,iy]**2
+            I[index]+=data[ix,iy]*w
+            weight[index]+=w
             A[index]+=1
             if returnmask:
                 maskout[ix,iy]=0
     #print "Escaped: ",escaped
     for index from 0<=index<Ntheta1:
         if A[index]>0:
-            I[index]/=A[index]
+            I[index]/=weight[index]
             if flagerror:
-                E[index]=sqrt(E[index]/A[index])
+                if E[index]==0:
+                    pass
+                elif errorpropagation==2:
+                    E[index]=sqrt(E[index]/weight[index])
+                elif errorpropagation==1:
+                    E[index]=E[index]/weight[index]
+                else:
+                    E[index]=sqrt(1/(E[index]/weight[index]))
     ret=[theta,I]
     if flagerror:
         ret.append(E)

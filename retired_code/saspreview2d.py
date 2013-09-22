@@ -752,7 +752,7 @@ class SAS2DCenterer(gtk.VBox):
         except classes.SASMaskException as ex:
             md = gtk.MessageDialog(self.get_toplevel(),
                                  gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-                                 gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, ex.message)
+                                 gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, str(ex))
             md.set_title('Masking error')
             md.run()
             md.destroy()
@@ -760,7 +760,7 @@ class SAS2DCenterer(gtk.VBox):
             # other error
             md = gtk.MessageDialog(self.get_toplevel(),
                                  gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-                                 gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, ex.message)
+                                 gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, str(ex))
             md.set_title(str(type(ex)))
             md.run()
             md.destroy()

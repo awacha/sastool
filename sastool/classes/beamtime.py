@@ -21,7 +21,8 @@ def formatstring_to_regexp(formatstring):
     
 class SASBeamTime(object):
     """A class representing a set of SAS exposures, with a given file format and a set of directories and fsns."""
-    def __init__(self, path, exposureformat, headerformat=None, minfsn=None, maxfsn=None, recursive_path=False, callbackfunc=None):
+    def __init__(self, path, exposureformat, headerformat=None, minfsn=None, maxfsn=None, recursive_path=False, callbackfunc=None,
+                 exposure_output_path=None, header_output_path=None):
         if isinstance(path, basestring):
             path = [path]
         if not all(isinstance(p, basestring) for p in path):
@@ -47,7 +48,7 @@ class SASBeamTime(object):
         self.maxfsn = maxfsn
         self._headercache = []
         self.callbackfunc = callbackfunc
-        self._cache_headers()
+        self._cache_headers(True)
     def _cache_headers(self, force=False):
         if force:
             self._headercache = []

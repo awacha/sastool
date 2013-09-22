@@ -27,7 +27,7 @@ import datetime
 try:
     import nxs
 except OSError as ose:
-    warnings.warn('NeXus library not available. ' + ose.message)
+    warnings.warn('NeXus library not available. ' + str(ose))
 except ImportError:
     warnings.warn('NeXus package not installed. NeXus I/O plugins won\'t work.')
     

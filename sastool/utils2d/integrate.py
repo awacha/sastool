@@ -4,7 +4,7 @@ import numpy as np
 
 def radintpix(data, dataerr, bcx, bcy, mask=None, pix=None, returnavgpix=False,
               phi0=0, dphi=0, returnmask=False, symmetric_sector=False,
-              doslice=False):
+              doslice=False, errorpropagation=2):
     """Radial integration (averaging) on the detector plane
 
     Inputs:
@@ -38,7 +38,7 @@ def radintpix(data, dataerr, bcx, bcy, mask=None, pix=None, returnavgpix=False,
         mask = mask.astype(np.uint8)
     return radint(data, dataerr, -1, -1, -1,
                   1.0 * bcx, 1.0 * bcy, mask, pix, returnavgpix,
-                  phi0, dphi, returnmask, symmetric_sector, doslice, False)
+                  phi0, dphi, returnmask, symmetric_sector, doslice, False, errorpropagation)
 
 
 def azimintpix(data, dataerr, bcx, bcy, mask=None, Ntheta=100, pixmin=0,
@@ -69,5 +69,5 @@ def azimintpix(data, dataerr, bcx, bcy, mask=None, Ntheta=100, pixmin=0,
         mask = mask.astype(np.uint8)
     return azimint(data, dataerr, -1, -1,
                    - 1, bcx, bcy, mask, Ntheta, pixmin,
-                   pixmax, returnmask)
+                   pixmax, returnmask, errorpropagation)
 

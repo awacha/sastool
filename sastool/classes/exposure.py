@@ -761,7 +761,8 @@ class SASExposure(ArithmeticBase):
         return np.linspace(pixmin, pixmax, N)
 
     def radial_average(self, qrange=None, pixel=False, matrix='Intensity',
-                       errormatrix='Error', q_average=True, returnmask=False):
+                       errormatrix='Error', q_average=True, returnmask=False,
+                       errorpropagation=2):
         """Do a radial averaging
 
         Inputs:
@@ -772,6 +773,8 @@ class SASExposure(ArithmeticBase):
             q_average: if the averaged abscissa values are to be returned
                 instead of the nominal ones
             returnmask: if the effective mask matrix is to be returned.
+            errorpropagation: the type of error propagation (2: squared,
+                1: linear, 0: independent measurements of the same quantity)
 
         Outputs:
             the one-dimensional curve as an instance of SASCurve (if pixel is
@@ -791,7 +794,7 @@ class SASExposure(ArithmeticBase):
                                                self.header['BeamPosX'], self.header['BeamPosY'],
                                                (self.mask.mask == 0).astype(np.uint8),
                                                qrange, returnavgq=q_average,
-                                               returnmask=returnmask)
+                                               returnmask=returnmask, errorpropagation=errorpropagation)
             i = 0
             q = res[i]; i += 1
             I = res[i]; i += 1
@@ -810,7 +813,7 @@ class SASExposure(ArithmeticBase):
                                                      self.header['BeamPosY'],
                                                      1 - self.mask.mask, qrange,
                                                      returnmask=returnmask,
-                                                     returnavgpix=q_average)
+                                                     returnavgpix=q_average, errorpropagation=errorpropagation)
             i = 0
             p = res[i]; i += 1
             I = res[i]; i += 1
@@ -831,7 +834,7 @@ class SASExposure(ArithmeticBase):
     def sector_average(self, phi0, dphi, qrange=None, pixel=False,
                        matrix='Intensity', errormatrix='Error',
                        symmetric_sector=False, q_average=True,
-                       returnmask=False):
+                       returnmask=False, errorpropagation=2):
         """Do a radial averaging restricted to one sector.
 
         Inputs:
@@ -872,7 +875,8 @@ class SASExposure(ArithmeticBase):
                                                returnavgq=q_average,
                                                returnpixel=True,
                                                returnmask=returnmask,
-                                               phi0=phi0, dphi=dphi, symmetric_sector=symmetric_sector)
+                                               phi0=phi0, dphi=dphi, symmetric_sector=symmetric_sector,
+                                               errorpropagation=errorpropagation)
             i = 0
             q = res[i]; i += 1
             I = res[i]; i += 1
@@ -892,7 +896,8 @@ class SASExposure(ArithmeticBase):
                                                      1 - self.mask.mask, qrange,
                                                      returnavgpix=q_average, phi0=phi0,
                                                      returnmask=returnmask,
-                                                     dphi=dphi, symmetric_sector=symmetric_sector)
+                                                     dphi=dphi, symmetric_sector=symmetric_sector,
+                                                     errorpropagation=errorpropagation)
             i = 0
             p = res[i]; i += 1
             I = res[i]; i += 1
@@ -913,7 +918,7 @@ class SASExposure(ArithmeticBase):
     def slice_average(self, phi0, width, qrange=None, pixel=False,
                         matrix='Intensity', errormatrix='Error',
                         symmetric_slice=False, q_average=True,
-                        returnmask=False):
+                        returnmask=False, errorpropagation=2):
         """Do a radial averaging restricted to one sector.
 
         Inputs:
@@ -956,7 +961,8 @@ class SASExposure(ArithmeticBase):
                                                returnmask=returnmask,
                                                phi0=phi0, dphi=width,
                                                doslice=True,
-                                               symmetric_sector=symmetric_slice)
+                                               symmetric_sector=symmetric_slice,
+                                               errorpropagation=errorpropagation)
             i = 0
             q = res[i]; i += 1
             I = res[i]; i += 1
@@ -977,7 +983,8 @@ class SASExposure(ArithmeticBase):
                                                      returnavgpix=q_average, phi0=phi0,
                                                      dphi=width, symmetric_sector=symmetric_slice,
                                                      returnmask=returnmask,
-                                                     doslice=True)
+                                                     doslice=True,
+                                                     errorpropagation=errorpropagation)
             i = 0
             p = res[i]; i += 1
             I = res[i]; i += 1
@@ -997,7 +1004,8 @@ class SASExposure(ArithmeticBase):
 
 
     def azimuthal_average(self, qmin, qmax, Ntheta=100, pixel=False,
-                          matrix='Intensity', errormatrix='Error', returnmask=False):
+                          matrix='Intensity', errormatrix='Error', returnmask=False,
+                          errorpropagation=2):
         """Do an azimuthal averaging restricted to a ring.
 
         Inputs:
@@ -1030,14 +1038,16 @@ class SASExposure(ArithmeticBase):
                                                self.header['BeamPosY'],
                                                self.mask.mask == 0, Ntheta,
                                                returnmask=returnmask,
-                                               qmin=qmin, qmax=qmax)
+                                               qmin=qmin, qmax=qmax,
+                                               errorpropagation=errorpropagation)
         else:
             res = utils2d.integrate.azimintpix(mat, err,
                                                      self.header['BeamPosX'],
                                                      self.header['BeamPosY'],
                                                      self.mask.mask == 0, Ntheta,
                                                      returnmask=returnmask,
-                                                     pixmin=qmin, pixmax=qmax)
+                                                     pixmin=qmin, pixmax=qmax,
+                                                     errorpropagation=errorpropagation)
         i = 0
         theta = res[i]; i += 1
         I = res[i]; i += 1
