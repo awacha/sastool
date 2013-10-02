@@ -221,7 +221,9 @@ def read_from_spec(specfilename, idx=None):
     else:
         scan = specfilename
     scn = SASScan(scan['data'].dtype, N=len(scan['data']))
+    
     scn.data = scan['data']
+    scn.data.sort(order=scn.data.dtype.names[0])
     scn.motors = scan['motors']
     scn.motorpos = scan['positions']
     scn.command = scan['command']

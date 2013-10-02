@@ -388,7 +388,7 @@ class SEPlugin_CREDO(SASExposurePlugin):
         if 'maskid' in header_loaded and header_loaded['maskid'] is not None:
             maskbasename = os.path.basename(header_loaded['maskid'])
             maskdir = os.path.dirname(header_loaded['maskid'])
-            for maskext in [''] + SASMask.supported_read_extensions:
+            for maskext in SASMask.supported_read_extensions+ ['']:
                 try:
                     maskname = misc.findfileindirs(maskbasename + maskext, [maskdir] + kwargs['dirs'])
                 except IOError:

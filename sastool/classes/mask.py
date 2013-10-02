@@ -12,12 +12,16 @@ import matplotlib.pyplot as plt
 import h5py
 import numbers
 import collections
+import logging
 
 from .common import _HDF_parse_group, SASMaskException
 from .. import misc
 from ..io import twodim  # IGNORE:E0611
 
 __all__ = ['SASMask']
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 class SASMask(object):
     """Class to represent mask matrices.
@@ -54,6 +58,7 @@ class SASMask(object):
     def __init__(self, maskmatrix=None, **kwargs):
         if maskmatrix is None:
             raise ValueError('Empty SASMasks canot be instantiated!')
+        logger.debug('SASMask.__init__. MaskMatrix: type: ' + str(type(maskmatrix)) + ' value: ' + repr(maskmatrix))
         kwargs = self._set_default_kwargs(kwargs)
         super(SASMask, self).__init__()
         if isinstance(maskmatrix, basestring) and \
@@ -264,7 +269,7 @@ and maskid argument was omitted.')
         idx = (((row - x0) ** 2 + (col - y0) ** 2) <= r ** 2)
         return self.edit_general(idx, whattodo)
 
-    def edit_from_matrix(self, matrix, valmin= -np.inf, valmax=np.inf,
+    def edit_from_matrix(self, matrix, valmin=-np.inf, valmax=np.inf,
                          masknonfinite=True, whattodo='mask'):
         """Edit a part of the mask where the values of a given matrix of the
         same shape are between given thresholds

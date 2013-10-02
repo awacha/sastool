@@ -392,19 +392,20 @@ def PorodGuinierMulti(q, A, *alphasRgs):
     constraints.append(indices)
     return np.piecewise(q, constraints, funcs)
 
-def GeneralGuinierPorod(q, factor, *args, startswith='Guinier'):
+def GeneralGuinierPorod(q, factor, *args, **kwargs):
     """Empirical generalized multi-part Guinier-Porod scattering
     
     Inputs:
     -------
         ``q``: independent variable
         ``factor``: factor for the first branch
-        ``startswith``: 'Guinier' if the first branch is a Guinier curve, 
-             anything else if it is a power-law.
         other arguments (*args): the defining arguments of the consecutive
              parts: radius of gyration (``Rg``) and dimensionality 
              parameter (``s``) for Guinier and exponent (``alpha``) for 
              power-law parts.
+        supported keyword arguments:
+            ``startswithguinier``: True if the first segment is a Guinier-type
+            scattering (this is the default) or False if it is a power-law
     
     Formula:
     --------
@@ -422,7 +423,7 @@ def GeneralGuinierPorod(q, factor, *args, startswith='Guinier'):
         B. Hammouda: A new Guinier-Porod model. J. Appl. Crystallogr. (2010) 43,
             716-719.
     """
-    if startswith=='Guinier':
+    if kwargs.get('startswithguinier',True):
         funcs=[lambda q:GeneralGuinier(q,factor, args[0],args[1])]
         i=2
         guiniernext=False
@@ -452,28 +453,4 @@ def GeneralGuinierPorod(q, factor, *args, startswith='Guinier'):
         indices[q < qsep] = False
     constraints.append(indices)
     return np.piecewise(q, constraints, funcs)
-    
-
-class GeneralGuinierPorod(object):
-    """Factory class for generalized piecewise Guinier-Power law functions.
-    """ 
-    def __init__(self, *parts):
-        """Initialize the newly created object.
-        
-        Inputs: the type of the consecutive parts as strings. Can be:
-            'Power', 'Guinier', 'Guinier_cross', 'Guinier_thick'
-            
-        Note that a Guinier-type part should be followed by a power-law
-        and vice verse.
-        """
-        if 'GG' in (''.join(p[0] for p in parts)).upper():
-            raise ValueError('Two Guinier curves cannot follow each other!')
-        if 'PP' in (''.join(p[0] for p in parts)).upper():
-            raise ValueError('Two power-law curves cannot follow each other!')
-        self._parts = parts
-    def __call__(self, q, factor, *Rgsalphas):
-        if len(self._parts) != len(Rgsalphas):
-            raise ValueError('Invalid number of arguments! Expected: %d. Got: %d.' % (len(self._parts), len(Rgsalphas)))
-        for i in range(len(self._parts)):
-            pass
-             
+                
