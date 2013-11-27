@@ -318,6 +318,8 @@ class SASHeader(dict):
         """Create default values for missing fields"""
         if key in ['FSNs']:
             val = []
+        elif key == 'ErrorFlags':
+            val = ''
         elif key.endswith('Error'):
             val = 0
         elif key.startswith('Monitor'):

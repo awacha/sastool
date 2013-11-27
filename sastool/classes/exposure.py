@@ -359,6 +359,13 @@ class SASExposure(ArithmeticBase):
         else:
             return None
 
+    @property
+    def size(self):
+        if hasattr(self, 'Intensity') and self.Intensity is not None:
+            return self.Intensity.size
+        else:
+            return None
+        
     def __setitem__(self, key, value):
         """respond to `obj[key] = value` calls. Delegate requests to self.header."""
         self.header[key] = value
@@ -451,6 +458,23 @@ class SASExposure(ArithmeticBase):
         except ValueError:  # this can occur if everything is masked
             return ErrorValue(0, 0)
         return ErrorValue(isum, esum)
+
+    def median(self, masked=True, mask=None):
+        if mask is None and self.check_for_mask(False):
+            mask = self.mask
+        if mask is not None and masked:
+            indices = np.array(mask) != 0
+        else:
+            indices = slice(None)
+        I = self.Intensity[indices]
+        E = self.Error[indices]
+        try:
+            m = np.median(I)
+            return ErrorValue(m, E[I == m].max())
+        except ValueError:  # this can occur if everything is masked
+            return ErrorValue(np.nan, np.nan)
+
+    
     def max(self, masked=True, mask=None):
         if mask is None and self.check_for_mask(False):
             mask = self.mask
@@ -461,9 +485,11 @@ class SASExposure(ArithmeticBase):
         I = self.Intensity[indices]
         E = self.Error[indices]
         try:
-            return ErrorValue(I.max(), E[I == I.max()].max())
+            m = I.max()
+            return ErrorValue(m, E[I == m].max())
         except ValueError:  # this can occur if everything is masked
             return ErrorValue(np.nan, np.nan)
+        
     def min(self, masked=True, mask=None):
         if mask is None and self.check_for_mask(False):
             mask = self.mask
@@ -474,7 +500,8 @@ class SASExposure(ArithmeticBase):
         I = self.Intensity[indices]
         E = self.Error[indices]
         try:
-            return ErrorValue(I.min(), E[I == I.min()].max())
+            m = I.min()
+            return ErrorValue(m, E[I == m].max())
         except ValueError:  # this can occur if everything is masked
             return ErrorValue(np.nan, np.nan)
 
@@ -491,6 +518,7 @@ class SASExposure(ArithmeticBase):
             return ErrorValue(I.mean(), ((E ** 2).mean()) ** 0.5)
         except ValueError:  # this can occur if everything is masked
             return ErrorValue(np.nan, np.nan)
+        
     def std(self, masked=True, mask=None):
         if mask is None and self.check_for_mask(False):
             mask = self.mask
@@ -1151,6 +1179,9 @@ class SASExposure(ArithmeticBase):
                 kwargs_default['zscale'] = np.sqrt
             else:
                 raise ValueError('Invalid value for zscale: %s' % kwargs_default['zscale'])
+        if kwargs_default['zscale'] is np.log10:
+            kwargs_for_imshow['norm'] = matplotlib.colors.LogNorm()
+            kwargs_default['zscale'] = lambda a:a * 1.0
         for v in ['vmin', 'vmax']:
             if v in kwargs_for_imshow:
                 kwargs_for_imshow[v] = kwargs_default['zscale'](float(kwargs_for_imshow[v]))
@@ -1204,6 +1235,8 @@ class SASExposure(ArithmeticBase):
             ret = kwargs_default['axes'].imshow(mat, **kwargs_for_imshow)  # IGNORE:W0142
         else:
             ret = None
+        if 'norm' in kwargs_for_imshow:
+            del kwargs_for_imshow['norm']
         if kwargs_default['drawmask']:
             # workaround: because of the colour-scaling we do here, full one and
             #   full zero masks look the SAME, i.e. all the image is shaded.
@@ -1216,6 +1249,7 @@ class SASExposure(ArithmeticBase):
                 _colormap_for_mask._lut[:, -1] = 0  # IGNORE:W0212
                 _colormap_for_mask._lut[0, -1] = kwargs_default['mask_opacity']  # IGNORE:W0212
                 kwargs_for_imshow['cmap'] = _colormap_for_mask
+                # print "kwargs_for_imshow while plotting mask: ", repr(kwargs_for_imshow)
                 kwargs_default['axes'].imshow(self.mask.mask, **kwargs_for_imshow)  # IGNORE:W0142
         if kwargs_default['crosshair']:
             if bcx is not None and bcy is not None:
@@ -1245,6 +1279,13 @@ class SASExposure(ArithmeticBase):
         else:
             return ret
 
+    def get_q_extent(self):
+        xmin = 4 * np.pi * np.sin(0.5 * np.arctan((0 - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) / self.header['WavelengthCalibrated']
+        xmax = 4 * np.pi * np.sin(0.5 * np.arctan((self.shape[1] - 1 - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) / self.header['WavelengthCalibrated']
+        ymin = 4 * np.pi * np.sin(0.5 * np.arctan((0 - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) / self.header['WavelengthCalibrated']
+        ymax = 4 * np.pi * np.sin(0.5 * np.arctan((self.shape[0] - 1 - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) / self.header['WavelengthCalibrated']
+        return (xmin, xmax, ymin, ymax)
+    
 ###  ------------------------ Beam center finding -----------------------------
 
     def update_beampos(self, bc, source=None):
@@ -1461,3 +1502,9 @@ class SASExposure(ArithmeticBase):
         return np.arctan(self.D / self.header['DistCalibrated'])
         
     ### ------------------------ Simple arithmetics ---------------------------
+
+    def __str__(self):
+        return str(self.header)
+    
+    def __unicode__(self):
+        return unicode(self.header)

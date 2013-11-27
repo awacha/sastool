@@ -86,10 +86,14 @@ class SASBeamTime(object):
                         'nearest': returns the nearest-in-time matching experiment
                 The date used for comparision is given in 'date'
             'date': the date used for comparision (this argument should always be defined when 'returnonly' is.
+            'includeflagged': include exposures which are flagged as erroneous (by looking at the 'ErrorFlags'
+                header field). Default: False
         """
         if not self._headercache:
             self._cache_headers()
         lis = self._headercache[:]
+        if 'includeflagged' not in kwargs:
+            kwargs['includeflagged'] = False
         while args:
             field = args[0]
             value = args[1]
@@ -98,6 +102,8 @@ class SASBeamTime(object):
             else:
                 lis = [l for l in lis if value == l[field]]
             args = args[2:]
+        if not kwargs['includeflagged']:
+            lis = [l for l in lis if not l['ErrorFlags']]
         if 'returnonly' not in kwargs:
             return lis
         elif kwargs['returnonly'] == 'nearest':
@@ -123,11 +129,13 @@ class SASBeamTime(object):
         if not self._headercache:
             self._cache_headers()
         maxfsn = max([h['FSN'] for h in self._headercache])
+        if newmaxfsn <= maxfsn:
+            return
         for f in range(maxfsn + 1, newmaxfsn + 1):
             try:
                 h = sastool.classes.SASHeader(self.headerformat % f, dirs=self.path)
             except IOError:
-                pass
+                continue
             self._headercache.append(h)
         return
     def __iter__(self):

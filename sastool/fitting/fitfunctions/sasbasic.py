@@ -4,7 +4,7 @@ from scipy.special import sinc, sici
 
 __all__ = ['Fsphere', 'Guinier', 'Guinier_thickness', 'Guinier_crosssection',
            'GuinierPorod', 'PorodGuinier', 'PorodGuinierPorod', 'GuinierPorodMulti', 'PorodGuinierMulti',
-           'DampedPowerlaw', 'LogNormSpheres', 'PowerlawPlusConstant', 'PowerlawGuinierPorodConst']
+           'DampedPowerlaw', 'LogNormSpheres', 'GaussSpheres', 'PowerlawPlusConstant', 'PowerlawGuinierPorodConst', 'GeneralGuinier', 'GeneralGuinierPorod']
 
 # Helper functions
 def Fsphere(q, R):
@@ -34,7 +34,7 @@ def Guinier(q, G, Rg):
     --------
         ``G*exp(-(q^2*Rg^2)/3)``
     """
-    return GeneralGuinier(q,G,Rg,3)
+    return GeneralGuinier(q, G, Rg, 3)
 
 def GeneralGuinier(q, G, Rg, s):
     """Generalized Guinier scattering
@@ -50,7 +50,7 @@ def GeneralGuinier(q, G, Rg, s):
     --------
         ``G*q**(3-s)*exp(-(q^2*Rg^2)/s)``
     """
-    return G * q**(3-s)*np.exp(-(q * Rg) ** 2 / s)
+    return G * q ** (3 - s) * np.exp(-(q * Rg) ** 2 / s)
 
 
 def Guinier_thickness(q, G, Rg):
@@ -66,7 +66,7 @@ def Guinier_thickness(q, G, Rg):
     --------
         ``G/q^2 * exp(-q^2*Rg^2)``
     """
-    return GeneralGuinier(q,G,Rg,1)
+    return GeneralGuinier(q, G, Rg, 1)
 
 def Guinier_crosssection(q, G, Rg):
     """Guinier scattering of a long rod
@@ -81,7 +81,7 @@ def Guinier_crosssection(q, G, Rg):
     --------
         ``G/q * exp(-q^2*Rg^2/2)``
     """
-    return GeneralGuinier(q,G,Rg,2)
+    return GeneralGuinier(q, G, Rg, 2)
 
 def GuinierPorod(q, G, Rg, alpha):
     """Empirical Guinier-Porod scattering
@@ -229,6 +229,38 @@ def LogNormSpheres(q, A, mu, sigma, N=1000):
     I = (Fsphere_outer(q, R) ** 2 * np.outer(np.ones_like(q), P))
     return A * I.sum(1) / P.sum()
 
+def GaussSpheres(q, A, R0, sigma, N=1000):
+    """Scattering of a population of non-correlated spheres (radii from a gaussian distribution)
+
+    Inputs:
+    -------
+        ``q``: independent variable
+        ``A``: scaling factor
+        ``R0``: expectation of ``R``
+        ``sigma``: hwhm of ``R``
+
+    Non-fittable inputs:
+    --------------------
+        ``N``: the (integer) number of spheres
+
+    Formula:
+    --------
+        The integral of ``F_sphere^2(q,R) * P(R)`` where ``P(R)`` is a
+        gaussian (normal) distribution of the radii.
+
+    """
+    Rmin = max(0, R0 - 3 * sigma)
+    Rmax = R0 + 3 * sigma
+    R = np.linspace(Rmin, Rmax, N + 1)[1:]
+    P = 1 / np.sqrt(2 * np.pi * sigma ** 2) * np.exp(-(R - R0) ** 2 / (2 * sigma ** 2))
+    def Fsphere_outer(q, R):
+        qR = np.outer(q, R)
+        q1 = np.outer(q, np.ones_like(R))
+        return 4 * np.pi / q1 ** 3 * (np.sin(qR) - qR * np.cos(qR))
+    I = (Fsphere_outer(q, R) ** 2 * np.outer(np.ones_like(q), P))
+    return A * I.sum(1) / P.sum()
+
+
 def PowerlawGuinierPorodConst(q, A, alpha, G, Rg, beta, C):
     """Sum of a Power-law, a Guinier-Porod curve and a constant.
     
@@ -264,41 +296,14 @@ def PowerlawPlusConstant(q, A, alpha, C):
     """
     return A * q ** alpha + C
 
-def _PG_qsep(alpha, Rg):
-    return _PGgen_qsep(alpha,Rg,3)
-
-def _PG_G(alpha, Rg, A):
-    return _PGgen_G(alpha, Rg, 3, A)
-
-def _PG_A(alpha, Rg, G):
-    return _PGgen_A(alpha, Rg, 3, G)
-
-def _PGcs_qsep(alpha, Rg):
-    return _PGgen_qsep(alpha, Rg, 2)
-
-def _PGcs_G(alpha, Rg, A):
-    return _PGgen_G(alpha, Rg, 2, A)
-
-def _PGcs_A(alpha, Rg, G):
-    return _PGgen_A(alpha, Rg, 2, G)
-
-def _PGt_qsep(alpha, Rg):
-    return _PGgen_qsep(alpha, Rg, 1)
-
-def _PGt_G(alpha, Rg, A):
-    return _PGgen_G(alpha, Rg, 1, A)
-
-def _PGt_A(alpha, Rg, G):
-    return _PGgen_A(alpha,Rg, 1, G)
-
 def _PGgen_qsep(alpha, Rg, s):
-    return ((3*s-s**2-alpha*s)*0.5)**0.5/Rg
+    return ((3 * s - s ** 2 - alpha * s) * 0.5) ** 0.5 / Rg
 
 def _PGgen_A(alpha, Rg, s, G):
-    return G*Rg**(alpha+s-3)*(3*s-s**2-alpha*s)**(0.5*(3-alpha-s))*np.exp(0.5*(alpha+s-3))
+    return G * Rg ** (alpha + s - 3) * (0.5 * (3 * s - s ** 2 - alpha * s)) ** (0.5 * (3 - alpha - s)) * np.exp(0.5 * (alpha + s - 3))
 
 def _PGgen_G(alpha, Rg, s, A):
-    return A*Rg**(3-alpha-s)*(3*s-s**2-alpha *s)**(0.5*(alpha-3+s))*np.exp(0.5*(3-alpha-s))
+    return A * Rg ** (3 - alpha - s) * (0.5 * (3 * s - s ** 2 - alpha * s)) ** (0.5 * (alpha - 3 + s)) * np.exp(0.5 * (3 - alpha - s))
 
 def GuinierPorodMulti(q, G, *Rgsalphas):
     """Empirical multi-part Guinier-Porod scattering
@@ -332,13 +337,13 @@ def GuinierPorodMulti(q, G, *Rgsalphas):
     for i in range(1, len(Rgsalphas)):
         if i % 2:
             # Rgsalphas[i] is an exponent, Rgsalphas[i-1] is a radius of gyration
-            qsep = _PG_qsep(Rgsalphas[i], Rgsalphas[i - 1])
-            scalefactor = _PG_A(Rgsalphas[i], Rgsalphas[i - 1], scalefactor)
+            qsep = _PGgen_qsep(Rgsalphas[i], Rgsalphas[i - 1], 3)
+            scalefactor = _PGgen_A(Rgsalphas[i], Rgsalphas[i - 1], 3, scalefactor)
             funcs.append(lambda q, a=scalefactor, alpha=Rgsalphas[i]: Powerlaw(q, a, alpha))
         else:
             # Rgsalphas[i] is a radius of gyration, Rgsalphas[i-1] is a power-law exponent
-            qsep = _PG_qsep(Rgsalphas[i - 1], Rgsalphas[i])
-            scalefactor = _PG_G(Rgsalphas[i - 1], Rgsalphas[i], scalefactor)
+            qsep = _PGgen_qsep(Rgsalphas[i - 1], Rgsalphas[i], 3)
+            scalefactor = _PGgen_G(Rgsalphas[i - 1], Rgsalphas[i], 3, scalefactor)
             funcs.append(lambda q, G=scalefactor, Rg=Rgsalphas[i]: Guinier(q, G, Rg))
         # this belongs to the previous 
         constraints.append(indices & (q < qsep))
@@ -378,13 +383,13 @@ def PorodGuinierMulti(q, A, *alphasRgs):
     for i in range(1, len(alphasRgs)):
         if i % 2:
             # alphasRgs[i] is a radius of gyration, alphasRgs[i-1] is a power-law exponent
-            qsep = _PG_qsep(alphasRgs[i - 1], alphasRgs[i])
-            scalefactor = _PG_G(alphasRgs[i - 1], alphasRgs[i], scalefactor)
+            qsep = _PGgen_qsep(alphasRgs[i - 1], alphasRgs[i], 3)
+            scalefactor = _PGgen_G(alphasRgs[i - 1], alphasRgs[i], 3, scalefactor)
             funcs.append(lambda q, G=scalefactor, Rg=alphasRgs[i]: Guinier(q, G, Rg))
         else:
             # alphasRgs[i] is an exponent, alphasRgs[i-1] is a radius of gyration
-            qsep = _PG_qsep(alphasRgs[i], alphasRgs[i - 1])
-            scalefactor = _PG_A(alphasRgs[i], alphasRgs[i - 1], scalefactor)
+            qsep = _PGgen_qsep(alphasRgs[i], alphasRgs[i - 1], 3)
+            scalefactor = _PGgen_A(alphasRgs[i], alphasRgs[i - 1], 3, scalefactor)
             funcs.append(lambda q, a=scalefactor, alpha=alphasRgs[i]: a * q ** alpha)
         # this belongs to the previous 
         constraints.append(indices & (q < qsep))
@@ -423,31 +428,31 @@ def GeneralGuinierPorod(q, factor, *args, **kwargs):
         B. Hammouda: A new Guinier-Porod model. J. Appl. Crystallogr. (2010) 43,
             716-719.
     """
-    if kwargs.get('startswithguinier',True):
-        funcs=[lambda q:GeneralGuinier(q,factor, args[0],args[1])]
-        i=2
-        guiniernext=False
+    if kwargs.get('startswithguinier', True):
+        funcs = [lambda q, A = factor:GeneralGuinier(q, A, args[0], args[1])]
+        i = 2
+        guiniernext = False
     else:
-        funcs = [lambda q: Powerlaw(q, A, args[0])]
-        i=1
-        guiniernext=True
+        funcs = [lambda q, A = factor: Powerlaw(q, A, args[0])]
+        i = 1
+        guiniernext = True
     indices = np.ones_like(q, dtype=np.bool)
     constraints = []
-    while i<len(args):
+    while i < len(args):
         if guiniernext:
             # args[i] is a radius of gyration, args[i+1] is a dimensionality parameter, args[i-1] is a power-law exponent
-            qsep = _PGgen_qsep(args[i - 1], args[i], args[i+1])
-            factor = _PGgen_G(args[i - 1], args[i], args[i+1], factor)
-            funcs.append(lambda q, G=factor, Rg=args[i], s=args[i+1]: GeneralGuinier(q, G, Rg,s))
-            guiniernext=False
-            i+=2
+            qsep = _PGgen_qsep(args[i - 1], args[i], args[i + 1])
+            factor = _PGgen_G(args[i - 1], args[i], args[i + 1], factor)
+            funcs.append(lambda q, G=factor, Rg=args[i], s=args[i + 1]: GeneralGuinier(q, G, Rg, s))
+            guiniernext = False
+            i += 2
         else:
             # args[i] is an exponent, args[i-2] is a radius of gyration, args[i-1] is a dimensionality parameter
-            qsep = _PGgen_qsep(args[i], args[i - 2], args[i-1])
-            factor = _PGgen_A(args[i], args[i - 2], args[i-1], factor)
+            qsep = _PGgen_qsep(args[i], args[i - 2], args[i - 1])
+            factor = _PGgen_A(args[i], args[i - 2], args[i - 1], factor)
             funcs.append(lambda q, a=factor, alpha=args[i]: a * q ** alpha)
-            guiniernext=True
-            i+=1
+            guiniernext = True
+            i += 1
         # this belongs to the previous 
         constraints.append(indices & (q < qsep))
         indices[q < qsep] = False
