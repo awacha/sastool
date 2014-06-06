@@ -138,6 +138,15 @@ class SASBeamTime(object):
                 continue
             self._headercache.append(h)
         return
+    def reload_header_for_fsn(self, fsn):
+        self._headercache=[h for h in self._headercache if h['FSN']!=fsn]
+        try:
+            h=sastool.classes.SASHeader(self.headerformat % fsn, dirs=self.path)
+        except IOError:
+            pass
+        else:
+            self._headercache.append(h)
+        return
     def __iter__(self):
         return iter(self._headercache)
     def refresh_cache(self, force=False):

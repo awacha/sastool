@@ -11,6 +11,7 @@ import math
 import functools
 import os
 
+from .. import libconfig
 from .. import misc
 
 
@@ -263,7 +264,13 @@ def readB1header(filename):
     # taken over by the measurement program, to keep
     # compatibility with that.
     hed = {}
-    jusifaHC = 12396.4
+    if libconfig.LENGTH_UNIT=='A':
+        jusifaHC = 12396.4
+    elif libconfig.LENGTH_UNIT=='nm':
+        jusifaHC = 1239.64
+    else:
+        raise NotImplementedError('Invalid length unit: '+str(libconfig.LENGTH_UNIT))
+            
     if filename.upper().endswith('.GZ'):
         fid = gzip.GzipFile(filename, 'r')
     else:

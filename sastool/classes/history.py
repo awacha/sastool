@@ -2,6 +2,9 @@ import datetime
 
 class SASHistory(object):
     def __init__(self, s=''):
+        if isinstance(s, list):
+            self._list=s[:]
+            return
         if s:
             history_oneliner = s.replace(';;', '<*doublesemicolon*>')
             history_list = [a.strip().replace('<*doublesemicolon*>', ';') \

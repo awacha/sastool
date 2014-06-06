@@ -14,18 +14,22 @@ from .common import _HDF_parse_group
 
 __all__ = []
 
+
 def register_plugin(pluginclass, idx=None):
     SASHeader.register_IOplugin(pluginclass(), idx)
     return pluginclass
+
 
 class SASHeaderPlugin(object):
     _isread = False
     _iswrite = False
     _name = '__plugin'
-    _default_read_kwargs = {'dirs':'.', 'error_on_not_found':True}
+    _default_read_kwargs = {'dirs': '.', 'error_on_not_found': True}
     _filename_regex = None
+
     def read(self, filename, **kwargs):
         raise NotImplementedError
+
     def read_multi(self, filenameformat, fsns, **kwargs):
         self._before_read(kwargs)
         for f in fsns:
@@ -37,8 +41,10 @@ class SASHeaderPlugin(object):
                 else:
                     continue
         return
+
     def write(self, filename, hed, **kwargs):
         raise NotImplementedError
+
     def check_if_applies(self, filename_or_dict):
         if isinstance(filename_or_dict, dict):
             if '__Origin__' in filename_or_dict:
@@ -52,10 +58,13 @@ class SASHeaderPlugin(object):
                 return False
         else:
             return False
+
     def is_read_supported(self):
         return self._isread
+
     def is_write_supported(self):
         return self._iswrite
+
     def _before_read(self, kwargs):
         for k in self._default_read_kwargs:
             if k not in kwargs:
@@ -63,12 +72,15 @@ class SASHeaderPlugin(object):
         for k in SASHeaderPlugin._default_read_kwargs:
             if k not in kwargs:
                 kwargs[k] = SASHeaderPlugin._default_read_kwargs[k]
+
     def __repr__(self):
         return "<%s SASHeader I/O Plugin>" % self._name
+
     @property
     def name(self):
         """The name of this plug-in"""
         return self._name
+
     def __getitem__(self, key):
         if key in self._default_read_kwargs:
             return self._default_read_kwargs[key]
@@ -76,14 +88,17 @@ class SASHeaderPlugin(object):
             return SASHeaderPlugin._default_read_kwargs[key]
         else:
             raise KeyError(key)
+
     def __setitem__(self, key, value):
         self._default_read_kwargs[key] = value
+
 
 @register_plugin
 class SHPlugin_ESRF(SASHeaderPlugin):
     _isread = True
     _name = 'EDF ID02'
     _filename_regex = re.compile('(ccd|.edf)$', re.IGNORECASE)
+
     def read(self, filename_or_edf, **kwargs):
         """Read header data from an ESRF ID02 EDF file.
 
@@ -96,10 +111,11 @@ class SHPlugin_ESRF(SASHeaderPlugin):
         """
         self._before_read(kwargs)
         if isinstance(filename_or_edf, basestring):
-            filename_or_edf = header.readehf(misc.findfileindirs(filename_or_edf, kwargs['dirs']))
+            filename_or_edf = header.readehf(
+                misc.findfileindirs(filename_or_edf, kwargs['dirs']))
         h = filename_or_edf
         ka = {}
-        
+
         ka['FSN'] = 'HMRunNumber'
         ka['BeamPosX'] = 'Center_2'
         ka['BeamPosY'] = 'Center_1'
@@ -122,42 +138,57 @@ class SHPlugin_ESRF(SASHeaderPlugin):
         h['__particle__'] = 'photon'
         return (h, ka)
 
+
 @register_plugin
 class SHPlugin_B1_org(SASHeaderPlugin):
     _isread = True
     _name = 'B1 original header'
     _filename_regex = re.compile(r'org_?[^/\\]*\.[^/\\]*$', re.IGNORECASE)
+
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
         if isinstance(filename, basestring):
-            hed = header.readB1header(misc.findfileindirs(filename, kwargs['dirs']))
+            hed = header.readB1header(
+                misc.findfileindirs(filename, kwargs['dirs']))
         else:
             hed = filename
-        hed['History'] = SASHistory()
+        if 'History' in hed:
+            hed['History'] = SASHistory(hed['History'])
+        else:
+            hed['History'] = SASHistory()
         if isinstance(filename, basestring):
             hed['History'].add('Original header loaded: ' + filename)
         hed['__particle__'] = 'photon'
         return (hed, {})
-    
+
+
 @register_plugin
 class SHPlugin_B1_int2dnorm(SASHeaderPlugin):
     _isread = True
     _name = 'B1 log'
     _iswrite = True
-    _filename_regex = re.compile(r'(intnorm[^/\\]*\.log$|\.param$)', re.IGNORECASE)
+    _filename_regex = re.compile(
+        r'(intnorm[^/\\]*\.log$|\.param$)', re.IGNORECASE)
+
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
         if isinstance(filename, basestring):
-            hed = header.readB1logfile(misc.findfileindirs(filename, kwargs['dirs']))
+            hed = header.readB1logfile(
+                misc.findfileindirs(filename, kwargs['dirs']))
         else:
             hed = filename
-        hed['History'] = SASHistory()
+        if 'History' in hed:
+            hed['History'] = SASHistory(hed['History'])
+        else:
+            hed['History'] = SASHistory()
         if isinstance(filename, basestring):
             hed['History'].add('B1 logfile loaded: ' + filename)
         hed['__particle__'] = 'photon'
         return (hed, {})
+
     def write(self, filename, hed, **kwargs):
         header.writeB1logfile(filename, hed)
+
 
 @register_plugin
 class SHPlugin_CREDO_Reduced(SASHeaderPlugin):
@@ -165,17 +196,23 @@ class SHPlugin_CREDO_Reduced(SASHeaderPlugin):
     _name = 'CREDO Reduced'
     _iswrite = True
     _filename_regex = re.compile(r'(crd[^/\\]*\.log$$)', re.IGNORECASE)
+
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
         if isinstance(filename, basestring):
-            hed = header.readB1logfile(misc.findfileindirs(filename, kwargs['dirs']))
+            hed = header.readB1logfile(
+                misc.findfileindirs(filename, kwargs['dirs']))
         else:
             hed = filename
-        hed['History'] = SASHistory()
+        if 'History' in hed:
+            hed['History'] = SASHistory(hed['History'])
+        else:
+            hed['History'] = SASHistory()
         if isinstance(filename, basestring):
             hed['History'].add('CREDO Reduced logfile loaded: ' + filename)
         hed['__particle__'] = 'photon'
         return (hed, {})
+
     def write(self, filename, hed, **kwargs):
         header.writeB1logfile(filename, hed)
 
@@ -186,18 +223,21 @@ class SHPlugin_HDF5(SASHeaderPlugin):
     _iswrite = True
     _name = 'HDF5'
     _filename_regex = re.compile(r'\.(h5|hdf5)$', re.IGNORECASE)
-    _default_read_kwargs = {'HDF5_Groupnameformat':'FSN%d',
-                           'HDF5_Intensityname':'Intensity',
-                           'HDF5_Errorname':'Error'}
+    _default_read_kwargs = {'HDF5_Groupnameformat': 'FSN%d',
+                            'HDF5_Intensityname': 'Intensity',
+                            'HDF5_Errorname': 'Error'}
     # information on HDF5 reading: not all Python datatypes have their HDF5
     # equivalents. These help to convert them to/from HDF5.
     # depending on the type: list of (type, converter_function) tuples
     _HDF5_read_postprocess_type = [(np.generic, lambda x:x.tolist()), ]
     # depending on the key name: dictionary of 'key':converter_function pairs
-    _HDF5_read_postprocess_name = {'FSNs':lambda x:x.tolist(), 'History':SASHistory}
+    _HDF5_read_postprocess_name = {
+        'FSNs': lambda x: x.tolist(), 'History': SASHistory}
+
     def check_if_applies(self, filename):
         return (SASHeaderPlugin.check_if_applies(self, filename) or
                 isinstance(filename, h5py.highlevel.Group))
+
     def read_multi(self, filenameformat, fsns, **kwargs):
         self._before_read(kwargs)
         we_have_loaded_a_hdf5_file = False
@@ -220,11 +260,13 @@ class SHPlugin_HDF5(SASHeaderPlugin):
                     groupname = kwargs['HDF5_Groupnameformat'] % f
                     yield self.read(filenameformat[groupname], **kwargs)
             else:
-                raise ValueError('Invalid argument "filenameformat": ' + str(filenameformat))
+                raise ValueError(
+                    'Invalid argument "filenameformat": ' + str(filenameformat))
         finally:
             if we_have_loaded_a_hdf5_file:
                 filenameformat.close()
         return
+
     def read(self, hdf_entity, **kwargs):
         """Read the parameter structure from the attributes of a HDF entity
         (group or dataset). hdf_entity should be an instance of
@@ -239,28 +281,33 @@ class SHPlugin_HDF5(SASHeaderPlugin):
                     if k in self._HDF5_read_postprocess_name:
                         hed[k] = self._HDF5_read_postprocess_name[k](attr)
                     else:
-                        typematch = [x for x in self._HDF5_read_postprocess_type if isinstance(attr, x[0]) ]
+                        typematch = [
+                            x for x in self._HDF5_read_postprocess_type if isinstance(attr, x[0])]
                         if typematch:
                             hed[k] = typematch[0][1](attr)
                         else:
                             hed[k] = attr
                 if 'History' not in hed:
                     hed['History'] = SASHistory()
-                hed['History'].add('Header read from HDF:' + hdf_entity.file.filename + hdf_entity.name)
+                hed['History'].add(
+                    'Header read from HDF:' + hdf_entity.file.filename + hdf_entity.name)
             else:
                 # if no intensity matrix is in the group, try if this group contains
                 # more sub-groups, which correspond to measurements.
                 try:
                     # try to get all possible fsns.
-                    fsns = [ int(re.match(misc.re_from_Cformatstring_numbers(kwargs['HDF5_Groupnameformat']), k).group(1)) for k in hdf_group.keys() if re.match(misc.re_from_Cformatstring_numbers(kwargs['HDF5_Groupnameformat']), k)]
+                    fsns = [int(re.match(misc.re_from_Cformatstring_numbers(kwargs['HDF5_Groupnameformat']), k).group(1))
+                            for k in hdf_group.keys() if re.match(misc.re_from_Cformatstring_numbers(kwargs['HDF5_Groupnameformat']), k)]
                     if not fsns:
                         # if we did not find any fsns, we raise an IOError
                         raise RuntimeError
                     # if we did find fsns, read them one-by-one.
                     return self.read_multi(hdf_entity, fsns, **kwargs)
                 except RuntimeError:
-                    raise IOError('No Intensity dataset in HDF5 group ' + hdf_group.filename + ':' + hdf_group.name)
+                    raise IOError(
+                        'No Intensity dataset in HDF5 group ' + hdf_group.filename + ':' + hdf_group.name)
         return (hed, {})
+
     def write(self, hdf_entity, hed, **kwargs):
         """Write the parameter structure to a HDF entity (group or dataset) as
         attributes. hdf_entity should be an instance of h5py.highlevel.Dataset
@@ -280,14 +327,16 @@ class SHPlugin_HDF5(SASHeaderPlugin):
                 elif isinstance(hed[k], datetime.datetime):
                     hdf_entity.attrs[k] = str(hed[k])
                 else:
-                    raise ValueError('Invalid field type: ' + str(k) + ', ', repr(type(hed[k])))
-        
-    
+                    raise ValueError(
+                        'Invalid field type: ' + str(k) + ', ', repr(type(hed[k])))
+
+
 @register_plugin
 class SHPlugin_BDF(SASHeaderPlugin):
     _isread = True
     _name = 'BDF'
     _filename_regex = re.compile(r'\.(bdf|bhf)$', re.IGNORECASE)
+
     def check_if_applies(self, filename):
         if isinstance(filename, dict):
             if '__Origin__' in filename:
@@ -296,14 +345,19 @@ class SHPlugin_BDF(SASHeaderPlugin):
                 return False
         else:
             return SASHeaderPlugin.check_if_applies(self, filename)
+
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
         if isinstance(filename, basestring):
-            hed = misc.flatten_hierarchical_dict(header.readbhf(misc.findfileindirs(filename, kwargs['dirs'])))
+            hed = misc.flatten_hierarchical_dict(
+                header.readbhf(misc.findfileindirs(filename, kwargs['dirs'])))
         else:
             hed = misc.flatten_hierarchical_dict(filename)
         ka = {}
-        hed['History'] = SASHistory()
+        if 'History' in hed:
+            hed['History'] = SASHistory(hed['History'])
+        else:
+            hed['History'] = SASHistory()
         if hed['C.bdfVersion'] < 2:
             hed['BeamPosX'] = hed['C.xcen'] - 1
             hed['BeamPosY'] = hed['C.ycen'] - 1
@@ -345,12 +399,14 @@ class SHPlugin_BDF(SASHeaderPlugin):
             hed['FSN'] = hed['C.Frame']
         hed['__particle__'] = 'photon'
         return (hed, ka)
-    
+
+
 @register_plugin
 class SHPlugin_PAXE(SASHeaderPlugin):
     _isread = True
     _name = 'PAXE'
     _filename_regex = re.compile(r'xe[^/\\]*\.(dat|32)$', re.IGNORECASE)
+
     def read(self, filename_or_paxe, **kwargs):
         """Read header data from a PAXE (Saclay, France or Budapest, Hungary)
         measurement file.
@@ -364,21 +420,26 @@ class SHPlugin_PAXE(SASHeaderPlugin):
         """
         self._before_read(kwargs)
         if isinstance(filename_or_paxe, basestring):
-            paxe = header.readPAXE(misc.findfileindirs(filename_or_paxe, kwargs['dirs']))
+            paxe = header.readPAXE(
+                misc.findfileindirs(filename_or_paxe, kwargs['dirs']))
         else:
             paxe = filename_or_paxe
         if isinstance(filename_or_paxe, basestring):
-            if 'History' not in paxe:
+            if 'History' in paxe:
+                paxe['History'] = SASHistory(paxe['History'])
+            else:
                 paxe['History'] = SASHistory()
             paxe['History'].add('Loaded from PAXE file ' + filename_or_paxe)
         paxe['__particle__'] = 'neutron'
         return (paxe, {})
-    
+
+
 @register_plugin
 class SHPlugin_MAR(SASHeaderPlugin):
     _isread = True
     _name = 'MarResearch .image'
     _filename_regex = re.compile(r'\.image$', re.IGNORECASE)
+
     def read(self, filename_or_mar, **kwargs):
         """Read header data from a MarResearch .image file.
 
@@ -391,38 +452,51 @@ class SHPlugin_MAR(SASHeaderPlugin):
         """
         self._before_read(kwargs)
         if not isinstance(filename_or_mar, dict):
-            mar = header.readmarheader(misc.findfileindirs(filename_or_mar, kwargs['dirs']))
+            mar = header.readmarheader(
+                misc.findfileindirs(filename_or_mar, kwargs['dirs']))
         else:
             mar = filename_or_mar
         if not isinstance(filename_or_mar, dict):
-            mar['History'] = SASHistory()
-            mar['History'].add('Loaded from MAR .image file ' + filename_or_mar)
+            if 'History' in mar:
+                mar['History'] = SASHistory(mar['History'])
+            else:
+                mar['History'] = SASHistory()
+            mar['History'].add(
+                'Loaded from MAR .image file ' + filename_or_mar)
             mar['FileName'] = filename_or_mar
         mar['__particle__'] = 'photon'
         return (mar, {})
-    
+
+
 @register_plugin
 class SHPlugin_BerSANS(SASHeaderPlugin):
     _isread = True
     _name = 'BerSANS'
     _filename_regex = re.compile(r'D[^/\\]*\.(\d+)$', re.IGNORECASE)
+
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
         if isinstance(filename, basestring):
-            hed = header.readBerSANS(misc.findfileindirs(filename, kwargs['dirs']))
+            hed = header.readBerSANS(
+                misc.findfileindirs(filename, kwargs['dirs']))
         else:
             hed = filename
-        hed['History'] = SASHistory()
+        if 'History' in hed:
+            hed['History'] = SASHistory(hed['History'])
+        else:
+            hed['History'] = SASHistory()
         hed['History'].add('Imported from a BerSANS file')
-        ka = {'maskid':'MaskFile'}
+        ka = {'maskid': 'MaskFile'}
         hed['__particle__'] = 'neutron'
         return (hed, ka)
+
 
 @register_plugin
 class SHPlugin_ASA_SAS(SASHeaderPlugin):
     _isread = True
     _name = 'SAXSEVAL SAS file'
     _filename_regex = re.compile(r'\.sas$', re.IGNORECASE)
+
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
         if isinstance(filename, basestring):
@@ -435,32 +509,38 @@ class SHPlugin_ASA_SAS(SASHeaderPlugin):
             hed['datasettype'] = hed1['datasettype']
         hed['__Origin__'] = 'SAXSEVAL SAS file'
         hed['__particle__'] = 'photon'
-        ka = {'Date':'params.Datetime', 'MeasTime':'params.LiveTime', 'FSN':'basename'}
+        ka = {'Date': 'params.Datetime', 'MeasTime':
+              'params.LiveTime', 'FSN': 'basename'}
         return (hed, ka)
+
 
 @register_plugin
 class SHPlugin_bare_image(SASHeaderPlugin):
     _isread = True
     _name = 'bare_image'
     _filename_regex = re.compile('(.tif|.cbf|.jpg|.jpeg)$', re.IGNORECASE)
+
     def read(self, filename_or_dict, **kwargs):
         """Reader for an empty header.
         """
         self._before_read(kwargs)
         if isinstance(filename_or_dict, basestring):
-            filename_or_dict = {'__Origin__':'bare_image'}
+            filename_or_dict = {'__Origin__': 'bare_image'}
         return (filename_or_dict, {})
 
 
-# DO NOT PUT NEW PLUGINS BELOW THIS LINE! The copydict plugin should be the last.
+# DO NOT PUT NEW PLUGINS BELOW THIS LINE! The copydict plugin should be
+# the last.
 
 @register_plugin
 class SHPlugin_copydict(SASHeaderPlugin):
     _isread = True
     _name = 'dummy'
     _filename_regex = None
+
     def check_if_applies(self, arg):
         return True
+
     def read(self, dict_to_copy, **kwargs):
         self._before_read(kwargs)
         return (dict_to_copy, {})

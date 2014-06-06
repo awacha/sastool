@@ -16,18 +16,13 @@ import copy_reg
 from .headerfields import SASHeaderField, SASHeaderFieldLink
 from .history import SASHistory
 __all__ = ['SASHeader']
+from ..libconfig import HC
 
 import scipy.constants
-# Planck constant times speed of light in eV*Angstroem units
-HC = scipy.constants.codata.value('Planck constant in eV s') * \
-    scipy.constants.codata.value('speed of light in vacuum') * 1e10
 
 NEUTRON_WAVELENGTH_CONVERTOR = scipy.constants.codata.value('Planck constant') ** 2 * 0.5 / \
     (scipy.constants.codata.value('neutron mass')) / \
     scipy.constants.codata.value('electron volt-joule relationship') * 1e20  # J
-
-
-
 
 class SASHeaderException(Exception):
     pass
@@ -330,7 +325,7 @@ class SASHeader(dict):
             if not self.__contains__('Wavelength', False):
                 raise KeyError(key)
             if self['__particle__'] == 'photon':
-                val = HC / self['Wavelength']
+                val = HC() / self['Wavelength']
             elif self['__particle__'] == 'neutron':
                 val = NEUTRON_WAVELENGTH_CONVERTOR / self['Wavelength'] ** 2
             else:
@@ -339,7 +334,7 @@ class SASHeader(dict):
             if not self.__contains__('Energy', False):
                 raise KeyError(key)
             if self['__particle__'] == 'photon':
-                val = HC / self['Energy']
+                val = HC() / self['Energy']
             elif self['__particle__'] == 'neutron':
                 val = (NEUTRON_WAVELENGTH_CONVERTOR / self['Energy']) ** 0.5
             else:
@@ -388,7 +383,7 @@ class SASHeader(dict):
         if key.startswith('Energy') and not notricks:
             # set the wavelength as well.
             if self.__getitem__('__particle__') == 'photon':
-                self.__setitem__(key.replace('Energy', 'Wavelength'), HC / value, notricks=True)
+                self.__setitem__(key.replace('Energy', 'Wavelength'), HC() / value, notricks=True)
             elif self.__getitem__('__particle__') == 'neutron':
                 self.__setitem__(key.replace('Energy', 'Wavelength'), (NEUTRON_WAVELENGTH_CONVERTOR / value) ** 0.5, notricks=True)
             else:
@@ -396,7 +391,7 @@ class SASHeader(dict):
             self.__setitem__(key, value, notricks=True)
         elif key.startswith('Wavelength') and not notricks:
             if self.__getitem__('__particle__') == 'photon':
-                self.__setitem__(key.replace('Wavelength', 'Energy'), HC / value, notricks=True)
+                self.__setitem__(key.replace('Wavelength', 'Energy'), HC() / value, notricks=True)
             elif self.__getitem__('__particle__') == 'neutron':
                 self.__setitem__(key.replace('Wavelength', 'Energy'), NEUTRON_WAVELENGTH_CONVERTOR / value ** 2, notricks=True)
             else:

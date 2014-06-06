@@ -22,7 +22,6 @@ from errorvalue import *
 from arithmetic import *
 from numerictests import *
 from rc import sastoolrc
-HC = 12398.419  # Planck's constant times speed of light, in eV*Angstrom units
 
 class SASException(BaseException):
     "General exception class for the package `sastool`"

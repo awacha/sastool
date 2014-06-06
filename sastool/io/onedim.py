@@ -11,7 +11,7 @@ from .. import misc
 
 def readspec(filename):
     f = open(filename, 'rt')
-    sf = {}
+    sf = {'motors':[]}
     sf['originalfilename'] = filename
     for l in f:
         if l.startswith('#F'):
@@ -29,7 +29,10 @@ def readspec(filename):
             else:
                 sf['comment'] = l[2:].strip()
         elif l.startswith('#O'):
-            l = l.split(None, 1)[1]
+            try:
+                l = l.split(None, 1)[1]
+            except IndexError:
+                continue
             if 'motors' not in sf.keys():
                 sf['motors'] = []
             sf['motors'].extend([x.strip() for x in l.split('  ')])

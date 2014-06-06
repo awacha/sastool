@@ -15,7 +15,6 @@ ctypedef struct Coordtype:
     double y
     double z
 
-cdef double HC=12398.419 #Planck's constant times speed of light, in eV*Angstrom units
 
 cdef inline double randn():
     """Standard normal distribution

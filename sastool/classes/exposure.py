@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors
 import collections
 
-
+from .. import libconfig
 from .header import SASHeader
 from .common import SASExposureException
 from .curve import SASCurve, SASAzimuthalCurve, SASPixelCurve
@@ -22,9 +22,8 @@ from ..misc.arithmetic import ArithmeticBase
 from ..misc.errorvalue import ErrorValue
 
 import scipy.constants
-# Planck constant times speed of light in eV*Angstroem units
-HC = scipy.constants.codata.value('Planck constant in eV s') * \
-    scipy.constants.codata.value('speed of light in vacuum') * 1e10
+
+
 
 __all__ = ['SASExposure']
 
@@ -1096,6 +1095,24 @@ class SASExposure(ArithmeticBase):
 
     ### ---------------------- Plotting -------------------------------------------
 
+    def imshow(self, **kwargs):
+        """Create a two-dimensional plot of the scattering pattern
+        
+        The behaviour can be fine-tuned by the following keyword arguments:
+        
+        crosshair (True): If a beam-centre cross-hair is to be drawn.
+        mask (True): If the mask is to be drawn.
+        mask_alpha (0.7): The opacity of the mask (1 is fully opaque, 0 is fully 
+            transparent)
+        pixel (True): If the axes are to be represented in pixel scale.
+        colorbar (True): If the color-bar is to be drawn.
+        colorbar_destination (None): a matplotlib.Axes2D instance to put the 
+            colorbar in.
+        destination (None): a matplotlib.Axes2D instance to plot the matrix to.
+        """
+        
+        
+
     def plot2d(self, **kwargs):
         """Plot the matrix (imshow)
 
@@ -1470,8 +1487,11 @@ class SASExposure(ArithmeticBase):
 
 ### ----------------------- Writing routines ----------------------------------
 
-    def write(self, writeto, **kwargs):
-        plugin = self.get_IOplugin(writeto, 'WRITE')
+    def write(self, writeto, plugin=None, **kwargs):
+        if plugin is None:
+            plugin = self.get_IOplugin(writeto, 'WRITE')
+        else:
+            plugin = [p for p in self._plugins if p.name == plugin][0]
         plugin.write(writeto, self, **kwargs)
     ### ------------------------ Calculation routines -------------------------
     @property

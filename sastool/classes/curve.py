@@ -29,8 +29,8 @@ def errtrapz(x, yerr):
     """
     x = np.array(x)
     yerr = np.array(yerr)
-    return 0.5 * np.sqrt((x[1] - x[0]) ** 2 * yerr[0] ** 2 + 
-                        np.sum((x[2:] - x[:-2]) ** 2 * yerr[1:-1] ** 2) + 
+    return 0.5 * np.sqrt((x[1] - x[0]) ** 2 * yerr[0] ** 2 +
+                        np.sum((x[2:] - x[:-2]) ** 2 * yerr[1:-1] ** 2) +
                         (x[-1] - x[-2]) ** 2 * yerr[-1] ** 2)
 
 class ControlledVectorAttribute(object):
@@ -508,14 +508,14 @@ class GeneralCurve(ArithmeticBase):
         return cls(d)
     def scalefactor(self, other, xmin=None, xmax=None, Npoints=None):
         """Calculate a scaling factor, by which this curve is to be multiplied to best fit the other one.
-        
+
         Inputs:
             other: the other curve (an instance of GeneralCurve or of a subclass of it)
             xmin: lower cut-off (None to determine the common range automatically)
             xmax: upper cut-off (None to determine the common range automatically)
             Npoints: number of points to use in the common x-range (None defaults to the lowest value among
                 the two datasets)
-        
+
         Outputs:
             The scaling factor determined by interpolating both datasets to the same abscissa and calculating
                 the ratio of their integrals, calculated by the trapezoid formula. Error propagation is
@@ -533,7 +533,7 @@ class GeneralCurve(ArithmeticBase):
         I1 = data1.interpolate(commonx).momentum(1, True)
         I2 = data2.interpolate(commonx).momentum(1, True)
         return I2 / I1
-    
+
     def unite(self, other, xmin=None, xmax=None, xsep=None,
               Npoints=None, scaleother=True, verbose=False, return_factor=False):
         if not isinstance(other, type(self)):
@@ -557,7 +557,7 @@ class GeneralCurve(ArithmeticBase):
             return retval, factor
         else:
             return retval
-        
+
     def invert(self):
         """Calculate the inverse (i.e. swap x with y). No check is done if this
         makes sense! Other fields than x,y,dx,dy are lost from the inverted curve.
@@ -588,7 +588,7 @@ class GeneralCurve(ArithmeticBase):
         else:
             return m
     def get_controlled_attributes(self):
-        return ([x for x in self._special_names.values() if hasattr(self, x)] + 
+        return ([x for x in self._special_names.values() if hasattr(self, x)] +
             [x for x in self._controlled_attributes \
              if x not in self._special_names.keys() and \
              x not in self._special_names.values()])
@@ -730,15 +730,37 @@ class GeneralCurve(ArithmeticBase):
         else:
             sumweight = np.sum([1.0 / a.dx ** 2 for a in args], 0)
             d['x'] = np.sum([a.x / a.dx ** 2 for a in args], 0) / sumweight
-            d['dx'] = 1.0 / sumweight
+            d['dx'] = 1.0 / sumweight**0.5
         if not all([a.has_valid_dy() for a in args]):
             d['y'] = np.mean([a.y for a in args], 0)
             d['dy'] = np.std([a.y for a in args], 0)
         else:
             sumweight = np.sum([1.0 / a.dy ** 2 for a in args], 0)
             d['y'] = np.sum([a.y / a.dy ** 2 for a in args], 0) / sumweight
-            d['dy'] = 1.0 / sumweight
+            d['dy'] = 1.0 / sumweight**0.5
         return cls(d)
+
+    @classmethod
+    def average_masked(cls, *args):
+        args=list(args)
+        if len(args)==1:
+            return args[0]
+        for i in range(1,len(args)):
+            if args[i].shape!=args[0].shape:
+                raise ValueError('Incompatible shape!')
+        datalen=args[0].size
+        datanum=len(args)
+        mask=np.array([x.mask for x in args],dtype=np.bool)
+        d={}
+        d['x'] = np.ma.array([x.x for x in args], mask=mask)
+        d['y'] = np.ma.array([x.y for x in args], mask=mask)
+        if all([a.has_valid_dx() for a in args]): # if there are invalid or missing x error bars
+            d['dx']=np.ma.array([x.dx for x in args],mask=mask)
+            np.ma.array
+            #d['x']=
+        if all([a.has_valid_dy() for a in args]): # if there are invalid or missing x error bars
+            d['dy']=np.array([x.dy for x in args])
+
 
     def has_valid_dx(self):
         return hasattr(self, 'dx') and np.absolute(self.dx).sum() > 0

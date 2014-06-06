@@ -38,6 +38,8 @@ __docformat__ = "restructuredtext en"
 
 __all__ = ['io', 'misc', 'utils2d', 'fitting', 'sim', 'classes']
 
+import libconfig
+
 import misc
 import utils2d
 import io
