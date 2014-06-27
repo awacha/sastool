@@ -25,7 +25,6 @@ import datetime
 import dateutil.parser
 import re
 import header
-
 from _io import cbfdecompress  # IGNORE:E0611
 """Decompress algorithm for the byte-offset encoding found in CBF files.
 Implemented in `Cython` for the sake of speed."""

@@ -50,22 +50,7 @@ def findpeak_single(x, y, dy=None, position=None, hwhm=None, baseline=None, ampl
         A Gauss or a Lorentz curve is fitted, depending on the value of 'curve'. The abscissa
         should be sorted, ascending.
     """
-    # decide if the peak is positive or negative. Positive if the left and right hand sides
-    # of the interval are more below the maximum than above the minimum. Negative if they are
-    # more above the minimum than below the maximum.
-    if ((y.max() - y[0]) >= (y[0] - y.min())) and ((y.max() - y[-1]) >= (y[-1] - y.min())):
-        sign = +1
-    elif ((y.max() - y[0]) <= (y[0] - y.min())) and ((y.max() - y[-1]) <= (y[-1] - y.min())):
-        sign = -1
-    else:
-        warnings.warn('Cannot safely determine if the fitted peak should be positive or negative. Assuming positive.')
-        sign = +1
-    # switch peak direction to up.
-    y = y * sign
-    if position is None: position = x[y == y.max()][0]
-    if hwhm is None: hwhm = 0.5 * (x.max() - x.min())
-    if baseline is None: baseline = y.min()
-    if amplitude is None: amplitude = y.max() - baseline
+    y_orig=y
     if dy is None: dy = np.ones_like(x)
     if curve.upper().startswith('GAUSS'):
         def fitfunc(x_, amplitude_, position_, hwhm_, baseline_):
@@ -73,8 +58,21 @@ def findpeak_single(x, y, dy=None, position=None, hwhm=None, baseline=None, ampl
     elif curve.upper().startswith('LORENTZ'):
         def fitfunc(x_, amplitude_, position_, hwhm_, baseline_):
             return amplitude_ * hwhm_ ** 2 / (hwhm_ ** 2 + (position_ - x_) ** 2) + baseline_
-    p, dp, stat = nlsq_fit(x, y, dy, fitfunc,
-                                     (amplitude, position, hwhm, baseline))
+    results=[]
+    # we try fitting a positive and a negative peak and return the better fit (where R2 is larger)
+    for sign in [1,-1]:
+        init_params={'position':position,'hwhm':hwhm,'baseline':baseline,'amplitude':amplitude}
+        y = y_orig * sign
+        if init_params['position'] is None: init_params['position'] = x[y == y.max()][0]
+        if init_params['hwhm'] is None: init_params['hwhm'] = 0.5 * (x.max() - x.min())
+        if init_params['baseline'] is None: init_params['baseline'] = y.min()
+        if init_params['amplitude'] is None: init_params['amplitude'] = y.max() - init_params['baseline']
+        results.append(nlsq_fit(x, y, dy, fitfunc, (init_params['amplitude'],
+                                                   init_params['position'],
+                                                   init_params['hwhm'],
+                                                   init_params['baseline']))+(sign,))
+    max_R2=max([r[2]['R2'] for r in results])
+    p,dp,stat,sign=[r for r in results if r[2]['R2']==max_R2][0]
     if return_stat:
         stat['func_value'] = stat['func_value'] * sign
         return ErrorValue(p[1], dp[1]), ErrorValue(abs(p[2]), dp[2]), sign * ErrorValue(p[3], dp[3]), sign * ErrorValue(p[0], dp[0]), stat
