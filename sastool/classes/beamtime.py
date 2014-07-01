@@ -76,14 +76,12 @@ class SASBeamTime(object):
         def _load(fname):
             if callable(self.callbackfunc):
                 self.callbackfunc()
-            print "Loading header file: ", fname
             return (sastool.classes.SASHeader(fname), os.stat(fname).st_mtime)
         regex = re.compile(formatstring_to_regexp(self.headerformat))
         have_fsns = [h[0]['FSN'] for h in self._headercache.itervalues()]
         fsns = set()
         have_files = []
         for d in self.path:
-            logger.debug('Processing folder ' + str(d) + ', searching for files satisfying regex ' + regex.pattern)
             # find files in d, which match the regular expression and which have not yet been found in a previous directory on the path.
             # This latter criterion ensures the possibility of overriding parameter files in a folder higher up in the path, without the
             # need to touch original measurement result files.
@@ -94,7 +92,6 @@ class SASBeamTime(object):
                              if (fsn <= self.maxfsn) and (fsn >= self.minfsn) and ((f not in self._headercache) or (self._headercache[f][1] < stat.st_mtime))
                              ]
 
-            logger.debug('Matches: %d. To be loaded: %d.' % (len(files_matched), len(files_to_load)))
             dict_for_upd = dict(zip([x[0] for x in files_to_load],
                                               [_load(os.path.join(d, f)) for f, s, fsn in files_to_load]))
 #            print dict_for_upd
@@ -165,13 +162,32 @@ class SASBeamTime(object):
         else:
             return self.load_exposure(foundheaders)
     def update_cache_up_to(self, newmaxfsn):
-        self.maxfsn = newmaxfsn
+        if newmaxfsn > self.maxfsn:
+            self.maxfsn = newmaxfsn
+        max_fsn_loaded = max(h['FSN'] for h in self)
+        for fsn in range (max_fsn_loaded, newmaxfsn + 1):
+            self.reload_header_for_fsn(fsn)
         self.refresh_cache()
     def reload_header_for_fsn(self, fsn):
-        cacheidx = [k for k in self._headercache if self._headercache[k][0]['FSN'] == fsn][0]
-        filetoread = sastool.misc.findfileindirs(self.headerformat % fsn, self.path)
-        self._headercache[cacheidx] = (sastool.classes.SASHeader(filetoread), os.stat(filetoread).st_mtime)
-        return
+        try:
+            cacheidx = [k for k in self._headercache if self._headercache[k][0]['FSN'] == fsn][0]
+        except IndexError:
+            warnings.warn('FSN #%d not in cache.' % fsn)
+            cacheidx = None
+        try:
+            filetoread = sastool.misc.findfileindirs(self.headerformat % fsn, self.path)
+        except IOError:
+            warnings.warn('Could not find file ' + (self.headerformat % fsn) + ' on path.')
+            return
+        try:
+            loaded = (sastool.classes.SASHeader(filetoread), os.stat(filetoread).st_mtime)
+            if cacheidx is not None:
+                self._headercache[cacheidx] = loaded
+            else:
+                self._headercache[self.headerformat % fsn] = loaded
+        except IOError:
+            warnings.warn('Could not load file ' + filetoread)
+            return
     def __iter__(self):
         for val in self._headercache.itervalues():
             yield val[0]
