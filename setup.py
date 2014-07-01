@@ -21,7 +21,7 @@ for dir_, subdirs, files in os.walk('sastool'):
 
 ext_modules = [Extension(p.replace('/', '.')[:-4], [p], include_dirs=incdirs) for p in pyxfiles]
 
-with open('.version_last','rt'):
+with open('.version_last','rt') as f:
     version_last=int(f.read())
 
 setup(name='sastool', version='0.6.%d'%version_last, author='Andras Wacha',
