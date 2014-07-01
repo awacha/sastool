@@ -21,7 +21,10 @@ for dir_, subdirs, files in os.walk('sastool'):
 
 ext_modules = [Extension(p.replace('/', '.')[:-4], [p], include_dirs=incdirs) for p in pyxfiles]
 
-setup(name='sastool', version='0.6.0', author='Andras Wacha',
+with open('.version_last','rt'):
+    version_last=int(f.read())
+
+setup(name='sastool', version='0.6.%d'%version_last, author='Andras Wacha',
       author_email='awacha@gmail.com', url='http://github.com/awacha/sastool',
       description='Python macros for [A]SA(X|N)S data processing, fitting, plotting etc.',
       packages=find_packages(),
