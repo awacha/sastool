@@ -1,11 +1,19 @@
 import os
 import re
 import sastool
+import cPickle as pickle
+import time
+import logging
+import numpy as np
+import warnings
 
 __all__ = ['SASBeamTime']
 # file formats can contain a subset of C-style format strings:
 #
 #   %(?P<leadingzero>0?)(?P<ndigits>\d*)(?P<datatype>[dui]{1})
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 def _strfrommatch(m):
     if m.groupdict()['ndigits'] and m.groupdict()['leadingzero']:
@@ -16,69 +24,100 @@ def _strfrommatch(m):
         return '(?P<fsn>\d+)'
 
 def formatstring_to_regexp(formatstring):
-    return re.sub(r'%(?P<leadingzero>0?)(?P<ndigits>\d*)(?P<datatype>[dui]{1})', _strfrommatch, formatstring)
+    return '^' + re.sub(r'%(?P<leadingzero>0?)(?P<ndigits>\d*)(?P<datatype>[dui]{1})', _strfrommatch, formatstring) + '$'
 
-    
+
 class SASBeamTime(object):
     """A class representing a set of SAS exposures, with a given file format and a set of directories and fsns."""
     def __init__(self, path, exposureformat, headerformat=None, minfsn=None, maxfsn=None, recursive_path=False, callbackfunc=None,
-                 exposure_output_path=None, header_output_path=None):
-        if isinstance(path, basestring):
-            path = [path]
-        if not all(isinstance(p, basestring) for p in path):
-            raise ValueError('Path should be either a single folder name or a list of folder names.')
-        if recursive_path:
-            for p in path[:]:
-                path.extend(sastool.misc.find_subdirs(p, recursive_path))
-        path = [os.path.realpath(p) for p in path]
-        path_uniq = []
-        for p in path:
-            if p not in path_uniq:
-                path_uniq.append(p)
-        path = path_uniq
-        if not all(os.path.isdir(p) for p in path):
-            raise ValueError('All elements of path should be directories. The following are not: ' + ';'.join(p for p in path if not os.path.isdir(p)))
-        self.path = path
+                 exposure_output_path=None, header_output_path=None, cachefile=None):
+        self._cachefile = cachefile
+        self.path = self._normalize_path(path, recursive_path)
         self.exposureformat = exposureformat
         if headerformat is None:
             self.headerformat = exposureformat
         else:
             self.headerformat = headerformat
+        if minfsn is None: minfsn = -np.inf
         self.minfsn = minfsn
+        if maxfsn is None: maxfsn = np.inf
         self.maxfsn = maxfsn
-        self._headercache = []
+        self._headercache = {}
         self.callbackfunc = callbackfunc
-        self._cache_headers(True)
+        self._load_cache()
+    def _load_cache(self):
+        try:
+            t0 = time.time()
+            if self._cachefile:
+                with open(self._cachefile, 'rt') as f:
+                    self._headercache = pickle.load(f)
+            logger.debug('Header cache file %s loaded in %g seconds.' % (self._cachefile, time.time() - t0))
+        except IOError:
+            warnings.warn('Could not open cache file: %s' % self._cachefile)
+        self._cache_headers()
+    def _normalize_path(self, path, recursive_paths=False):
+        if isinstance(path, basestring):
+            path = [path]
+        if not all(isinstance(p, basestring) for p in path):
+            raise ValueError('Path should be either a single folder name or a list of folder names.')
+        if recursive_paths:
+            for p in path[:]:
+                path.extend(sastool.misc.find_subdirs(p, recursive_paths))
+        path = set([os.path.realpath(p) for p in path])
+        notdirs = [p for p in path if not os.path.isdir(p)]
+        if notdirs:
+            raise ValueError('All elements of path should be directories. The following are not: ' + ';'.join(notdirs))
+        return path
     def _cache_headers(self, force=False):
+        logger.debug('Starting re-caching of headers for format: ' + self.headerformat)
+        t0 = time.time()
         if force:
-            self._headercache = []
-        regex = re.compile(formatstring_to_regexp(self.headerformat))
-        have_fsns = [h['FSN'] for h in self._headercache]
-        fsns = set()
-        for d in self.path:
-            fsns.update(set([int(m.groupdict()['fsn']) for m in [regex.match(f) for f in os.listdir(d)] if m is not None]))
-        if self.minfsn is not None:
-            fsns = set(f for f in fsns if f >= self.minfsn)
-        if self.maxfsn is not None:
-            fsns = set(f for f in fsns if f <= self.maxfsn)
-        fsns = [f for f in fsns if f not in have_fsns]
-        def _load(fsn):
+            self._headercache = {}
+        def _load(fname):
             if callable(self.callbackfunc):
                 self.callbackfunc()
-            return sastool.classes.SASHeader(self.headerformat % f, dirs=self.path)
-        self._headercache = sorted(self._headercache + [_load(f) for f in fsns], key=lambda h:h['FSN'])
-            
+            print "Loading header file: ", fname
+            return (sastool.classes.SASHeader(fname), os.stat(fname).st_mtime)
+        regex = re.compile(formatstring_to_regexp(self.headerformat))
+        have_fsns = [h[0]['FSN'] for h in self._headercache.itervalues()]
+        fsns = set()
+        have_files = []
+        for d in self.path:
+            logger.debug('Processing folder ' + str(d) + ', searching for files satisfying regex ' + regex.pattern)
+            # find files in d, which match the regular expression and which have not yet been found in a previous directory on the path.
+            # This latter criterion ensures the possibility of overriding parameter files in a folder higher up in the path, without the
+            # need to touch original measurement result files.
+            matches = [x for x in [(regex.match(f), f) for f in sorted(os.listdir(d))] if x[0] is not None]
+            files_matched = [(f, os.stat(os.path.join(d, f)), int(m.group(1))) for (m, f) in matches if (f not in have_files)]
+            # only load files which have changed since the last load or have not been loaded.
+            files_to_load = [(f, stat, fsn) for (f, stat, fsn) in files_matched \
+                             if (fsn <= self.maxfsn) and (fsn >= self.minfsn) and ((f not in self._headercache) or (self._headercache[f][1] < stat.st_mtime))
+                             ]
+
+            logger.debug('Matches: %d. To be loaded: %d.' % (len(files_matched), len(files_to_load)))
+            dict_for_upd = dict(zip([x[0] for x in files_to_load],
+                                              [_load(os.path.join(d, f)) for f, s, fsn in files_to_load]))
+#            print dict_for_upd
+            # print dict_for_upd[0]
+            self._headercache.update(dict_for_upd)
+            have_files.extend(f[0] for f in files_matched)
+        t1 = time.time()
+        logger.debug('Finished re-caching in %g seconds' % (t1 - t0))
+        if self._cachefile is not None:
+            with open(self._cachefile, 'wt') as f:
+                pickle.dump(self._headercache, f)
+        logger.debug('Header cache file written to %s in %g seconds.' % (self._cachefile, time.time() - t1))
     def find(self, *args, **kwargs):
         """Find one or more headers matching given criteria.
-        
+
         Call this function as:
         beamtime.find(<fieldname>, <value>, [<fieldname2>, <value2>, ...])
 
         If <value> is callable, it is called with the field value of each header. It should return
         True for matching, False for non-matching headers. Exceptions are fatal.
-        
+
         If <value> is not callable, a simple equality test is done.
-        
+
         Keyword arguments:
             'returnonly': if the list of results has to be narrowed down based on the experiment date.
                 Can be: 'next': returns the first matching experiment which is after the given date
@@ -91,7 +130,7 @@ class SASBeamTime(object):
         """
         if not self._headercache:
             self._cache_headers()
-        lis = self._headercache[:]
+        lis = list(sorted(self, key=lambda h:h['FSN']))
         if 'includeflagged' not in kwargs:
             kwargs['includeflagged'] = False
         while args:
@@ -126,28 +165,15 @@ class SASBeamTime(object):
         else:
             return self.load_exposure(foundheaders)
     def update_cache_up_to(self, newmaxfsn):
-        if not self._headercache:
-            self._cache_headers()
-        maxfsn = max([h['FSN'] for h in self._headercache])
-        if newmaxfsn <= maxfsn:
-            return
-        for f in range(maxfsn + 1, newmaxfsn + 1):
-            try:
-                h = sastool.classes.SASHeader(self.headerformat % f, dirs=self.path)
-            except IOError:
-                continue
-            self._headercache.append(h)
-        return
+        self.maxfsn = newmaxfsn
+        self.refresh_cache()
     def reload_header_for_fsn(self, fsn):
-        self._headercache=[h for h in self._headercache if h['FSN']!=fsn]
-        try:
-            h=sastool.classes.SASHeader(self.headerformat % fsn, dirs=self.path)
-        except IOError:
-            pass
-        else:
-            self._headercache.append(h)
+        cacheidx = [k for k in self._headercache if self._headercache[k][0]['FSN'] == fsn][0]
+        filetoread = sastool.misc.findfileindirs(self.headerformat % fsn, self.path)
+        self._headercache[cacheidx] = (sastool.classes.SASHeader(filetoread), os.stat(filetoread).st_mtime)
         return
     def __iter__(self):
-        return iter(self._headercache)
+        for val in self._headercache.itervalues():
+            yield val[0]
     def refresh_cache(self, force=False):
         self._cache_headers(force)
