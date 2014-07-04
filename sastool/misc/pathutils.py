@@ -7,6 +7,10 @@ import os
 import sys
 from utils import normalize_listargument
 from searchpath import sastool_search_path
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 __all__ = ['findfileindirs']
 
@@ -39,17 +43,20 @@ def findfileindirs(filename, dirs=None, use_pythonpath=True, use_searchpath=True
     if dirs is None:
         dirs = []
     dirs = normalize_listargument(dirs)
-    if not dirs: #dirs is empty
+    if not dirs:  # dirs is empty
         dirs = ['.']
     if use_pythonpath:
         dirs.extend(sys.path)
     if use_searchpath:
         dirs.extend(sastool_search_path)
-    #expand ~ and ~user constructs
+    # expand ~ and ~user constructs
     dirs = [os.path.expanduser(d) for d in dirs]
+    logger.debug('Searching for file %s in several folders: %s' % (filename, ', '.join(dirs)))
     for d in dirs:
         if os.path.exists(os.path.join(d, filename)):
+            logger.debug('Found file %s in folder %s.' % (filename, d))
             return os.path.join(d, filename)
+    logger.debug('Not found file %s in any folders.' % filename)
     if notfound_is_fatal:
         raise IOError('File %s not found in any of the directories.' % filename)
     else:

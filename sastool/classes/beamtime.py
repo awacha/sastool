@@ -13,7 +13,7 @@ __all__ = ['SASBeamTime']
 #   %(?P<leadingzero>0?)(?P<ndigits>\d*)(?P<datatype>[dui]{1})
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 def _strfrommatch(m):
     if m.groupdict()['ndigits'] and m.groupdict()['leadingzero']:
@@ -52,18 +52,28 @@ class SASBeamTime(object):
                 with open(self._cachefile, 'rt') as f:
                     self._headercache = pickle.load(f)
             logger.debug('Header cache file %s loaded in %g seconds.' % (self._cachefile, time.time() - t0))
-        except IOError:
-            warnings.warn('Could not open cache file: %s' % self._cachefile)
+        except Exception as exc:
+            logger.warning('Could not open cache file: %s. Reason: %s' % (self._cachefile, str(exc)))
+            warnings.warn('Could not open cache file: %s. Reason: %s' % (self._cachefile, str(exc)))
         self._cache_headers()
     def _normalize_path(self, path, recursive_paths=False):
         if isinstance(path, basestring):
             path = [path]
         if not all(isinstance(p, basestring) for p in path):
             raise ValueError('Path should be either a single folder name or a list of folder names.')
+        # if recursive paths are desired, we add subdirectories onto the path just after their parent.
         if recursive_paths:
-            for p in path[:]:
-                path.extend(sastool.misc.find_subdirs(p, recursive_paths))
-        path = set([os.path.realpath(p) for p in path])
+            path_orig = path
+            path = []
+            for p in path_orig[:]:
+                path.extend(sastool.misc.find_subdirs(p, None))
+        # prune the path from duplicate folders. Note that we avoid using set()s, because that method
+        # does not retain the original ordering.
+        path_orig = path
+        path_unique = []
+        for p in path_orig:
+            if p not in path_unique:
+                path_unique.append(p)
         notdirs = [p for p in path if not os.path.isdir(p)]
         if notdirs:
             raise ValueError('All elements of path should be directories. The following are not: ' + ';'.join(notdirs))
@@ -97,7 +107,7 @@ class SASBeamTime(object):
 #            print dict_for_upd
             # print dict_for_upd[0]
             self._headercache.update(dict_for_upd)
-            have_files.extend(f[0] for f in files_matched)
+            have_files.extend(f[0] for f in files_to_load)
         t1 = time.time()
         logger.debug('Finished re-caching in %g seconds' % (t1 - t0))
         if self._cachefile is not None:
