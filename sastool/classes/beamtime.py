@@ -182,7 +182,7 @@ class SASBeamTime(object):
         try:
             cacheidx = [k for k in self._headercache if self._headercache[k][0]['FSN'] == fsn][0]
         except IndexError:
-            warnings.warn('FSN #%d not in cache.' % fsn)
+           # warnings.warn('FSN #%d not in cache.' % fsn)
             cacheidx = None
         try:
             filetoread = sastool.misc.findfileindirs(self.headerformat % fsn, self.path)

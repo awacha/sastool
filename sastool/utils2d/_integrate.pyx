@@ -57,7 +57,7 @@ def polartransform(np.ndarray[np.double_t, ndim=2] data not None,
 
 def autoqscale(double wavelength, double distance, double xres, double yres,
                double bcxa, double bcya,
-               np.ndarray[np.uint8_t, ndim=2] mask not None):
+               np.ndarray[np.uint8_t, ndim=2] mask not None, bint linspacing=True):
     """Determine q-scale automatically
 
     Inputs:
@@ -66,6 +66,7 @@ def autoqscale(double wavelength, double distance, double xres, double yres,
         xres, yres: pixel size in mm
         bcxa, bcya: beam position (starting from 0)
         mask: mask matrix (1 means masked, 0 unmasked).
+        linspacing: if linear spacing is expected. Otherwise log10 spacing.
 
     Output: the q scale in a numpy vector. If either wavelength or distance or xres
         or yres is nonpositive, pixel vector is returned, which is guaranteed to
@@ -95,7 +96,10 @@ def autoqscale(double wavelength, double distance, double xres, double yres,
             if (q1<qmin):
                 qmin=q1
     if flagq:
-        return np.linspace(qmin,qmax,sqrt(M*M+N*N)/2)
+        if linspacing:
+            return np.linspace(qmin,qmax,sqrt(M*M+N*N)/2)
+        else:
+            return np.logspace(np.log10(qmin),np.log10(qmax),sqrt(M*M+N*N)/2)
     else:
         return np.arange(qmin,qmax);
 
@@ -136,7 +140,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
            bint returnavgq=False, double phi0=0, double dphi=0,
            returnmask=False, bint symmetric_sector=False,
            bint doslice=False, bint returnpixel=False,
-           int errorpropagation=2):
+           int errorpropagation=2, bint autoqrange_linear=True):
     """ Radial averaging of scattering images.
 
     Inputs:
@@ -185,7 +189,9 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
             1: error bars are simply averaged, then divided by sqrt(# of pixels
                 belonging to the bin).
             2: squared error propagation of independent quantities
-
+        autoqrange_linear: if the automatically determined q-range is to be
+            linspace-d. Otherwise log10 spacing will be applied.
+            
     If any of 'wavelength', 'distance' or 'res' is zero or negative, pixel-based
     integration is done, with q denoting pixel everywhere.
 
@@ -241,7 +247,7 @@ def radint(np.ndarray[np.double_t,ndim=2] data not None,
     if q is None:
         if not flagmask:
             mask=np.zeros((data.shape[0],data.shape[1]),dtype=np.uint8)
-        q=autoqscale(wavelength, distance, xres, yres, bcx, bcy, mask);
+        q=autoqscale(wavelength, distance, xres, yres, bcx, bcy, mask, autoqrange_linear);
         if not flagmask:
             mask=None
     Numq=len(q)
@@ -362,7 +368,7 @@ def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
            bint returnavgq=False, double phi0=0, double dphi=0,
            Py_ssize_t Nsector=4,
            returnmask=False, bint doslice=False, bint returnpixel=False,
-           int errorpropagation =2):
+           int errorpropagation =2, bint autoqrange_linear=True):
     """ Radial averaging of scattering images: several sectors at once.
 
     Inputs:
@@ -411,6 +417,8 @@ def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
             1: error bars are simply averaged, then divided by sqrt(# of pixels
                 belonging to the bin).
             2: squared error propagation of independent quantities
+        autoqrange_linear: if the automatically determined q-range is to be
+            linspace-d. Otherwise log10 spacing will be applied.
 
     If any of 'wavelength', 'distance' or 'res' is zero or negative, pixel-based
     integration is done, with q denoting pixel everywhere.
@@ -469,7 +477,7 @@ def radint_nsector(np.ndarray[np.double_t,ndim=2] data not None,
     if q is None:
         if not flagmask:
             mask=np.zeros((data.shape[0],data.shape[1]),dtype=np.uint8)
-        q=autoqscale(wavelength, distance, xres, yres, bcx, bcy, mask);
+        q=autoqscale(wavelength, distance, xres, yres, bcx, bcy, mask, autoqrange_linear);
         if not flagmask:
             mask=None
     Numq=len(q)
@@ -605,7 +613,7 @@ def radint_fullq(np.ndarray[np.double_t,ndim=2] data not None,
            np.ndarray[np.uint8_t, ndim=2] mask,
            np.ndarray[np.double_t, ndim=1] q=None,
            bint returnavgq=False,
-           returnmask=False,int errorpropagation =2):
+           returnmask=False,int errorpropagation =2, bint autoqrange_linear=True):
     """ Radial averaging of scattering images.
 
     Inputs:
@@ -640,6 +648,8 @@ def radint_fullq(np.ndarray[np.double_t,ndim=2] data not None,
             1: error bars are simply averaged, then divided by sqrt(# of pixels
                 belonging to the bin).
             2: squared error propagation of independent quantities
+        autoqrange_linear: if the automatically determined q-range is to be
+            linspace-d. Otherwise log10 spacing will be applied.
 
 
     Outputs: q, Intensity, Error, Area, [effective mask]
@@ -676,7 +686,7 @@ def radint_fullq(np.ndarray[np.double_t,ndim=2] data not None,
     if q is None:
         if not flagmask:
             mask=np.zeros((data.shape[0],data.shape[1]),dtype=np.uint8)
-        q=autoqscale(wavelength, distance, xres, yres, bcx, bcy, mask);
+        q=autoqscale(wavelength, distance, xres, yres, bcx, bcy, mask, autoqrange_linear);
         if not flagmask:
             mask=None
     Numq=len(q)

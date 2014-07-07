@@ -124,7 +124,7 @@ class SASExposure(ArithmeticBase):
         if hasattr(self, '_was_init'):
             # an ugly hack to avoid duplicate __init__()-s, since whenever __new__()
             # returns an instance of this class, the __init__() method is executed
-            # with the _SAME_ arguments with which __new__() was originally called. 
+            # with the _SAME_ arguments with which __new__() was originally called.
             return
         self._was_init = True
         ArithmeticBase.__init__(self)
@@ -211,14 +211,14 @@ class SASExposure(ArithmeticBase):
             shallow!
 
         2) ``SASExposure(<dict>)``: make a SASExposure from a dictionary. The
-            given parameter should contain the field 'Intensity' (np.ndarray) 
+            given parameter should contain the field 'Intensity' (np.ndarray)
             and optionally 'Error' (np.ndarray), 'header' and 'mask'. The last two
             must be convertible to SASHeader and SASMask, respectively.
-        
-        3) ``SASExposure(Intensity [, Error [, header [, mask]]])`` where 
+
+        3) ``SASExposure(Intensity [, Error [, header [, mask]]])`` where
             ``Intensity`` and ``Error`` are np.ndarrays, ``header`` and ``mask``
             are convertible to SASHeader and SASMask.
-            
+
         4) ``SASExposure(filename_or_other_obj, **kwargs)``: load a file
             **One positional argument**
             `filename_or_other_obj`: file name or other object which can be handled
@@ -227,10 +227,10 @@ class SASExposure(ArithmeticBase):
         5) ``SASExposure(fileformat_or_other_obj, fsn, **kwargs)``: load
             one or more exposures. **Two positional arguments**.
             `fileformat_or_other_obj`: string or other
-                usually a C-style file format, containing a directive for 
+                usually a C-style file format, containing a directive for
                 substitution of a number, i.e. ``org_%05d.cbf`` or ``s%07d.bdf`` or
                 ``sc3269_0_%04dccd``. But can be e.g. a HDF5 Group.
-                
+
             `fsn`: number or a sequence of numbers
                 file sequence number. If a scalar, the corresponding file will
                 be loaded. If a sequence of numbers, each file will be opened
@@ -266,7 +266,7 @@ class SASExposure(ArithmeticBase):
         elif (isinstance(args[0], SASExposure) or isinstance(args[0], np.ndarray)
               or isinstance(args[0], dict)):
             # copy an existing SASExposure, make a new SASExposure from a numpy
-            # array or from a dict. 
+            # array or from a dict.
             # we cannot call SASExposure(*args,**kwargs), since it will cause an infinite loop
             return super(SASExposure, cls).__new__(cls)  # will call __init__ implicitly with args and kwargs
         else:
@@ -299,7 +299,7 @@ class SASExposure(ArithmeticBase):
         for o in obj:
             yield cls(o, **kwargs)  # this will call __new__ with a dict
         return
-    
+
     def check_for_mask(self, isfatal=True):
         """Check if a valid mask is defined.
 
@@ -364,7 +364,7 @@ class SASExposure(ArithmeticBase):
             return self.Intensity.size
         else:
             return None
-        
+
     def __setitem__(self, key, value):
         """respond to `obj[key] = value` calls. Delegate requests to self.header."""
         self.header[key] = value
@@ -396,7 +396,7 @@ class SASExposure(ArithmeticBase):
 
     def barycenter(self, masked=True, mask=None):
         """Calculate the center of mass of the scattering image.
-        
+
         Inputs:
             masked: if the mask should be taken into account
             mask: if not None, an overriding mask to be used instead of
@@ -414,7 +414,7 @@ class SASExposure(ArithmeticBase):
 
     def sigma(self, masked=True, mask=None):
         """Calculate the RMS extents of the image (or a portion of it, defined by the mask)
-        
+
         Inputs:
             masked: if the mask should be taken into account
             mask: if not None, an overriding mask to be used instead of
@@ -473,7 +473,7 @@ class SASExposure(ArithmeticBase):
         except ValueError:  # this can occur if everything is masked
             return ErrorValue(np.nan, np.nan)
 
-    
+
     def max(self, masked=True, mask=None):
         if mask is None and self.check_for_mask(False):
             mask = self.mask
@@ -488,7 +488,7 @@ class SASExposure(ArithmeticBase):
             return ErrorValue(m, E[I == m].max())
         except ValueError:  # this can occur if everything is masked
             return ErrorValue(np.nan, np.nan)
-        
+
     def min(self, masked=True, mask=None):
         if mask is None and self.check_for_mask(False):
             mask = self.mask
@@ -517,7 +517,7 @@ class SASExposure(ArithmeticBase):
             return ErrorValue(I.mean(), ((E ** 2).mean()) ** 0.5)
         except ValueError:  # this can occur if everything is masked
             return ErrorValue(np.nan, np.nan)
-        
+
     def std(self, masked=True, mask=None):
         if mask is None and self.check_for_mask(False):
             mask = self.mask
@@ -793,7 +793,9 @@ class SASExposure(ArithmeticBase):
         """Do a radial averaging
 
         Inputs:
-            qrange: the q-range. If None, auto-determine.
+            qrange: the q-range. If None, auto-determine. If 'linear', auto-determine
+                with linear spacing (same as None). If 'log', auto-determineű
+                with log10 spacing.
             pixel: do a pixel-integration (instead of q)
             matrix: matrix to use for averaging
             errormatrix: error matrix to use for averaging (or None)
@@ -814,6 +816,17 @@ class SASExposure(ArithmeticBase):
             err = getattr(self, errormatrix).astype(np.double)
         else:
             err = None
+        if isinstance(qrange, basestring):
+            if qrange == 'linear':
+                qrange = None
+                autoqrange_linear = True
+            elif qrange == 'log':
+                qrange = None
+                autoqrange_linear = False
+            else:
+                raise NotImplementedError('Value given for qrange (''%s'') not understood.' % qrange)
+        else:
+            autoqrange_linear = True  # whatever
         if not pixel:
             res = utils2d.integrate.radint_fullq(mat, err, self.header['WavelengthCalibrated'],
                                                self.header['DistCalibrated'],
@@ -821,7 +834,7 @@ class SASExposure(ArithmeticBase):
                                                self.header['BeamPosX'], self.header['BeamPosY'],
                                                (self.mask.mask == 0).astype(np.uint8),
                                                qrange, returnavgq=q_average,
-                                               returnmask=returnmask, errorpropagation=errorpropagation)
+                                               returnmask=returnmask, errorpropagation=errorpropagation, autoqrange_linear=autoqrange_linear)
             i = 0
             q = res[i]; i += 1
             I = res[i]; i += 1
@@ -840,7 +853,7 @@ class SASExposure(ArithmeticBase):
                                                      self.header['BeamPosY'],
                                                      1 - self.mask.mask, qrange,
                                                      returnmask=returnmask,
-                                                     returnavgpix=q_average, errorpropagation=errorpropagation)
+                                                     returnavgpix=q_average, errorpropagation=errorpropagation, autoqrange_linear=autoqrange_linear)
             i = 0
             p = res[i]; i += 1
             I = res[i]; i += 1
@@ -867,7 +880,9 @@ class SASExposure(ArithmeticBase):
         Inputs:
             phi0: start of the sector (radians).
             dphi: sector width (radians)
-            qrange: the q-range. If None, auto-determine.
+            qrange: the q-range. If None, auto-determine. If 'linear', auto-determine
+                with linear spacing (same as None). If 'log', auto-determineű
+                with log10 spacing.
             pixel: do a pixel-integration (instead of q)
             matrix: matrix to use for averaging
             errormatrix: error matrix to use for averaging (or None)
@@ -891,6 +906,17 @@ class SASExposure(ArithmeticBase):
             err = getattr(self, errormatrix).astype(np.double)
         else:
             err = None
+        if isinstance(qrange, basestring):
+            if qrange == 'linear':
+                qrange = None
+                autoqrange_linear = True
+            elif qrange == 'log':
+                qrange = None
+                autoqrange_linear = False
+            else:
+                raise NotImplementedError('Value given for qrange (''%s'') not understood.' % qrange)
+        else:
+            autoqrange_linear = True  # whatever
         if not pixel:
             res = utils2d.integrate.radint(mat, err,
                                                self.header['WavelengthCalibrated'],
@@ -903,7 +929,7 @@ class SASExposure(ArithmeticBase):
                                                returnpixel=True,
                                                returnmask=returnmask,
                                                phi0=phi0, dphi=dphi, symmetric_sector=symmetric_sector,
-                                               errorpropagation=errorpropagation)
+                                               errorpropagation=errorpropagation, autoqrange_linear=autoqrange_linear)
             i = 0
             q = res[i]; i += 1
             I = res[i]; i += 1
@@ -924,7 +950,7 @@ class SASExposure(ArithmeticBase):
                                                      returnavgpix=q_average, phi0=phi0,
                                                      returnmask=returnmask,
                                                      dphi=dphi, symmetric_sector=symmetric_sector,
-                                                     errorpropagation=errorpropagation)
+                                                     errorpropagation=errorpropagation, autoqrange_linear=autoqrange_linear)
             i = 0
             p = res[i]; i += 1
             I = res[i]; i += 1
@@ -951,7 +977,9 @@ class SASExposure(ArithmeticBase):
         Inputs:
             phi0: direction of the slice (radians).
             width: slice width (pixels)
-            qrange: the q-range. If None, auto-determine.
+            qrange: the q-range. If None, auto-determine. If 'linear', auto-determine
+                with linear spacing (same as None). If 'log', auto-determineű
+                with log10 spacing.
             pixel: do a pixel-integration (instead of q)
             matrix: matrix to use for averaging
             errormatrix: error matrix to use for averaging (or None)
@@ -975,6 +1003,17 @@ class SASExposure(ArithmeticBase):
             err = getattr(self, errormatrix).astype(np.double)
         else:
             err = None
+        if isinstance(qrange, basestring):
+            if qrange == 'linear':
+                qrange = None
+                autoqrange_linear = True
+            elif qrange == 'log':
+                qrange = None
+                autoqrange_linear = False
+            else:
+                raise NotImplementedError('Value given for qrange (''%s'') not understood.' % qrange)
+        else:
+            autoqrange_linear = True  # whatever
         if not pixel:
             res = utils2d.integrate.radint(mat, err,
                                                self.header['WavelengthCalibrated'],
@@ -989,7 +1028,7 @@ class SASExposure(ArithmeticBase):
                                                phi0=phi0, dphi=width,
                                                doslice=True,
                                                symmetric_sector=symmetric_slice,
-                                               errorpropagation=errorpropagation)
+                                               errorpropagation=errorpropagation, autoqrange_linear=autoqrange_linear)
             i = 0
             q = res[i]; i += 1
             I = res[i]; i += 1
@@ -1011,7 +1050,7 @@ class SASExposure(ArithmeticBase):
                                                      dphi=width, symmetric_sector=symmetric_slice,
                                                      returnmask=returnmask,
                                                      doslice=True,
-                                                     errorpropagation=errorpropagation)
+                                                     errorpropagation=errorpropagation, autoqrange_linear=autoqrange_linear)
             i = 0
             p = res[i]; i += 1
             I = res[i]; i += 1
@@ -1097,21 +1136,21 @@ class SASExposure(ArithmeticBase):
 
     def imshow(self, **kwargs):
         """Create a two-dimensional plot of the scattering pattern
-        
+
         The behaviour can be fine-tuned by the following keyword arguments:
-        
+
         crosshair (True): If a beam-centre cross-hair is to be drawn.
         mask (True): If the mask is to be drawn.
-        mask_alpha (0.7): The opacity of the mask (1 is fully opaque, 0 is fully 
+        mask_alpha (0.7): The opacity of the mask (1 is fully opaque, 0 is fully
             transparent)
         pixel (True): If the axes are to be represented in pixel scale.
         colorbar (True): If the color-bar is to be drawn.
-        colorbar_destination (None): a matplotlib.Axes2D instance to put the 
+        colorbar_destination (None): a matplotlib.Axes2D instance to put the
             colorbar in.
         destination (None): a matplotlib.Axes2D instance to plot the matrix to.
         """
-        
-        
+
+
 
     def plot2d(self, **kwargs):
         """Plot the matrix (imshow)
@@ -1302,7 +1341,7 @@ class SASExposure(ArithmeticBase):
         ymin = 4 * np.pi * np.sin(0.5 * np.arctan((0 - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) / self.header['WavelengthCalibrated']
         ymax = 4 * np.pi * np.sin(0.5 * np.arctan((self.shape[0] - 1 - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) / self.header['WavelengthCalibrated']
         return (xmin, xmax, ymin, ymax)
-    
+
 ###  ------------------------ Beam center finding -----------------------------
 
     def update_beampos(self, bc, source=None):
@@ -1371,7 +1410,7 @@ class SASExposure(ArithmeticBase):
         if update:
             self.update_beampos(bc, source='slices')
         return bc
-    
+
     def find_beam_gravity(self, update=True, callback=None):
         """Find the beam position by finding the center of gravity in each row
         and column.
@@ -1456,7 +1495,7 @@ class SASExposure(ArithmeticBase):
 
     def find_beam_Guinier(self, pixmin, pixmax, extent=10,
                                 update=True, callback=None):
-        """Find the beam position by maximizing of a radius of gyration in the 
+        """Find the beam position by maximizing of a radius of gyration in the
         radial scattering curve (i.e. minimizing the FWHM of a Gaussian centered
         at the origin).
 
@@ -1505,7 +1544,7 @@ class SASExposure(ArithmeticBase):
         """The distance of each pixel from the beam center in length units (mm)."""
         self.check_for_q()
         col, row = np.meshgrid(np.arange(self.shape[1]), np.arange(self.shape[0]))
-        return np.sqrt(((col - self.header['BeamPosY']) * self.header['YPixel']) ** 2 + 
+        return np.sqrt(((col - self.header['BeamPosY']) * self.header['YPixel']) ** 2 +
                        ((row - self.header['BeamPosX']) * self.header['XPixel']) ** 2)
     @property
     def q(self):
@@ -1520,11 +1559,11 @@ class SASExposure(ArithmeticBase):
     def tth(self):
         """Two-theta matrix"""
         return np.arctan(self.D / self.header['DistCalibrated'])
-        
+
     ### ------------------------ Simple arithmetics ---------------------------
 
     def __str__(self):
         return str(self.header)
-    
+
     def __unicode__(self):
         return unicode(self.header)
