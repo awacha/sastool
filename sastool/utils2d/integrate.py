@@ -4,7 +4,7 @@ import numpy as np
 
 def radintpix(data, dataerr, bcx, bcy, mask=None, pix=None, returnavgpix=False,
               phi0=0, dphi=0, returnmask=False, symmetric_sector=False,
-              doslice=False, errorpropagation=2):
+              doslice=False, errorpropagation=2, autoqrange_linear=True):
     """Radial integration (averaging) on the detector plane
 
     Inputs:
@@ -23,6 +23,8 @@ def radintpix(data, dataerr, bcx, bcy, mask=None, pix=None, returnavgpix=False,
         symmetric_sector: the sector defined by phi0+pi is also to be used for
             integration.
         doslice: if slicing is to be done instead of sector averaging.
+        autoqrange_linear: if the automatically determined q-range is to be
+            linspace-d. Otherwise log10 spacing will be applied.
 
     Outputs: pix, Intensity, [Error], Area, [mask]
         Error is only returned if dataerr is not None
@@ -38,7 +40,7 @@ def radintpix(data, dataerr, bcx, bcy, mask=None, pix=None, returnavgpix=False,
         mask = mask.astype(np.uint8)
     return radint(data, dataerr, -1, -1, -1,
                   1.0 * bcx, 1.0 * bcy, mask, pix, returnavgpix,
-                  phi0, dphi, returnmask, symmetric_sector, doslice, False, errorpropagation)
+                  phi0, dphi, returnmask, symmetric_sector, doslice, False, errorpropagation, autoqrange_linear)
 
 
 def azimintpix(data, dataerr, bcx, bcy, mask=None, Ntheta=100, pixmin=0,
