@@ -2,8 +2,6 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/../SAXSCtrl/.idea/SAXSCtrl.iml" filepath="$PROJECT_DIR$/../SAXSCtrl/.idea/SAXSCtrl.iml" />
-      <module fileurl="file://$PROJECT_DIR$/../sasgui/.idea/sasgui.iml" filepath="$PROJECT_DIR$/../sasgui/.idea/sasgui.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/sastool.iml" filepath="$PROJECT_DIR$/.idea/sastool.iml" />
     </modules>
   </component>

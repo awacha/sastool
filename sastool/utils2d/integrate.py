@@ -1,5 +1,7 @@
 from _integrate import radint, azimint, bin2D, autoqscale, calculateDmatrix, \
-polartransform, twodimfromonedim, radint_fullq, radint_nsector, groupsum
+polartransform, twodimfromonedim, radint_fullq, radint_nsector, groupsum, radint_errorprop, \
+radint_fullq_errorprop, autoabscissa
+
 import numpy as np
 
 def radintpix(data, dataerr, bcx, bcy, mask=None, pix=None, returnavgpix=False,

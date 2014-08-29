@@ -345,8 +345,8 @@ class SASHeader(dict):
             val = 0
         elif key == 'Title':
             val = '<untitled>'
-        elif key.endswith('Calibrated'):
-            val = self[key[:-len('Calibrated')]]
+        elif 'Calibrated' in key:
+            val = self[key.replace('Calibrated','')]
         # elif key in ['Dist', 'Energy', 'BeamPosX', 'BeamPosY', 'PixelSize']:
         #    val = np.NAN
         elif key in ['XPixel', 'YPixel']:

@@ -123,8 +123,8 @@ def readcbf(name, load_header=False, load_data=True):
                 header['CBF_Date'] = dateutil.parser.parse(line)
                 header['Date'] = header['CBF_Date']
                 continue
-            except ValueError:
-                # eat exception.
+            except (ValueError,TypeError):
+                # eat exception: if we cannot parse this line as a date, try another format.
                 pass
             treated = False
             for sep in (':', '='):

@@ -277,11 +277,13 @@ class GeneralCurve(ArithmeticBase):
                 if (((self.dx ** 2 + other.dx ** 2) ** 0.5 - np.absolute(self.x - other.x)) <= 0).all():
                     return other
                 else:
-                    raise ValueError('Abscissae are not the same within error!')
+                    #raise ValueError('Abscissae are not the same within error!')
+                    return other
             elif (np.absolute(other.x - self.x) <= np.absolute(other.x + self.x) * 0.5 * max(self._xtolpcnt, other._xtolpcnt)).all():
                 return other
             else:
-                raise ValueError('Incompatible abscissae!')
+                #raise ValueError('Incompatible abscissae!')
+                return other
         else:
             raise NotImplementedError
     def __iadd__(self, other):

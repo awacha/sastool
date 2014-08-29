@@ -1015,3 +1015,651 @@ def groupsum(np.ndarray[np.long_t, ndim=1] groupidx not None, np.ndarray[np.doub
     for i from 0<=i<tosum.shape[0]:
         outputdata[:,groupidx[i]]+=tosum[i,:]
     return outputdata
+
+
+def autoabscissa(double wavelength, double distance, double xres, double yres,
+                 double bcxa, double bcya,
+                 np.ndarray[np.uint8_t, ndim=2] mask not None, bint linspacing=True, int abscissa_kind=0):
+    """Determine q-scale automatically
+
+    Inputs:
+        wavelength: wavelength in Angstroem
+        distance: sample-detector distance in mm
+        xres, yres: pixel size in mm
+        bcxa, bcya: beam position (starting from 0)
+        mask: mask matrix (1 means masked, 0 unmasked).
+        linspacing: if linear spacing is expected. Otherwise log10 spacing.
+        abscissa_kind: an integer number determining the abscissa values of
+            the result. Can be:
+            0: q (4*pi*sin(theta)/lambda)
+            1: 2*theta
+            2: detector radius in length units (mm, if the pixel size is in mm)
+            3: pixels
+
+    Output: the q scale in a numpy vector. If either wavelength or distance or xres
+        or yres is nonpositive, pixel vector is returned, which is guaranteed to
+        be spaced by 1 pixels.
+    """
+    #determine the q-scale to be used automatically.
+    cdef double qmin
+    cdef double qmax
+    cdef Py_ssize_t ix,iy,M,N
+    cdef bint flagq
+
+    M=mask.shape[0]; N=mask.shape[1];
+    qmin=1e20; qmax=-10
+    for ix from 0<=ix<M:
+        for iy from 0<=iy<N:
+            if mask[ix,iy]:
+                continue
+            x=((ix-bcxa)*xres)
+            y=((iy-bcya)*yres)
+            if abscissa_kind==0:
+                q1=4*M_PI*sin(0.5*atan(sqrt(x*x+y*y)/distance))/wavelength
+            elif abscissa_kind==1:
+                q1=atan(sqrt(x*x+y*y)/distance)
+            elif abscissa_kind==2:
+                q1=(sqrt(x*x+y*y));
+            elif abscissa_kind==3:
+                q1=(sqrt((ix-bcxa)*(ix-bcxa)+(iy-bcya)*(iy-bcya)))
+            if (q1>qmax):
+                qmax=q1
+            if (q1<qmin):
+                qmin=q1
+    if linspacing:
+        return np.linspace(qmin,qmax,sqrt(M*M+N*N)/2)
+    else:
+        return np.logspace(np.log10(qmin),np.log10(qmax),sqrt(M*M+N*N)/2)
+
+
+def radint_errorprop(np.ndarray[np.double_t,ndim=2] data not None,
+                     np.ndarray[np.double_t,ndim=2] dataerr,
+                     double wavelength, double wavelengtherr,
+                     double distance, double distanceerr,
+                     double pixelsizex,
+                     double pixelsizey,
+                     double bcx, double bcxerr,
+                     double bcy, double bcyerr,
+                     np.ndarray[np.uint8_t, ndim=2] mask,
+                     np.ndarray[np.double_t, ndim=1] q=None,
+                     double phi0=0, double dphi=0,
+                     returnmask=False, bint symmetric_sector=False,
+                     bint doslice=False, bint returnpixel=False,
+                     int errorpropagation=2, int abscissa_errorpropagation=2,
+                     bint autoqrange_linear=True,
+                     int abscissa_kind=0):
+    """ Radial averaging of scattering images.
+
+    Inputs:
+        data: the intensity matrix
+        dataerr: the error (standard deviation) matrix (of the same size as
+            'data'). Or None to disregard it.
+        wavelength: the real photon/neutron wavelength (units of this
+            determine the units of q at the end).
+        wavelengtherror: absolute error of the wavelength.
+        distance: the distance from the sample to the detector.
+        distanceerror: absolute error of the distance from the sample to the
+            detector.
+        pixelsizex: the pixel size in the X direction. Units are the same
+            as the sample-to-detector distance.
+        pixelsizey: the pixel size in the Y direction
+        bcx: the coordinate of the beam center along the first axis (row
+            coordinates), starting from 0
+        bcxerr: error of the X beam center coordinate
+        bcy: the coordinate of the beam center along the second axis (column
+            coordiantes), starting from 0
+        bcyerr: error of the Y beam center coordinate
+        mask: the mask matrix (of the same size as 'data'). Nonzero is masked,
+            zero is not masked. None to omit.
+        q: the q (or pixel) points at which the integration is requested, in
+            1/Angstroem (or pixel) units. If None, optimum range will be chosen
+            automagically by taking the mask and the geometry into account.
+        phi0: starting angle if sector integration is requested. Expressed
+            in radians.
+        dphi: arc angle if sector integration is requested. Expressed in
+            radians. OR, if sliceorsector is True, this is the width of the
+            slice, in pixels. 0 implies simple radial integration without
+            constraints.
+        returnmask: True if the effective mask matrix is to be returned
+            (0 for pixels taken into account, 1 for all the others).
+        symmetric_sector: True if the mirror pair of the sector should be taken
+            into account as well for sector integration. Pixels falling into
+            sectors of width dphi, starting at phi0 and pi+phi0 will be used.
+        doslice: True if slice, False (default) if sector (or just radial)
+            integration is preferred. In the former case, dphi is interpreted as
+            the width of the slice in pixel units.
+        returnpixel: return pixel coordinates for integrated bins. False by
+            default.
+        errorpropagation: an integer number determining the type of error
+            propagation. Can be:
+            0: intensities falling to the same q-bin are assumed to be independent
+                measurements of the same quantity, thus they will be weighted by
+                the inverse squared of the error bars, and the error will be the
+                inverse of the sum of these inverses.
+            1: error bars are simply averaged, then divided by sqrt(# of pixels
+                belonging to the bin).
+            2: squared error propagation of independent quantities
+        abscissa_errorpropagation: an integer number determining the type of
+            error propagation, similar to `errorpropagation`.
+        autoqrange_linear: if the automatically determined q-range is to be
+            linspace-d. Otherwise log10 spacing will be applied.
+        abscissa_kind: an integer number determining the abscissa values of
+            the result. Can be:
+            0: q (4*pi*sin(theta)/lambda)
+            1: 2*theta
+            2: detector radius in length units (mm, if the pixel size is in mm)
+            3: pixels
+
+    X is the first index (row number), Y is the second index (column number).
+    Counting starts from zero.
+
+    Outputs: q, qerror, Intensity, [Error: if dataerr is not None], Area,
+        [effective mask: if returnmask is True], [pixel: if returnpixel is True]
+    """
+    cdef Py_ssize_t N,M
+    cdef np.ndarray[np.double_t, ndim=1] qout
+    cdef np.ndarray[np.double_t, ndim=1] dqout
+    cdef np.ndarray[np.double_t, ndim=1] Intensity
+    cdef np.ndarray[np.double_t, ndim=1] Error
+    cdef np.ndarray[np.double_t, ndim=1] Area
+    cdef Py_ssize_t ix,iy
+    cdef Py_ssize_t l
+    cdef double x,y,q1, dq1
+    cdef double * qmax
+    cdef double * Intensity_squared
+    cdef double * q2
+    cdef double rho
+    cdef double phi0a,dphia
+    cdef Py_ssize_t Numq
+    cdef np.ndarray[np.uint8_t,ndim=2] maskout
+    cdef double symmetric_sector_periodicity
+    cdef double sinphi0,cosphi0
+    cdef np.ndarray[np.double_t, ndim=1] pixelout
+    cdef bint flagmask, flagerror, flagq
+
+    #Process input data
+    #array shapes
+    M,N= radint_testarrays(data,dataerr,mask)
+    if (M<=0) or (N<=0):
+        raise ValueError('data, dataerr and mask should be of the same shape')
+    flagerror=(dataerr is not None);
+    flagmask=(mask is not None);
+    #if any of wavelength, distance, res is nonpositive, pixel-based integration.
+
+    phi0a=phi0; dphia=dphi;
+    # the equation of the line of the slice is x*sin(phi0)-y*cos(phi0)==0.
+    # this is the normalized equation, ie. sin(phi0)**2+(-cos(phi0))**2=1,
+    # therefore the signed distance of the point x,y from this line is
+    # simply x*sin(phi0)-y*cos(phi0). We will use this to determine if a
+    # point falls into this slice or not.
+    sinphi0=sin(phi0a); cosphi0=cos(phi0a);
+    if symmetric_sector:
+        symmetric_sector_periodicity=1
+    else:
+        symmetric_sector_periodicity=2
+
+    if returnmask:
+        maskout=np.ones((data.shape[0],data.shape[1]),dtype=np.uint8)
+    # if the q-scale was not supplied, create one.
+    if q is None:
+        if not flagmask:
+            mask=np.zeros((data.shape[0],data.shape[1]),dtype=np.uint8)
+        q=autoabscissa(wavelength, distance, pixelsizex, pixelsizey, bcx, bcy, mask, autoqrange_linear, abscissa_kind);
+        if not flagmask:
+            mask=None
+    Numq=len(q)
+    # initialize the output vectors
+    Intensity=np.zeros(Numq,dtype=np.double)
+    Error=np.zeros(Numq,dtype=np.double)
+    Area=np.zeros(Numq,dtype=np.double)
+    qout=np.zeros(Numq,dtype=np.double)
+    dqout=np.zeros(Numq,dtype=np.double)
+    pixelout=np.zeros(Numq,dtype=np.double)
+    # set the upper bounds of the q-bins in qmax
+    qmax=<double *>malloc(Numq*sizeof(double))
+    Intensity_squared=<double *>malloc(Numq*sizeof(double))
+    q2=<double *>malloc(Numq*sizeof(double))
+    for l from 0<=l<Numq:
+        #initialize the weight and the qmax array.
+        if l==Numq-1:
+            qmax[l]=q[Numq-1]
+        else:
+            qmax[l]=0.5*(q[l]+q[l+1])
+        Intensity_squared[l]=q2[l]=0
+    #loop through pixels
+    for ix from 0<=ix<M: #rows
+        for iy from 0<=iy<N: #columns
+            if flagmask and (mask[ix,iy]): #if the pixel is masked, disregard it.
+                continue
+            if not isfinite(data[ix,iy]):
+                #disregard nonfinite (NaN or inf) pixels.
+                continue
+            if flagerror and not isfinite(dataerr[ix,iy]):
+                #disregard nonfinite (NaN or inf) pixels.
+                continue
+            if flagerror:
+                dataerr_current=dataerr[ix,iy]
+                if errorpropagation==0 and dataerr[ix,iy]<=0:
+                    dataerr_current=1
+            if abscissa_kind==3:
+                # relative coordinate of the pixel
+                x=(ix-bcx)
+                y=(iy-bcy)
+                xerr=sqrt(bcxerr*bcxerr+0.25)
+                yerr=sqrt(bcyerr*bcyerr+0.25)
+            else:
+                # coordinates of the pixel in length units (mm)
+                x=((ix-bcx)*pixelsizex)
+                y=((iy-bcy)*pixelsizey)
+                xerr=sqrt(bcxerr*bcxerr+0.25)*pixelsizex
+                yerr=sqrt(bcyerr*bcyerr+0.25)*pixelsizey
+            if dphia>0: #slice or sector averaging.
+                if doslice and fabs(sinphi0*(ix-bcx)-cosphi0*(iy-bcy))>dphia:
+                    continue
+                if (not doslice) and fmod(atan2(y,x)-phi0a+M_PI*10,symmetric_sector_periodicity*M_PI)>dphia:
+                    continue
+            if abscissa_kind==0: #q
+                rho=sqrt(x*x+y*y)/distance
+                q1=4*M_PI*sin(0.5*atan(rho))/wavelength
+                # ixerr=iyerr=0.5, because the uncertainty is half a pixel.
+                rhoerr=sqrt((xerr*xerr*x*x+yerr*yerr*y*y)/(distance*distance*(x*x+y*y))+distanceerr*distanceerr*(x*x+y*y)/(distance**4))
+                dq1=2*M_PI/wavelength*sqrt((rhoerr**2*cos(0.5*atan(rho))**2)/(rho**2+1)**2+4*wavelengtherr**2*sin(0.5*atan(rho))**2/wavelength**2)
+            elif abscissa_kind==1: #2theta
+                rho=sqrt(x*x+y*y)/distance
+                q1=atan(rho)
+                rhoerr=sqrt((xerr*xerr*x*x+yerr*yerr*y*y)/(distance*distance*(x*x+y*y))+distanceerr*distanceerr*(x*x+y*y)/(distance**4))
+                dq1=1/(1+rho**2)*rhoerr
+            elif (abscissa_kind==2) or (abscissa_kind==3): #detector radius or pixel
+                q1=sqrt(x*x+y*y)
+                dq1=sqrt((x*x*xerr*xerr+y*y*yerr*yerr)/(x*x+y*y))
+            if q1<q[0]: #q underflow
+                continue
+            if q1>q[Numq-1]: #q overflow
+                continue
+            for l from 0<=l<Numq: # Find the q-bin
+                if (q1>qmax[l]):
+                    #not there yet
+                    continue
+                #we reach this point only if q1 is in the l-th bin. Calculate
+                # the contributions of this pixel to the weighted average.
+                if flagerror:
+                    if errorpropagation==3:
+                        Error[l]+=dataerr_current*dataerr_current
+                        Intensity[l]+=data[ix,iy]
+                        Intensity_squared[l]+=data[ix,iy]*data[ix,iy]
+                    elif errorpropagation==2:
+                        Error[l]+=dataerr_current*dataerr_current
+                        Intensity[l]+=data[ix,iy]
+                    elif errorpropagation==1:
+                        Error[l]+=dataerr_current
+                        Intensity[l]+=data[ix,iy]
+                    else:
+                        Error[l]+=1/(dataerr_current*dataerr_current)
+                        Intensity[l]+=data[ix,iy]/(dataerr_current*dataerr_current)
+                if abscissa_errorpropagation==3:
+                    dqout[l]+=dq1*dq1
+                    qout[l]+=q1
+                    q2[l]+=q1*q1
+                elif abscissa_errorpropagation==2:
+                    dqout[l]+=dq1*dq1
+                    qout[l]+=q1
+                elif abscissa_errorpropagation==1:
+                    dqout[l]+=dq1
+                    qout[l]+=q1
+                else:
+                    dqout[l]+=1/(dq1*dq1)
+                    qout[l]+=q1/(dq1*dq1)
+                Area[l]+=1
+                if returnmask:
+                    maskout[ix,iy]=0
+                if returnpixel:
+                    pixelout[l]+=sqrt((ix-bcx)*(ix-bcx)+(iy-bcy)*(iy-bcy))
+                break #avoid counting this pixel into higher q-bins.
+    #normalize the results
+    for l from 0<=l<Numq:
+        if (Area[l]>0):
+            if abscissa_errorpropagation==3:
+                if Area[l]>1:
+                    rho=sqrt((q2[l]-qout[l]*qout[l]/Area[l])/(Area[l]-1))/sqrt(Area[l])
+                else:
+                    rho=0
+                q1=sqrt(dqout[l])/Area[l]
+                if rho>q1:
+                    dqout[l]=rho
+                else:
+                    dqout[l]=q1
+                qout[l]/=Area[l]
+            elif abscissa_errorpropagation==2:
+                qout[l]/=Area[l]
+                dqout[l]=sqrt(dqout[l])/Area[l]
+            elif abscissa_errorpropagation==1:
+                qout[l]/=Area[l]
+                dqout[l]=dqout[l]/Area[l]
+            else:
+                qout[l]/=dqout[l]
+                dqout[l]=sqrt(1/dqout[l])
+            if flagerror:
+                if Error[l]==0:
+                    pass
+                elif errorpropagation==3:
+                    # we have two kinds of error: one from counting statistics, i.e. the empirical standard deviation
+                    # of the intensities, and one from the squared error propagation. Take the larger.
+
+                    # we re-use variables, rho will be the error from the counting statistics, q1 the one from error
+                    # propagation.
+                    if Area[l]>1:
+                        rho=sqrt((Intensity_squared[l]-Intensity[l]*Intensity[l]/Area[l])/(Area[l]-1))/sqrt(Area[l])
+                    else:
+                        rho=0
+                    q1=sqrt(Error[l])/Area[l]
+                    if rho>q1:
+                        Error[l]=rho
+                    else:
+                        Error[l]=q1
+                    Intensity[l]/=Area[l]
+                elif errorpropagation==2:
+                    Error[l]=sqrt(Error[l])/Area[l]
+                    Intensity[l]/=Area[l]
+                elif errorpropagation==1:
+                    Error[l]=Error[l]/Area[l]**2
+                    Intensity[l]/=Area[l]
+                else:
+                    Intensity[l]/=Error[l]
+                    Error[l]=sqrt(1/Error[l])
+            else:
+                Intensity[l]/=Area[l]
+
+            pixelout[l]/=Area[l]
+    #cleanup memory
+    free(qmax)
+    free(Intensity_squared)
+    free(q2)
+    #prepare return values
+    output=[qout,dqout,Intensity]
+    if flagerror:
+        output.append(Error)
+    output.append(Area)
+    if returnmask:
+        output.append(maskout)
+    if returnpixel:
+        output.append(pixelout)
+    return tuple(output)
+
+
+def radint_fullq_errorprop(np.ndarray[np.double_t,ndim=2] data not None,
+                           np.ndarray[np.double_t,ndim=2] dataerr,
+                           double wavelength, double wavelengtherr,
+                           double distance, double distanceerr,
+                           double pixelsizex,
+                           double pixelsizey,
+                           double bcx, double bcxerr,
+                           double bcy, double bcyerr,
+                           np.ndarray[np.uint8_t, ndim=2] mask,
+                           np.ndarray[np.double_t, ndim=1] q=None,
+                           returnmask=False, bint returnpixel=False,
+                           int errorpropagation=2, int abscissa_errorpropagation=2,
+                           bint autoqrange_linear=True,
+                           int abscissa_kind=0):
+    """ Radial averaging of scattering images, full azimuthal range
+
+    Inputs:
+        data: the intensity matrix
+        dataerr: the error (standard deviation) matrix (of the same size as
+            'data'). Or None to disregard it.
+        wavelength: the real photon/neutron wavelength (units of this
+            determine the units of q at the end).
+        wavelengtherror: absolute error of the wavelength.
+        distance: the distance from the sample to the detector.
+        distanceerror: absolute error of the distance from the sample to the
+            detector.
+        pixelsizex: the pixel size in the X direction. Units are the same
+            as the sample-to-detector distance.
+        pixelsizey: the pixel size in the Y direction
+        bcx: the coordinate of the beam center along the first axis (row
+            coordinates), starting from 0
+        bcxerr: error of the X beam center coordinate
+        bcy: the coordinate of the beam center along the second axis (column
+            coordiantes), starting from 0
+        bcyerr: error of the Y beam center coordinate
+        mask: the mask matrix (of the same size as 'data'). Nonzero is masked,
+            zero is not masked. None to omit.
+        q: the q (or pixel) points at which the integration is requested, in
+            1/Angstroem (or pixel) units. If None, optimum range will be chosen
+            automagically by taking the mask and the geometry into account.
+        returnmask: True if the effective mask matrix is to be returned
+            (0 for pixels taken into account, 1 for all the others).
+        returnpixel: return pixel coordinates for integrated bins. False by
+            default.
+        errorpropagation: an integer number determining the type of error
+            propagation. Can be:
+            0: intensities falling to the same q-bin are assumed to be independent
+                measurements of the same quantity, thus they will be weighted by
+                the inverse squared of the error bars, and the error will be the
+                inverse of the sum of these inverses.
+            1: error bars are simply averaged, then divided by sqrt(# of pixels
+                belonging to the bin).
+            2: squared error propagation of independent quantities
+        abscissa_errorpropagation: an integer number determining the type of
+            error propagation, similar to `errorpropagation`.
+        autoqrange_linear: if the automatically determined q-range is to be
+            linspace-d. Otherwise log10 spacing will be applied.
+        abscissa_kind: an integer number determining the abscissa values of
+            the result. Can be:
+            0: q (4*pi*sin(theta)/lambda)
+            1: 2*theta
+            2: detector radius in length units (mm, if the pixel size is in mm)
+            3: pixels
+
+    X is the first index (row number), Y is the second index (column number).
+    Counting starts from zero.
+
+    Outputs: q, qerror, Intensity, [Error: if dataerr is not None], Area,
+        [effective mask: if returnmask is True], [pixel: if returnpixel is True]
+    """
+    cdef Py_ssize_t N,M
+    cdef np.ndarray[np.double_t, ndim=1] qout
+    cdef np.ndarray[np.double_t, ndim=1] dqout
+    cdef np.ndarray[np.double_t, ndim=1] Intensity
+    cdef np.ndarray[np.double_t, ndim=1] Error
+    cdef np.ndarray[np.double_t, ndim=1] Area
+    cdef Py_ssize_t ix,iy
+    cdef Py_ssize_t l, maxlog
+    cdef double x,y,q1, dq1
+    cdef double * qmax
+    cdef double * Intensity_squared
+    cdef double * q2
+    cdef double rho
+    cdef Py_ssize_t Numq
+    cdef np.ndarray[np.uint8_t,ndim=2] maskout
+    cdef np.ndarray[np.double_t, ndim=1] pixelout
+    cdef bint flagmask, flagerror, flagq
+    #Process input data
+    #array shapes
+    M,N= radint_testarrays(data,dataerr,mask)
+    if (M<=0) or (N<=0):
+        raise ValueError('data, dataerr and mask should be of the same shape')
+    flagerror=(dataerr is not None);
+    flagmask=(mask is not None);
+    #if any of wavelength, distance, res is nonpositive, pixel-based integration.
+
+    if returnmask:
+        maskout=np.ones((data.shape[0],data.shape[1]),dtype=np.uint8)
+    # if the q-scale was not supplied, create one.
+    if q is None:
+        if not flagmask:
+            mask=np.zeros((data.shape[0],data.shape[1]),dtype=np.uint8)
+        q=autoabscissa(wavelength, distance, pixelsizex, pixelsizey, bcx, bcy, mask, autoqrange_linear, abscissa_kind);
+        if not flagmask:
+            mask=None
+    Numq=len(q)
+    # initialize the output vectors
+    Intensity=np.zeros(Numq,dtype=np.double)
+    Error=np.zeros(Numq,dtype=np.double)
+    Area=np.zeros(Numq,dtype=np.double)
+    qout=np.zeros(Numq,dtype=np.double)
+    dqout=np.zeros(Numq,dtype=np.double)
+    pixelout=np.zeros(Numq,dtype=np.double)
+    # set the upper bounds of the q-bins in qmax
+    qmax=<double *>malloc(Numq*sizeof(double))
+    Intensity_squared=<double *>malloc(Numq*sizeof(double))
+    q2=<double *>malloc(Numq*sizeof(double))
+    for l from 0<=l<Numq:
+        #initialize the weight and the qmax array.
+        if l==Numq-1:
+            qmax[l]=q[Numq-1]
+        else:
+            qmax[l]=0.5*(q[l]+q[l+1])
+        Intensity_squared[l]=q2[l]=0
+    #loop through pixels
+    for ix from 0<=ix<M: #rows
+        for iy from 0<=iy<N: #columns
+            if flagmask and (mask[ix,iy]): #if the pixel is masked, disregard it.
+                continue
+            if not isfinite(data[ix,iy]):
+                #disregard nonfinite (NaN or inf) pixels.
+                continue
+            if flagerror and not isfinite(dataerr[ix,iy]):
+                #disregard nonfinite (NaN or inf) pixels.
+                continue
+            if flagerror:
+                dataerr_current=dataerr[ix,iy]
+                if errorpropagation==0 and dataerr[ix,iy]<=0:
+                    dataerr_current=1
+            if abscissa_kind==3:
+                # relative coordinate of the pixel
+                x=(ix-bcx)
+                y=(iy-bcy)
+                xerr=sqrt(bcxerr*bcxerr+0.25)
+                yerr=sqrt(bcyerr*bcyerr+0.25)
+            else:
+                # coordinates of the pixel in length units (mm)
+                x=((ix-bcx)*pixelsizex)
+                y=((iy-bcy)*pixelsizey)
+                xerr=sqrt(bcxerr*bcxerr+0.25)*pixelsizex
+                yerr=sqrt(bcyerr*bcyerr+0.25)*pixelsizey
+            if abscissa_kind==0: #q
+                rho=sqrt(x*x+y*y)/distance
+                q1=4*M_PI*sin(0.5*atan(rho))/wavelength
+                # ixerr=iyerr=0.5, because the uncertainty is half a pixel.
+                rhoerr=sqrt((xerr*xerr*x*x+yerr*yerr*y*y)/(distance*distance*(x*x+y*y))+distanceerr*distanceerr*(x*x+y*y)/(distance**4))
+                dq1=2*M_PI/wavelength*sqrt((rhoerr**2*cos(0.5*atan(rho))**2)/(rho**2+1)**2+4*wavelengtherr**2*sin(0.5*atan(rho))**2/wavelength**2)
+            elif abscissa_kind==1: #2theta
+                rho=sqrt(x*x+y*y)/distance
+                q1=atan(rho)
+                rhoerr=sqrt((xerr*xerr*x*x+yerr*yerr*y*y)/(distance*distance*(x*x+y*y))+distanceerr*distanceerr*(x*x+y*y)/(distance**4))
+                dq1=1/(1+rho**2)*rhoerr
+            elif (abscissa_kind==2) or (abscissa_kind==3): #detector radius or pixel
+                q1=sqrt(x*x+y*y)
+                dq1=sqrt((x*x*xerr*xerr+y*y*yerr*yerr)/(x*x+y*y))
+            if q1<q[0]: #q underflow
+                continue
+            if q1>q[Numq-1]: #q overflow
+                continue
+            for l from 0<=l<Numq: # Find the q-bin
+                if (q1>qmax[l]):
+                    #not there yet
+                    continue
+                #we reach this point only if q1 is in the l-th bin. Calculate
+                # the contributions of this pixel to the weighted average.
+                if flagerror:
+                    if errorpropagation==3:
+                        Error[l]+=dataerr_current*dataerr_current
+                        Intensity[l]+=data[ix,iy]
+                        Intensity_squared[l]+=data[ix,iy]*data[ix,iy]
+                    elif errorpropagation==2:
+                        Error[l]+=dataerr_current*dataerr_current
+                        Intensity[l]+=data[ix,iy]
+                    elif errorpropagation==1:
+                        Error[l]+=dataerr_current
+                        Intensity[l]+=data[ix,iy]
+                    else:
+                        Error[l]+=1/(dataerr_current*dataerr_current)
+                        Intensity[l]+=data[ix,iy]/(dataerr_current*dataerr_current)
+                if abscissa_errorpropagation==3:
+                    dqout[l]+=dq1*dq1
+                    qout[l]+=q1
+                    q2[l]+=q1*q1
+                elif abscissa_errorpropagation==2:
+                    dqout[l]+=dq1*dq1
+                    qout[l]+=q1
+                elif abscissa_errorpropagation==1:
+                    dqout[l]+=dq1
+                    qout[l]+=q1
+                else:
+                    dqout[l]+=1/(dq1*dq1)
+                    qout[l]+=q1/(dq1*dq1)
+                Area[l]+=1
+                if returnmask:
+                    maskout[ix,iy]=0
+                if returnpixel:
+                    pixelout[l]+=sqrt((ix-bcx)*(ix-bcx)+(iy-bcy)*(iy-bcy))
+                break #avoid counting this pixel into higher q-bins.
+    #normalize the results
+    for l from 0<=l<Numq:
+        if (Area[l]>0):
+            if abscissa_errorpropagation==3:
+                if Area[l]>1:
+                    rho=sqrt((q2[l]-qout[l]*qout[l]/Area[l])/(Area[l]-1))/sqrt(Area[l])
+                else:
+                    rho=0
+                q1=sqrt(dqout[l])/Area[l]
+                if rho>q1:
+                    dqout[l]=rho
+                else:
+                    dqout[l]=q1
+                qout[l]/=Area[l]
+            elif abscissa_errorpropagation==2:
+                qout[l]/=Area[l]
+                dqout[l]=sqrt(dqout[l])/Area[l]
+            elif abscissa_errorpropagation==1:
+                qout[l]/=Area[l]
+                dqout[l]=dqout[l]/Area[l]
+            else:
+                qout[l]/=dqout[l]
+                dqout[l]=sqrt(1/dqout[l])
+            if flagerror:
+                if Error[l]==0:
+                    pass
+                elif errorpropagation==3:
+                    # we have two kinds of error: one from counting statistics, i.e. the empirical standard deviation
+                    # of the intensities, and one from the squared error propagation. Take the larger.
+
+                    # we re-use variables, rho will be the error from the counting statistics, q1 the one from error
+                    # propagation.
+                    if Area[l]>1:
+                        rho=sqrt((Intensity_squared[l]-Intensity[l]*Intensity[l]/Area[l])/(Area[l]-1))/sqrt(Area[l])
+                    else:
+                        rho=0
+                    q1=sqrt(Error[l])/Area[l]
+                    if rho>q1:
+                        Error[l]=rho
+                    else:
+                        Error[l]=q1
+                    Intensity[l]/=Area[l]
+                elif errorpropagation==2:
+                    Error[l]=sqrt(Error[l])/Area[l]
+                    Intensity[l]/=Area[l]
+                elif errorpropagation==1:
+                    Error[l]=Error[l]/Area[l]**2
+                    Intensity[l]/=Area[l]
+                else:
+                    Intensity[l]/=Error[l]
+                    Error[l]=sqrt(1/Error[l])
+            else:
+                Intensity[l]/=Area[l]
+
+            pixelout[l]/=Area[l]
+    #cleanup memory
+    free(qmax)
+    free(Intensity_squared)
+    free(q2)
+    #prepare return values
+    output=[qout,dqout,Intensity]
+    if flagerror:
+        output.append(Error)
+    output.append(Area)
+    if returnmask:
+        output.append(maskout)
+    if returnpixel:
+        output.append(pixelout)
+    return tuple(output)
