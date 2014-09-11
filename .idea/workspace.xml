@@ -2,45 +2,24 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="eb591b94-6bd1-4bdd-ad0b-4a3c7b55759c" name="Default" comment="">
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../SAXSCtrl/.idea/inspectionProfiles/Project_Default.xml" />
       <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../sasgui/.idea/inspectionProfiles/Project_Default.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../SAXSCtrl/.idea/SAXSCtrl.iml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../SAXSCtrl/.idea/encodings.xml" />
       <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../sasgui/.idea/encodings.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../SAXSCtrl/.idea/misc.xml" />
       <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../sasgui/.idea/misc.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../SAXSCtrl/.idea/modules.xml" />
       <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../sasgui/.idea/modules.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../SAXSCtrl/.idea/inspectionProfiles/profiles_settings.xml" />
       <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../sasgui/.idea/inspectionProfiles/profiles_settings.xml" />
       <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../sasgui/.idea/sasgui.iml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../SAXSCtrl/.idea/scopes/scope_settings.xml" />
       <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../sasgui/.idea/scopes/scope_settings.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../SAXSCtrl/.idea/vcs.xml" />
       <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../sasgui/.idea/vcs.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../SAXSCtrl/.idea/workspace.xml" />
       <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/../sasgui/.idea/workspace.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/sastool/utils2d/_integrate.pyx" afterPath="$PROJECT_DIR$/sastool/utils2d/_integrate.pyx" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/capilsizer.py" afterPath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/capilsizer.py" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/sastool/utils2d/corrections.py" afterPath="$PROJECT_DIR$/sastool/utils2d/corrections.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/hardware/credo.py" afterPath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/hardware/credo.py" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/sastool/classes/curve.py" afterPath="$PROJECT_DIR$/sastool/classes/curve.py" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/hardware/subsystems/datareduction.py" afterPath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/hardware/subsystems/datareduction.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/hardware/subsystems/exposure.py" afterPath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/hardware/subsystems/exposure.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/datareduction.py" afterPath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/datareduction.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/sastool/misc/easylsq.py" afterPath="$PROJECT_DIR$/sastool/misc/easylsq.py" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/sastool/classes/exposure.py" afterPath="$PROJECT_DIR$/sastool/classes/exposure.py" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/sastool/classes/header.py" afterPath="$PROJECT_DIR$/sastool/classes/header.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/sastool/utils2d/integrate.py" afterPath="$PROJECT_DIR$/sastool/utils2d/integrate.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/modules.xml" afterPath="$PROJECT_DIR$/.idea/modules.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/peakfinder.py" afterPath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/peakfinder.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/pinholecalculator.py" afterPath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/pinholecalculator.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/qcalibration.py" afterPath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/qcalibration.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/root.py" afterPath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/root.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/hardware/sample.py" afterPath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/hardware/sample.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/hardware/subsystems/samples.py" afterPath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/hardware/subsystems/samples.py" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/samplesetup.py" afterPath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/samplesetup.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/saxssequence.py" afterPath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/saxssequence.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/sastool/io/twodim.py" afterPath="$PROJECT_DIR$/sastool/io/twodim.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/widgets.py" afterPath="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/widgets.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../SAXSCtrl/.idea/workspace.xml" afterPath="$PROJECT_DIR$/../SAXSCtrl/.idea/workspace.xml" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
     </list>
     <ignored path="sastool.iws" />
@@ -64,31 +43,73 @@
   </component>
   <component name="FileEditorManager">
     <leaf>
-      <file leaf-file-name="_integrate.pyx" pinned="false" current="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/sastool/utils2d/_integrate.pyx">
+      <file leaf-file-name="curve.py" pinned="false" current="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/sastool/classes/curve.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.0" vertical-offset="22652" max-vertical-offset="25065">
-              <caret line="1557" column="0" selection-start-line="1557" selection-start-column="0" selection-end-line="1557" selection-end-column="0" />
+            <state vertical-scroll-proportion="0.0" vertical-offset="9133" max-vertical-offset="12390">
+              <caret line="659" column="33" selection-start-line="659" selection-start-column="33" selection-end-line="659" selection-end-column="33" />
               <folding />
             </state>
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="corrections.py" pinned="false" current="true" current-in-tab="true">
+      <file leaf-file-name="credo_processing_library.py" pinned="false" current="false" current-in-tab="false">
+        <entry file="file://$USER_HOME$/credo_data/current/processing/credo_processing_library.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state vertical-scroll-proportion="0.0" vertical-offset="3180" max-vertical-offset="5715">
+              <caret line="212" column="0" selection-start-line="212" selection-start-column="0" selection-end-line="212" selection-end-column="0" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="sasbasic.py" pinned="false" current="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/sastool/fitting/fitfunctions/sasbasic.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state vertical-scroll-proportion="0.0" vertical-offset="2655" max-vertical-offset="7080">
+              <caret line="249" column="0" selection-start-line="249" selection-start-column="0" selection-end-line="249" selection-end-column="0" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="errorvalue.py" pinned="false" current="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/sastool/misc/errorvalue.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="3960">
+              <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="easylsq.py" pinned="false" current="true" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/sastool/misc/easylsq.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state vertical-scroll-proportion="0.8088235" vertical-offset="1800" max-vertical-offset="6660">
+              <caret line="164" column="27" selection-start-line="164" selection-start-column="27" selection-end-line="164" selection-end-column="27" />
+              <folding>
+                <element signature="e#433#467#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="header.py" pinned="false" current="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/sastool/classes/header.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state vertical-scroll-proportion="0.0" vertical-offset="4995" max-vertical-offset="8700">
+              <caret line="333" column="17" selection-start-line="333" selection-start-column="17" selection-end-line="333" selection-end-column="17" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="corrections.py" pinned="false" current="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/sastool/utils2d/corrections.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.37350836" vertical-offset="1007" max-vertical-offset="2475">
-              <caret line="88" column="16" selection-start-line="88" selection-start-column="16" selection-end-line="88" selection-end-column="16" />
-              <folding />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="exposure.py" pinned="false" current="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/sastool/classes/exposure.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.0" vertical-offset="12990" max-vertical-offset="26490">
-              <caret line="866" column="111" selection-start-line="866" selection-start-column="111" selection-end-line="866" selection-end-column="111" />
+            <state vertical-scroll-proportion="0.0" vertical-offset="795" max-vertical-offset="2490">
+              <caret line="53" column="37" selection-start-line="53" selection-start-column="37" selection-end-line="53" selection-end-column="37" />
               <folding />
             </state>
           </provider>
@@ -97,8 +118,8 @@
       <file leaf-file-name="integrate.py" pinned="false" current="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/sastool/utils2d/integrate.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.0" vertical-offset="30" max-vertical-offset="1245">
-              <caret line="2" column="36" selection-start-line="2" selection-start-column="36" selection-end-line="2" selection-end-column="36" />
+            <state vertical-scroll-proportion="0.0" vertical-offset="690" max-vertical-offset="1245">
+              <caret line="46" column="0" selection-start-line="46" selection-start-column="0" selection-end-line="46" selection-end-column="0" />
               <folding />
             </state>
           </provider>
@@ -122,19 +143,21 @@
       <list>
         <option value="$PROJECT_DIR$/../SAXSCtrl/saxsctrl/widgets/root.py" />
         <option value="$PROJECT_DIR$/sastool/fitting/fitfunctions/sasspecial.py" />
-        <option value="$PROJECT_DIR$/sastool/classes/header.py" />
-        <option value="$PROJECT_DIR$/sastool/classes/curve.py" />
-        <option value="$PROJECT_DIR$/sastool/classes/exposure.py" />
         <option value="$PROJECT_DIR$/sastool/io/twodim.py" />
         <option value="$PROJECT_DIR$/sastool/utils2d/integrate.py" />
         <option value="$PROJECT_DIR$/sastool/utils2d/_integrate.pyx" />
+        <option value="$PROJECT_DIR$/sastool/classes/header.py" />
         <option value="$PROJECT_DIR$/sastool/utils2d/corrections.py" />
+        <option value="$PROJECT_DIR$/sastool/classes/exposure.py" />
+        <option value="$USER_HOME$/credo_data/current/processing/credo_processing_library.py" />
+        <option value="$PROJECT_DIR$/sastool/classes/curve.py" />
+        <option value="$PROJECT_DIR$/sastool/misc/easylsq.py" />
       </list>
     </option>
   </component>
   <component name="ProjectFrameBounds">
-    <option name="x" value="25" />
-    <option name="y" value="26" />
+    <option name="x" value="26" />
+    <option name="y" value="25" />
     <option name="width" value="1399" />
     <option name="height" value="1000" />
   </component>
@@ -198,7 +221,6 @@
       <sortByType />
     </navigator>
     <panes>
-      <pane id="Scope" />
       <pane id="ProjectPane">
         <subPane>
           <PATH>
@@ -246,6 +268,24 @@
             </PATH_ELEMENT>
             <PATH_ELEMENT>
               <option name="myItemId" value="utils2d" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="sastool" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="sastool" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="sastool" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="misc" />
               <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
             </PATH_ELEMENT>
           </PATH>
@@ -327,10 +367,11 @@
           </PATH>
         </subPane>
       </pane>
+      <pane id="Scope" />
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/../sasgui" />
+    <property name="last_opened_file_path" value="$USER_HOME$/credo_data/current/processing/credo_processing_library.py" />
     <property name="options.lastSelected" value="Errors" />
     <property name="options.splitter.main.proportions" value="0.3" />
     <property name="options.splitter.details.proportions" value="0.2" />
@@ -483,8 +524,8 @@
     <servers />
   </component>
   <component name="ToolWindowManager">
-    <frame x="25" y="26" width="1399" height="1000" extended-state="0" />
-    <editor active="false" />
+    <frame x="26" y="25" width="1399" height="1000" extended-state="0" />
+    <editor active="true" />
     <layout>
       <window_info id="Changes" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" weight="0.25290698" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
@@ -525,11 +566,126 @@
     <breakpoint-manager />
   </component>
   <component name="editorHistoryManager">
+    <entry file="file://$PROJECT_DIR$/sastool/classes/exposure.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="26490">
+          <caret line="866" column="111" selection-start-line="866" selection-start-column="111" selection-end-line="866" selection-end-column="111" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/fitting/fitfunctions/sasbasic.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="2655" max-vertical-offset="7080">
+          <caret line="249" column="0" selection-start-line="249" selection-start-column="0" selection-end-line="249" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/misc/errorvalue.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="3960">
+          <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/misc/easylsq.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="2085" max-vertical-offset="5655">
+          <caret line="139" column="0" selection-start-line="139" selection-start-column="0" selection-end-line="139" selection-end-column="0" />
+          <folding>
+            <element signature="e#433#467#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/classes/header.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="8580">
+          <caret line="321" column="16" selection-start-line="321" selection-start-column="16" selection-end-line="321" selection-end-column="16" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/utils2d/integrate.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="1245">
+          <caret line="2" column="36" selection-start-line="2" selection-start-column="36" selection-end-line="2" selection-end-column="36" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/classes/exposure.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="26490">
+          <caret line="866" column="111" selection-start-line="866" selection-start-column="111" selection-end-line="866" selection-end-column="111" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/fitting/fitfunctions/sasbasic.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="2655" max-vertical-offset="7080">
+          <caret line="249" column="0" selection-start-line="249" selection-start-column="0" selection-end-line="249" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/misc/errorvalue.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="3960">
+          <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/misc/easylsq.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="2250" max-vertical-offset="5595">
+          <caret line="139" column="0" selection-start-line="139" selection-start-column="0" selection-end-line="139" selection-end-column="0" />
+          <folding>
+            <element signature="e#433#467#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/utils2d/integrate.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="30" max-vertical-offset="1245">
+          <caret line="2" column="36" selection-start-line="2" selection-start-column="36" selection-end-line="2" selection-end-column="36" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/classes/exposure.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="12990" max-vertical-offset="26490">
+          <caret line="866" column="111" selection-start-line="866" selection-start-column="111" selection-end-line="866" selection-end-column="111" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/fitting/fitfunctions/sasbasic.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="3195" max-vertical-offset="7080">
+          <caret line="249" column="0" selection-start-line="249" selection-start-column="0" selection-end-line="249" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/utils2d/integrate.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="30" max-vertical-offset="1245">
+          <caret line="2" column="36" selection-start-line="2" selection-start-column="36" selection-end-line="2" selection-end-column="36" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/sastool/utils2d/_integrate.pyx">
       <provider selected="true" editor-type-id="text-editor">
         <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="25065">
           <caret line="1557" column="0" selection-start-line="1557" selection-start-column="0" selection-end-line="1557" selection-end-column="0" />
-          <folding />
         </state>
       </provider>
     </entry>
@@ -537,7 +693,36 @@
       <provider selected="true" editor-type-id="text-editor">
         <state vertical-scroll-proportion="0.0" vertical-offset="1007" max-vertical-offset="2475">
           <caret line="88" column="16" selection-start-line="88" selection-start-column="16" selection-end-line="88" selection-end-column="16" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/classes/exposure.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="26490">
+          <caret line="866" column="111" selection-start-line="866" selection-start-column="111" selection-end-line="866" selection-end-column="111" />
           <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/utils2d/integrate.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="30" max-vertical-offset="1245">
+          <caret line="2" column="36" selection-start-line="2" selection-start-column="36" selection-end-line="2" selection-end-column="36" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/utils2d/_integrate.pyx">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="25065">
+          <caret line="1557" column="0" selection-start-line="1557" selection-start-column="0" selection-end-line="1557" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/utils2d/corrections.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="1007" max-vertical-offset="2475">
+          <caret line="88" column="16" selection-start-line="88" selection-start-column="16" selection-end-line="88" selection-end-column="16" />
         </state>
       </provider>
     </entry>
@@ -561,7 +746,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state vertical-scroll-proportion="0.0" vertical-offset="22577" max-vertical-offset="25080">
           <caret line="1531" column="26" selection-start-line="1531" selection-start-column="26" selection-end-line="1531" selection-end-column="26" />
-          <folding />
         </state>
       </provider>
     </entry>
@@ -599,7 +783,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state vertical-scroll-proportion="0.0" vertical-offset="20814" max-vertical-offset="25080">
           <caret line="1666" column="0" selection-start-line="1666" selection-start-column="0" selection-end-line="1666" selection-end-column="0" />
-          <folding />
         </state>
       </provider>
     </entry>
@@ -689,20 +872,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/sastool/classes/header.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.0" vertical-offset="4590" max-vertical-offset="8535">
-          <caret line="326" column="0" selection-start-line="326" selection-start-column="0" selection-end-line="326" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/sastool/classes/curve.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.0" vertical-offset="4425" max-vertical-offset="11835">
-          <caret line="295" column="39" selection-start-line="295" selection-start-column="39" selection-end-line="295" selection-end-column="39" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/sastool/io/twodim.py">
       <provider selected="true" editor-type-id="text-editor">
         <state vertical-scroll-proportion="0.0" vertical-offset="930" max-vertical-offset="7770">
@@ -710,10 +879,57 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/utils2d/_integrate.pyx">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="22652" max-vertical-offset="25065">
+          <caret line="1557" column="0" selection-start-line="1557" selection-start-column="0" selection-end-line="1557" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/fitting/fitfunctions/sasbasic.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="2655" max-vertical-offset="7080">
+          <caret line="249" column="0" selection-start-line="249" selection-start-column="0" selection-end-line="249" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/misc/errorvalue.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="3885">
+          <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/classes/header.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="4455" max-vertical-offset="8580">
+          <caret line="333" column="17" selection-start-line="333" selection-start-column="17" selection-end-line="333" selection-end-column="17" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sastool/utils2d/corrections.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="264" max-vertical-offset="2490">
+          <caret line="53" column="37" selection-start-line="53" selection-start-column="37" selection-end-line="53" selection-end-column="37" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/sastool/classes/exposure.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.0" vertical-offset="12429" max-vertical-offset="26265">
-          <caret line="866" column="111" selection-start-line="866" selection-start-column="111" selection-end-line="866" selection-end-column="111" />
+        <state vertical-scroll-proportion="0.0" vertical-offset="11970" max-vertical-offset="26265">
+          <caret line="616" column="0" selection-start-line="616" selection-start-column="0" selection-end-line="616" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/credo_data/current/processing/credo_processing_library.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="840" max-vertical-offset="5610">
+          <caret line="212" column="0" selection-start-line="212" selection-start-column="0" selection-end-line="212" selection-end-column="0" />
           <folding />
         </state>
       </provider>
@@ -721,24 +937,26 @@
     <entry file="file://$PROJECT_DIR$/sastool/utils2d/integrate.py">
       <provider selected="true" editor-type-id="text-editor">
         <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="1245">
-          <caret line="2" column="36" selection-start-line="2" selection-start-column="36" selection-end-line="2" selection-end-column="36" />
+          <caret line="46" column="0" selection-start-line="46" selection-start-column="0" selection-end-line="46" selection-end-column="0" />
           <folding />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/sastool/utils2d/_integrate.pyx">
+    <entry file="file://$PROJECT_DIR$/sastool/classes/curve.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.0" vertical-offset="22652" max-vertical-offset="25065">
-          <caret line="1557" column="0" selection-start-line="1557" selection-start-column="0" selection-end-line="1557" selection-end-column="0" />
+        <state vertical-scroll-proportion="0.0" vertical-offset="9133" max-vertical-offset="12390">
+          <caret line="659" column="33" selection-start-line="659" selection-start-column="33" selection-end-line="659" selection-end-column="33" />
           <folding />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/sastool/utils2d/corrections.py">
+    <entry file="file://$PROJECT_DIR$/sastool/misc/easylsq.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.37350836" vertical-offset="1007" max-vertical-offset="2475">
-          <caret line="88" column="16" selection-start-line="88" selection-start-column="16" selection-end-line="88" selection-end-column="16" />
-          <folding />
+        <state vertical-scroll-proportion="0.8088235" vertical-offset="1800" max-vertical-offset="6660">
+          <caret line="164" column="27" selection-start-line="164" selection-start-column="27" selection-end-line="164" selection-end-column="27" />
+          <folding>
+            <element signature="e#433#467#0" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>

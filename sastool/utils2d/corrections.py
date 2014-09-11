@@ -47,6 +47,7 @@ def solidangle_errorprop(twotheta, dtwotheta, sampletodetectordistance, dsamplet
         matrix should be multiplied by the first one. The second one is the propagated
         error of the first one.
     """
+    SAC=solidangle(twotheta, sampletodetectordistance)
     return (solidangle(twotheta, sampletodetectordistance),
             (sampletodetectordistance * (4 * dsampletodetectordistance ** 2 * np.cos(twotheta) ** 2 +
                                         9 * dtwotheta ** 2 * sampletodetectordistance ** 2 * np.sin(twotheta) ** 2) ** 0.5

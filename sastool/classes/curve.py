@@ -14,7 +14,7 @@ import operator
 
 from sastool.misc.arithmetic import ArithmeticBase
 from sastool.misc.errorvalue import ErrorValue
-from sastool.misc.easylsq import nonlinear_leastsquares, simultaneous_nonlinear_leastsquares
+from sastool.misc.easylsq import nonlinear_leastsquares, simultaneous_nonlinear_leastsquares, nonlinear_odr
 
 __all__ = ['GeneralCurve', 'SASCurve', 'SASPixelCurve', 'SASAzimuthalCurve']
 
@@ -551,10 +551,8 @@ class GeneralCurve(ArithmeticBase):
             print "   xmin   : ", xmin
             print "   xmax   : ", xmax
             print "   xsep   : ", xsep
-            print "   I_1    : ", I1
-            print "   I_2    : ", I2
             print "   Npoints: ", Npoints
-            print "   Factor : ", I1 / I2
+            print "   Factor : ", factor
         if return_factor:
             return retval, factor
         else:
@@ -613,6 +611,55 @@ class GeneralCurve(ArithmeticBase):
         for k in self_as_array.dtype.names:
             setattr(self, k, self_as_array[k])
         return self
+
+    def odrfit(self, function, parameters_init, xname='x', yname='y', dyname='dy', dxname='dx', **kwargs):
+        """Orthogonal distance regression to the dataset.
+
+        Inputs:
+        -------
+            `function`: a callable, corresponding to the function to be fitted.
+                Should have the following signature::
+
+                    >>> function(x, par1, par2, par3, ...)
+
+                where ``par1``, ``par2``, etc. are the values of the parameters
+                to be fitted.
+
+            `parameters_init`: a sequence (tuple or list) of the initial values
+                for the parameters to be fitted. Their ordering should be the
+                same as that of the arguments of `function`
+
+            other keyword arguments are given to `nonlinear_odr()`
+                without any modification.
+
+        Outputs:
+        --------
+            `par1_fit`, `par2_fit`, etc.: the best fitting values of the parameters.
+            `statdict`: a dictionary with various status data, such as `R2`, `DoF`,
+                `Chi2_reduced`, `Covariance`, `Correlation_coeffs` etc. For a full
+                list, see the help of `sastool.misc.easylsq.odr_fit()`
+            `func_value`: the value of the function at the best fitting parameters,
+                represented as an instance of the same class as this curve.
+
+        Notes:
+        ------
+            The fitting itself is done via sastool.misc.easylsq.nonlinear_odr()
+
+        """
+        obj = self.sanitize(fieldname=yname).sanitize(fieldname=xname)
+        if not hasattr(obj, dyname):
+            dy = None
+        else:
+            dy = getattr(obj, dyname)
+        if not hasattr(obj, dxname):
+            dx = None
+        else:
+            dx = getattr(obj, dxname)
+        ret = nonlinear_odr(getattr(obj, xname), getattr(obj, yname), dx, dy, function, parameters_init, **kwargs)
+        funcvalue = type(self)(getattr(obj, xname), ret[-1]['func_value'])
+        return ret + (funcvalue,)
+
+
     def fit(self, function, parameters_init, xname='x', yname='y', dyname='dy', **kwargs):
         """Non-linear least-squares fit to the dataset.
 

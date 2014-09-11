@@ -687,8 +687,8 @@ class SASExposure(ArithmeticBase):
             return NotImplemented
         if self.Error is None:
             self.Error = np.zeros_like(self.Intensity)
-        self.Intensity = self.Intensity * other.val
         self.Error = np.sqrt((self.Intensity * other.err) ** 2 + (self.Error * other.val) ** 2)
+        self.Intensity = self.Intensity * other.val
         return self
 
     def __pow__(self, other, modulo=None):

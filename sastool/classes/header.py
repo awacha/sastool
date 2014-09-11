@@ -316,7 +316,10 @@ class SASHeader(dict):
         elif key == 'ErrorFlags':
             val = ''
         elif key.endswith('Error'):
-            val = 0
+            if 'Calibrated' in key:
+                val=self[key.replace('Calibrated','')]
+            else:
+                val = 0
         elif key.startswith('Monitor'):
             val = 1
         elif key == '__particle__':
