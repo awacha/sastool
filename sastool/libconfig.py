@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 # define either 'nm' or 'A' (for Angstroem)
 #LENGTH_UNIT='nm'
 LENGTH_UNIT='A'
@@ -17,9 +18,9 @@ def HC():
 
 def qunit():
     if LENGTH_UNIT=='nm':
-        return u'nm$^{-1}$'
+        return 'nm$^{-1}$'
     elif LENGTH_UNIT=='A':
-        return u'\xc5$^{-1}$'
+        return '\xc5$^{-1}$'
     else:
         raise NotImplementedError('Invalid length unit: '+str(LENGTH_UNIT))
     
@@ -27,6 +28,7 @@ def dunit():
     if LENGTH_UNIT=='nm':
         return 'nm'
     elif LENGTH_UNIT=='A':
-        return u'\xc5'
+        return '\xc5'
     else:
         raise NotImplementedError('Invalid length unit: '+str(LENGTH_UNIT))
+        
