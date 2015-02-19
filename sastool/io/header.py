@@ -159,7 +159,13 @@ def readB1logfile(filename):
             reader = lambda x: x.decode('utf-8')
         else:
             reader = ld[3]
-        vals = reader(l.split(':', 1)[1].strip())
+        try:
+            vals = reader(l.split(':', 1)[1].strip())
+        except ValueError:
+            if l.split(':',1)[1].strip().lower()=='none':
+                vals=None
+            else:
+                raise
         if isinstance(ld[1], tuple):
             # more than one field names. The reader function should return a 
             # tuple here, a value for each field.

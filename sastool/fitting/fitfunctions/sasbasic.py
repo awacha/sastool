@@ -229,7 +229,7 @@ def LogNormSpheres(q, A, mu, sigma, N=1000):
     I = (Fsphere_outer(q, R) ** 2 * np.outer(np.ones_like(q), P))
     return A * I.sum(1) / P.sum()
 
-def GaussSpheres(q, A, R0, sigma, N=1000):
+def GaussSpheres(q, A, R0, sigma, N=1000, weighting='intensity'):
     """Scattering of a population of non-correlated spheres (radii from a gaussian distribution)
 
     Inputs:
@@ -238,6 +238,7 @@ def GaussSpheres(q, A, R0, sigma, N=1000):
         ``A``: scaling factor
         ``R0``: expectation of ``R``
         ``sigma``: hwhm of ``R``
+        ``weighting``: 'intensity' (default), 'volume' or 'number'
 
     Non-fittable inputs:
     --------------------
@@ -255,8 +256,16 @@ def GaussSpheres(q, A, R0, sigma, N=1000):
     P = 1 / np.sqrt(2 * np.pi * sigma ** 2) * np.exp(-(R - R0) ** 2 / (2 * sigma ** 2))
     def Fsphere_outer(q, R):
         qR = np.outer(q, R)
-        q1 = np.outer(q, np.ones_like(R))
-        return 4 * np.pi / q1 ** 3 * (np.sin(qR) - qR * np.cos(qR))
+        return 3 / qR ** 3 * (np.sin(qR) - qR * np.cos(qR))
+    V=R**3*4*np.pi/3.
+    if weighting=='intensity':
+        P=P*V*V
+    elif weighting=='volume':
+        P=P*V
+    elif weighting=='number':
+        pass
+    else:
+        raise ValueError('Invalid weighting: '+str(weighting))    
     I = (Fsphere_outer(q, R) ** 2 * np.outer(np.ones_like(q), P))
     return A * I.sum(1) / P.sum()
 
