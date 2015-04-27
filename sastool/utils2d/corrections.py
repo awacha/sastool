@@ -77,14 +77,14 @@ def angledependentabsorption(twotheta, transmission):
 
 def _calc_angledependentabsorption_error(twotheta, dtwotheta, transmission, dtransmission):
     # calculated using sympy
-    return ((transmission * np.cos(tth) - np.exp(np.log(transmission) / np.cos(tth)) *
-             np.log(transmission) * np.cos(tth) + np.exp(np.log(transmission) / np.cos(tth))
-             * np.log(transmission) - np.exp(np.log(transmission) / np.cos(tth)) * np.cos(tth)) ** 2
-             * (transmission ** 2 * dtth ** 2 * np.log(transmission) ** 2 * np.sin(tth) ** 2
-                 + dtransmission ** 2 * np.sin(tth) ** 4 - 3 * dtransmission ** 2 * np.sin(tth) ** 2
-                 - 2 * dtransmission ** 2 * np.cos(tth) ** 3 + 2 * dtransmission ** 2) /
-            (transmission - np.exp(np.log(transmission) / np.cos(tth))) ** 4) ** 0.5 * \
-            np.abs(np.cos(tth)) ** (-3.0)
+    return ((transmission * np.cos(twotheta) - np.exp(np.log(transmission) / np.cos(twotheta)) *
+             np.log(transmission) * np.cos(twotheta) + np.exp(np.log(transmission) / np.cos(twotheta))
+             * np.log(transmission) - np.exp(np.log(transmission) / np.cos(twotheta)) * np.cos(twotheta)) ** 2
+             * (transmission ** 2 * dtwotheta ** 2 * np.log(transmission) ** 2 * np.sin(twotheta) ** 2
+                 + dtransmission ** 2 * np.sin(twotheta) ** 4 - 3 * dtransmission ** 2 * np.sin(twotheta) ** 2
+                 - 2 * dtransmission ** 2 * np.cos(twotheta) ** 3 + 2 * dtransmission ** 2) /
+            (transmission - np.exp(np.log(transmission) / np.cos(twotheta))) ** 4) ** 0.5 * \
+            np.abs(np.cos(twotheta)) ** (-3.0)
 
 try:
     import sympy

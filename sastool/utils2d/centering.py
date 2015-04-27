@@ -3,6 +3,7 @@ from integrate import radintpix, azimintpix, radint_nsector
 import scipy.optimize
 from .. import misc
 
+
 def findbeam_gravity(data, mask):
     """Find beam center with the "gravity" method
 
@@ -52,6 +53,7 @@ def findbeam_gravity(data, mask):
     # return the mean values as the centers.
     return [xcent.mean(), ycent.mean()]
 
+
 def findbeam_slices(data, orig_initial, mask=None, maxiter=0, epsfcn=0.001,
                     dmin=0, dmax=np.inf, sector_width=np.pi / 9.0, extent=10, callback=None):
     """Find beam center with the "slices" method
@@ -79,31 +81,33 @@ def findbeam_slices(data, orig_initial, mask=None, maxiter=0, epsfcn=0.001,
     if mask is None:
         mask = np.ones(data.shape)
     data = data.astype(np.double)
+
     def targetfunc(orig, data, mask, orig_orig, callback):
         # integrate four sectors
-        I = [None] * 4;
+        I = [None] * 4
         p, Ints, A = radint_nsector(data, None, -1, -1, -1, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask=mask,
-                             phi0=np.pi / 4 - 0.5 * sector_width, dphi=sector_width,
-                             Nsector=4);
+                                    phi0=np.pi / 4 - 0.5 * sector_width, dphi=sector_width,
+                                    Nsector=4)
         minpix = max(max(p.min(0).tolist()), dmin)
         maxpix = min(min(p.max(0).tolist()), dmax)
         if (maxpix < minpix):
             raise ValueError('The four slices do not overlap! Please give a\
  better approximation for the origin or use another centering method.')
         for i in range(4):
-            I[i] = Ints[:, i][(p[:, i] >= minpix) & (p[:, i] <= maxpix)];
+            I[i] = Ints[:, i][(p[:, i] >= minpix) & (p[:, i] <= maxpix)]
         ret = ((I[0] - I[2]) ** 2 + (I[1] - I[3]) ** 2) / (maxpix - minpix)
         if callback is not None:
             callback()
         return ret
     orig = scipy.optimize.leastsq(targetfunc, np.array([extent, extent]),
                                   args=(data, 1 - mask.astype(np.uint8),
-                                         np.array(orig_initial) - extent, callback),
+                                        np.array(orig_initial) - extent, callback),
                                   maxfev=maxiter, epsfcn=0.01)
     return orig[0] + np.array(orig_initial) - extent
 
+
 def findbeam_azimuthal(data, orig_initial, mask=None, maxiter=100, Ntheta=50,
-                         dmin=0, dmax=np.inf, extent=10, callback=None):
+                       dmin=0, dmax=np.inf, extent=10, callback=None):
     """Find beam center using azimuthal integration
 
     Inputs:
@@ -129,10 +133,12 @@ def findbeam_azimuthal(data, orig_initial, mask=None, maxiter=100, Ntheta=50,
     if mask is None:
         mask = np.ones(data.shape)
     data = data.astype(np.double)
+
     def targetfunc(orig, data, mask, orig_orig, callback):
         def sinfun(p, x, y):
             return (y - np.sin(x + p[1]) * p[0] - p[2]) / np.sqrt(len(x))
-        t, I, a = azimintpix(data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask.astype('uint8'), Ntheta, dmin, dmax)
+        t, I, a = azimintpix(data, None, orig[
+                             0] + orig_orig[0], orig[1] + orig_orig[1], mask.astype('uint8'), Ntheta, dmin, dmax)
         if len(a) > (a > 0).sum():
             raise ValueError, 'findbeam_azimuthal: non-complete azimuthal average, please consider changing dmin, dmax and/or orig_initial!'
         p = ((I.max() - I.min()) / 2.0, t[I == I.max()][0], I.mean())
@@ -146,8 +152,9 @@ def findbeam_azimuthal(data, orig_initial, mask=None, maxiter=100, Ntheta=50,
                                       callback), maxiter=maxiter, disp=0)
     return orig1 + np.array(orig_initial) - extent
 
+
 def findbeam_azimuthal_fold(data, orig_initial, mask=None, maxiter=100,
-                               Ntheta=50, dmin=0, dmax=np.inf, extent=10, callback=None):
+                            Ntheta=50, dmin=0, dmax=np.inf, extent=10, callback=None):
     """Find beam center using azimuthal integration and folding
 
     Inputs:
@@ -178,14 +185,17 @@ def findbeam_azimuthal_fold(data, orig_initial, mask=None, maxiter=100,
     data = data.astype(np.double)
     # the function to minimize is the sum of squared difference of two halves of
     # the azimuthal integral.
+
     def targetfunc(orig, data, mask, orig_orig, callback):
-        I = azimintpix(data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask, Ntheta, dmin, dmax)[1]
+        I = azimintpix(data, None, orig[
+                       0] + orig_orig[0], orig[1] + orig_orig[1], mask, Ntheta, dmin, dmax)[1]
         if callback is not None:
             callback()
         return np.sum((I[:Ntheta / 2] - I[Ntheta / 2:]) ** 2) / Ntheta
     orig1 = scipy.optimize.fmin(targetfunc, np.array([extent, extent]),
                                 args=(data, 1 - mask, np.array(orig_initial) - extent, callback), maxiter=maxiter, disp=0)
     return orig1 + np.array(orig_initial) - extent
+
 
 def findbeam_semitransparent(data, pri, threshold=0.05):
     """Find beam with 2D weighting of semitransparent beamstop area
@@ -201,7 +211,7 @@ def findbeam_semitransparent(data, pri, threshold=0.05):
             max_intensity*threshold. max_intensity is the highest count rate
             in the current row or column, respectively. Set None to disable
             this feature.
-            
+
     Outputs: bcx,bcy
         the x and y coordinates of the primary beam
     """
@@ -209,10 +219,10 @@ def findbeam_semitransparent(data, pri, threshold=0.05):
     rowmax = np.ceil(max(pri[2:]))
     colmin = np.floor(min(pri[:2]))
     colmax = np.ceil(max(pri[:2]))
-    
+
     if threshold is not None:
         # beam area on the scattering image
-        B = data[rowmin:rowmax, colmin:colmax];
+        B = data[rowmin:rowmax, colmin:colmax]
         # print B.shape
         # row and column indices
         Ri = np.arange(rowmin, rowmax)
@@ -222,13 +232,19 @@ def findbeam_semitransparent(data, pri, threshold=0.05):
         Ravg = B.mean(1)  # average over column index, will be a concave curve
         Cavg = B.mean(0)  # average over row index, will be a concave curve
         # find the maxima im both directions and their positions
-        maxR = Ravg.max();    maxRpos = Ravg.argmax()
-        maxC = Cavg.max();    maxCpos = Cavg.argmax()
+        maxR = Ravg.max()
+        maxRpos = Ravg.argmax()
+        maxC = Cavg.max()
+        maxCpos = Cavg.argmax()
         # cut off pixels which are smaller than threshold*peak_height
-        Rmin = Ri[((Ravg - Ravg[0]) >= ((maxR - Ravg[0]) * threshold)) & (Ri < maxRpos)][0]
-        Rmax = Ri[((Ravg - Ravg[-1]) >= ((maxR - Ravg[-1]) * threshold)) & (Ri > maxRpos)][-1]
-        Cmin = Ci[((Cavg - Cavg[0]) >= ((maxC - Cavg[0]) * threshold)) & (Ci < maxCpos)][0]
-        Cmax = Ci[((Cavg - Cavg[-1]) >= ((maxC - Cavg[-1]) * threshold)) & (Ci > maxCpos)][-1]
+        Rmin = Ri[
+            ((Ravg - Ravg[0]) >= ((maxR - Ravg[0]) * threshold)) & (Ri < maxRpos)][0]
+        Rmax = Ri[
+            ((Ravg - Ravg[-1]) >= ((maxR - Ravg[-1]) * threshold)) & (Ri > maxRpos)][-1]
+        Cmin = Ci[
+            ((Cavg - Cavg[0]) >= ((maxC - Cavg[0]) * threshold)) & (Ci < maxCpos)][0]
+        Cmax = Ci[
+            ((Cavg - Cavg[-1]) >= ((maxC - Cavg[-1]) * threshold)) & (Ci > maxCpos)][-1]
     else:
         Rmin = rowmin
         Rmax = rowmax
@@ -241,8 +257,9 @@ def findbeam_semitransparent(data, pri, threshold=0.05):
     bcy = (d.sum(0) * y).sum() / d.sum()
     return bcx, bcy
 
+
 def findbeam_radialpeak(data, orig_initial, mask, rmin, rmax, maxiter=100,
-                          drive_by='amplitude', extent=10, callback=None):
+                        drive_by='amplitude', extent=10, callback=None):
     """Find the beam by minimizing the width of a peak in the radial average.
 
     Inputs:
@@ -268,7 +285,8 @@ def findbeam_radialpeak(data, orig_initial, mask, rmin, rmax, maxiter=100,
     pix = np.arange(rmin * 1.0, rmax * 1.0, 1)
     if drive_by.lower() == 'hwhm':
         def targetfunc(orig, data, mask, orig_orig, callback):
-            I = radintpix(data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask, pix)[1]
+            I = radintpix(
+                data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask, pix)[1]
             p = misc.findpeak(pix, I)[2]
             # print orig[0] + orig_orig[0], orig[1] + orig_orig[1], p
             if callback is not None:
@@ -276,7 +294,8 @@ def findbeam_radialpeak(data, orig_initial, mask, rmin, rmax, maxiter=100,
             return abs(p)
     elif drive_by.lower() == 'amplitude':
         def targetfunc(orig, data, mask, orig_orig, callback):
-            I = radintpix(data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask, pix)[1]
+            I = radintpix(
+                data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask, pix)[1]
             fp = misc.findpeak(pix, I)
             p = -(fp[6] + fp[4])
             # print orig[0] + orig_orig[0], orig[1] + orig_orig[1], p
@@ -286,9 +305,11 @@ def findbeam_radialpeak(data, orig_initial, mask, rmin, rmax, maxiter=100,
     else:
         raise ValueError('Invalid argument for drive_by %s' % drive_by)
     orig1 = scipy.optimize.fmin(targetfunc, np.array([extent, extent]),
-                              args=(data, mask, orig_initial - extent, callback),
-                              maxiter=maxiter, disp=0)
+                                args=(
+                                    data, mask, orig_initial - extent, callback),
+                                maxiter=maxiter, disp=0)
     return np.array(orig_initial) - extent + orig1
+
 
 def findbeam_Guinier(data, orig_initial, mask, rmin, rmax, maxiter=100,
                      extent=10, callback=None):
@@ -315,14 +336,61 @@ def findbeam_Guinier(data, orig_initial, mask, rmin, rmax, maxiter=100,
     data = data.astype(np.double)
     pix = np.arange(rmin * 1.0, rmax * 1.0, 1)
     pix2 = pix ** 2
+
     def targetfunc(orig, data, mask, orig_orig, callback):
-        I = radintpix(data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask, pix)[1]
+        I = radintpix(
+            data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask, pix)[1]
         p = np.polyfit(pix2, np.log(I), 1)[0]
         if callback is not None:
             callback()
         return p
     orig1 = scipy.optimize.fmin(targetfunc, np.array([extent, extent]),
-                              args=(data, mask, orig_initial - extent, callback),
-                              maxiter=maxiter, disp=0)
+                                args=(
+                                    data, mask, orig_initial - extent, callback),
+                                maxiter=maxiter, disp=0)
     return np.array(orig_initial) - extent + orig1
-    
+
+
+def findbeam_powerlaw(data, orig_initial, mask, rmin, rmax, maxiter=100,
+                      drive_by='R2', extent=10, callback=None):
+    """Find the beam by minimizing the width of a Gaussian centered at the
+    origin (i.e. maximizing the radius of gyration in a Guinier scattering).
+
+    Inputs:
+        data: scattering matrix
+        orig_initial: first guess for the origin
+        mask: mask matrix. Nonzero is non-masked.
+        rmin,rmax: distance from the origin (in pixels) of the fitting range
+        drive_by: 'R2' or 'Chi2'
+        extent: approximate distance of the current and the real origin in pixels.
+            Too high a value makes the fitting procedure unstable. Too low a value
+            does not permit to move away the current origin.
+        callback: callback function (expects no arguments)
+    Outputs:
+        the beam coordinates
+
+    Notes:
+        A power-law will be fitted
+    """
+    orig_initial = np.array(orig_initial)
+    mask = 1 - mask.astype(np.uint8)
+    data = data.astype(np.double)
+    pix = np.arange(rmin * 1.0, rmax * 1.0, 1)
+
+    def targetfunc(orig, data, mask, orig_orig, callback):
+        I, E = radintpix(
+            data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask, pix)[1:3]
+        p, dp, stat = misc.easylsq.nlsq_fit(
+            pix, I, E, lambda q, A, alpha: A * q ** alpha, [1.0, -3.0])
+        if callback is not None:
+            callback()
+        print orig, orig_orig, orig + orig_orig, stat[drive_by]
+        if drive_by == 'R2':
+            return 1 - stat['R2']
+        elif drive_by.startswith('Chi2'):
+            return stat[drive_by]
+    orig1 = scipy.optimize.fmin(targetfunc, np.array([extent, extent]),
+                                args=(
+                                    data, mask, orig_initial - extent, callback),
+                                maxiter=maxiter, disp=0)
+    return np.array(orig_initial) - extent + orig1

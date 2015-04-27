@@ -26,6 +26,7 @@ __all__ = ['SASExposure']
 
 
 class SASExposure(ArithmeticBase):
+
     """A class for holding SAS exposure data, i.e. intensity, error, metadata
     and mask.
 
@@ -92,22 +93,27 @@ class SASExposure(ArithmeticBase):
         elif mode.upper() == 'WRITE':
             checkmode = lambda a: a.is_write_supported()
         elif mode.upper() == 'BOTH':
-            checkmode = lambda a: (a.is_read_supported() and a.is_write_supported())
+            checkmode = lambda a: (
+                a.is_read_supported() and a.is_write_supported())
         else:
             raise ValueError('Invalid mode!')
         if 'experiment_type' in kwargs:
-            plugin = [p for p in cls._plugins if p.name == kwargs['experiment_type'] and checkmode(p)]
+            plugin = [p for p in cls._plugins if p.name ==
+                      kwargs['experiment_type'] and checkmode(p)]
         if not plugin:
-            plugin = [p for p in cls._plugins if p.check_if_applies(filename) and checkmode(p)]
+            plugin = [
+                p for p in cls._plugins if p.check_if_applies(filename) and checkmode(p)]
         if not plugin:
             raise ValueError('No plugin can handle ' + str(filename))
         return plugin[0]
 
     @classmethod
     def _autoguess_experiment_type(cls, fileformat_or_name):
-        plugin = [p for p in cls._plugins if p.check_if_applies(fileformat_or_name)]
+        plugin = [
+            p for p in cls._plugins if p.check_if_applies(fileformat_or_name)]
         if not plugin:
-            raise SASExposureException('Cannot find appropriate IO plugin for file ' + fileformat_or_name)
+            raise SASExposureException(
+                'Cannot find appropriate IO plugin for file ' + fileformat_or_name)
         return plugin[0]
 
     @staticmethod
@@ -126,7 +132,8 @@ class SASExposure(ArithmeticBase):
         if hasattr(self, '_was_init'):
             # an ugly hack to avoid duplicate __init__()-s, since whenever __new__()
             # returns an instance of this class, the __init__() method is executed
-            # with the _SAME_ arguments with which __new__() was originally called.
+            # with the _SAME_ arguments with which __new__() was originally
+            # called.
             return
         self._was_init = True
         ArithmeticBase.__init__(self)
@@ -157,7 +164,8 @@ class SASExposure(ArithmeticBase):
                 self.mask = args[0].mask
         elif len(args) == 1 and isinstance(args[0], dict):
             # create SASExposure from a dict
-            a = {'Intensity': None, 'Error': None, 'header': SASHeader(), 'mask': None}
+            a = {'Intensity': None, 'Error': None,
+                 'header': SASHeader(), 'mask': None}
             a.update(args[0])
             if isinstance(a['Intensity'], np.ndarray):
                 self.Intensity = a['Intensity'].copy()
@@ -264,14 +272,17 @@ class SASExposure(ArithmeticBase):
         cls._initialize_kwargs(kwargs)
         if not args:
             # no positional arguments are specified: create an empty SASExposure.
-            # we cannot call SASExposure(), since this would cause an infinite loop.
+            # we cannot call SASExposure(), since this would cause an infinite
+            # loop.
             return super(SASExposure, cls).__new__(cls)
         elif (isinstance(args[0], SASExposure) or isinstance(args[0], np.ndarray)
               or isinstance(args[0], dict)):
             # copy an existing SASExposure, make a new SASExposure from a numpy
             # array or from a dict.
-            # we cannot call SASExposure(*args,**kwargs), since it will cause an infinite loop
-            return super(SASExposure, cls).__new__(cls)  # will call __init__ implicitly with args and kwargs
+            # we cannot call SASExposure(*args,**kwargs), since it will cause
+            # an infinite loop
+            # will call __init__ implicitly with args and kwargs
+            return super(SASExposure, cls).__new__(cls)
         else:
             # Everything else is handled by IO plugins
             plugin = cls.get_IOplugin(args[0], 'READ')
@@ -287,7 +298,8 @@ class SASExposure(ArithmeticBase):
                 raise ValueError('Invalid number of positional arguments.')
             if isinstance(res, dict):
                 obj = super(SASExposure, cls).__new__(cls)
-                obj.__init__(res, **kwargs)  # now the _was_init hack comes handy.
+                # now the _was_init hack comes handy.
+                obj.__init__(res, **kwargs)
                 return obj
             else:
                 gen = cls._read_multi(res, **kwargs)
@@ -346,7 +358,8 @@ class SASExposure(ArithmeticBase):
 
         if missing:
             if isfatal:
-                raise SASExposureException('Fields missing from header: ' + str(missing))  # IGNORE:W0710
+                raise SASExposureException(
+                    'Fields missing from header: ' + str(missing))  # IGNORE:W0710
             else:
                 return missing
         return []
@@ -416,7 +429,8 @@ class SASExposure(ArithmeticBase):
             indices = np.array(mask) != 0
         else:
             indices = slice(None)
-        col, row = np.meshgrid(np.arange(self.shape[1]), np.arange(self.shape[0]))
+        col, row = np.meshgrid(
+            np.arange(self.shape[1]), np.arange(self.shape[0]))
         Imasked = self.Intensity[indices]
         return (row[indices] * Imasked).sum() / Imasked.sum(), (col[indices] * Imasked).sum() / Imasked.sum()
 
@@ -434,12 +448,12 @@ class SASExposure(ArithmeticBase):
             indices = np.array(mask) != 0
         else:
             indices = slice(None)
-        col, row = np.meshgrid(np.arange(self.shape[1]), np.arange(self.shape[0]))
+        col, row = np.meshgrid(
+            np.arange(self.shape[1]), np.arange(self.shape[0]))
         Imasked = self.Intensity[indices]
         wt = Imasked / Imasked.sum()
         return (((row[indices] ** 2 * wt).sum() - (row[indices] * wt).sum() ** 2) ** 0.5,
                 ((col[indices] ** 2 * wt).sum() - (col[indices] * wt).sum() ** 2) ** 0.5)
-
 
     def sum(self, masked=True, mask=None):
         """Calculate the sum of the pixels.
@@ -460,7 +474,8 @@ class SASExposure(ArithmeticBase):
         try:
             isum = self.Intensity[indices].sum()
             esum = self.Error[indices].sum()
-        except TypeError:  # NoneType object has no attribute __getitem__: if self.Error is None
+        # NoneType object has no attribute __getitem__: if self.Error is None
+        except TypeError:
             return isum
         except ValueError:  # this can occur if everything is masked
             return ErrorValue(0, 0)
@@ -480,7 +495,6 @@ class SASExposure(ArithmeticBase):
             return ErrorValue(m, E[I == m].max())
         except ValueError:  # this can occur if everything is masked
             return ErrorValue(np.nan, np.nan)
-
 
     def max(self, masked=True, mask=None):
         if mask is None and self.check_for_mask(False):
@@ -540,7 +554,6 @@ class SASExposure(ArithmeticBase):
         except ValueError:  # this can occur if everything is masked
             return ErrorValue(np.nan, np.nan)
 
-
     def trimpix(self, rowmin, rowmax, columnmin, columnmax):
         obj = self[rowmin:rowmax, columnmin:columnmax]
         if 'BeamPosX' in obj.header:
@@ -557,19 +570,18 @@ class SASExposure(ArithmeticBase):
     def pixeltoq(self, row, col):
         return (4 * np.pi * np.sin(
             0.5 * np.arctan((row - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) /
-                self.header['WavelengthCalibrated'],
-                4 * np.pi * np.sin(0.5 * np.arctan(
-                    (col - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) /
-                self.header['WavelengthCalibrated'])
-
+            self.header['WavelengthCalibrated'],
+            4 * np.pi * np.sin(0.5 * np.arctan(
+                (col - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) /
+            self.header['WavelengthCalibrated'])
 
     def qtopixel(self, qrow, qcol):
         return (self.header['DistCalibrated'] * np.tan(
             2 * np.arcsin(qrow * self.header['WavelengthCalibrated'] / (4 * np.pi))) / self.header['XPixel'] +
-                self.header['BeamPosX'],
-                self.header['DistCalibrated'] * np.tan(
-                    2 * np.arcsin(qcol * self.header['WavelengthCalibrated'] / (4 * np.pi))) / self.header['YPixel'] +
-                self.header['BeamPosY'])
+            self.header['BeamPosX'],
+            self.header['DistCalibrated'] * np.tan(
+            2 * np.arcsin(qcol * self.header['WavelengthCalibrated'] / (4 * np.pi))) / self.header['YPixel'] +
+            self.header['BeamPosY'])
 
     def qtopixel_radius(self, q):
         return (
@@ -579,9 +591,9 @@ class SASExposure(ArithmeticBase):
 
     def pixeltoq_radius(self, pix):
         return 4 * np.pi * np.sin(0.5 * np.arctan(pix * self.header['PixelSize'] / self.header['DistCalibrated'])) / \
-               self.header['WavelengthCalibrated']
+            self.header['WavelengthCalibrated']
 
-    # ## -------------- Loading routines (new_from_xyz) ------------------------
+    # -------------- Loading routines (new_from_xyz) ------------------------
     @classmethod
     def get_valid_experiment_types(cls, mode='read'):
         """Get the available plugins which support 'read', 'write' or 'both'.
@@ -595,7 +607,7 @@ class SASExposure(ArithmeticBase):
         else:
             raise ValueError('invalid mode')
 
-    # ## ------------------- Interface routines ------------------------------------
+    # ------------------- Interface routines ---------------------------------
     def set_mask(self, mask=None):
         if mask is None:
             mask1 = SASMask(np.ones(self.shape, dtype=np.uint8))
@@ -606,7 +618,8 @@ class SASExposure(ArithmeticBase):
                 'Invalid shape for mask: %s instead of %s.' % (str(mask1.shape), str(self.shape)))
         self.mask = mask1
         self.header['maskid'] = self.mask.maskid
-        self.header.add_history('Mask %s associated to exposure.' % self.mask.maskid)
+        self.header.add_history(
+            'Mask %s associated to exposure.' % self.mask.maskid)
 
     def get_matrix(self, name='Intensity', othernames=None):
         name = self.get_matrix_name(name, othernames)
@@ -628,7 +641,7 @@ class SASExposure(ArithmeticBase):
                 pass
         raise AttributeError('No matrix in this instance of' + str(type(self)))
 
-    # ## ------------------- simple arithmetics ------------------------------------
+    # ------------------- simple arithmetics ---------------------------------
 
     def _check_arithmetic_compatibility(self, other):
         if isinstance(other, numbers.Number):
@@ -687,7 +700,8 @@ class SASExposure(ArithmeticBase):
             return NotImplemented
         if self.Error is None:
             self.Error = np.zeros_like(self.Intensity)
-        self.Error = np.sqrt((self.Intensity * other.err) ** 2 + (self.Error * other.val) ** 2)
+        self.Error = np.sqrt(
+            (self.Intensity * other.err) ** 2 + (self.Error * other.val) ** 2)
         self.Intensity = self.Intensity * other.val
         return self
 
@@ -712,7 +726,7 @@ class SASExposure(ArithmeticBase):
         else:
             return self.Intensity.astype(dt)
 
-    # ## ------------------- Routines for radial integration -----------------------
+    # ------------------- Routines for radial integration --------------------
 
     def get_qrange(self, N=None, spacing='linear'):
         """Calculate the available q-range.
@@ -763,7 +777,8 @@ class SASExposure(ArithmeticBase):
         """
         self.check_for_mask()
         dp = self.Dpix[self.mask.mask != 0]
-        pixmin, pixmax, npix = dp.min(), dp.max(), np.absolute(np.ceil(dp.max() - dp.min()))
+        pixmin, pixmax, npix = dp.min(), dp.max(), np.absolute(
+            np.ceil(dp.max() - dp.min()))
         npix = int(npix)
         if N is None:
             N = npix
@@ -850,49 +865,64 @@ class SASExposure(ArithmeticBase):
                 qrange = None
                 autoqrange_linear = False
             else:
-                raise NotImplementedError('Value given for qrange (''%s'') not understood.' % qrange)
+                raise NotImplementedError(
+                    'Value given for qrange (''%s'') not understood.' % qrange)
         else:
             autoqrange_linear = True  # whatever
         if not pixel:
             res = utils2d.integrate.radint_fullq_errorprop(self.Intensity, self.Error,
-                                                           self.header['WavelengthCalibrated'],
-                                                           self.header['WavelengthCalibratedError'],
-                                                           self.header['DistCalibrated'],
-                                                           self.header['DistCalibratedError'],
-                                                           self.header['XPixel'], self.header['YPixel'],
-                                                           self.header['BeamPosX'], 0,
-                                                           self.header['BeamPosY'], 0,
-                                                           (self.mask.mask == 0).astype(np.uint8),
+                                                           self.header[
+                                                               'WavelengthCalibrated'],
+                                                           self.header[
+                                                               'WavelengthCalibratedError'],
+                                                           self.header[
+                                                               'DistCalibrated'],
+                                                           self.header[
+                                                               'DistCalibratedError'],
+                                                           self.header['XPixel'], self.header[
+                                                               'YPixel'],
+                                                           self.header[
+                                                               'BeamPosX'], 0,
+                                                           self.header[
+                                                               'BeamPosY'], 0,
+                                                           (self.mask.mask == 0).astype(
+                                                               np.uint8),
                                                            qrange, returnmask=returnmask, errorpropagation=errorpropagation,
                                                            autoqrange_linear=autoqrange_linear, abscissa_kind=0,
                                                            abscissa_errorpropagation=abscissa_errorpropagation)
-            q,dq,I,E,A=res[:5]
+            q, dq, I, E, A = res[:5]
             if returnmask:
-                retmask = res[5];
+                retmask = res[5]
             p = self.qtopixel_radius(q)
             ds = SASCurve(q, I, E, dq, pixel=p, area=A)
         else:
             res = utils2d.integrate.radint_fullq_errorprop(self.Intensity, self.Error, self.header['WavelengthCalibrated'],
-                                                           self.header['WavelengthCalibratedError'],
-                                                           self.header['DistCalibrated'],
-                                                           self.header['DistCalibratedError'],
-                                                           self.header['XPixel'], self.header['YPixel'],
-                                                           self.header['BeamPosX'], 0,
-                                                           self.header['BeamPosY'], 0,
-                                                           1 - self.mask.mask, qrange,
+                                                           self.header[
+                                                               'WavelengthCalibratedError'],
+                                                           self.header[
+                                                               'DistCalibrated'],
+                                                           self.header[
+                                                               'DistCalibratedError'],
+                                                           self.header['XPixel'], self.header[
+                                                               'YPixel'],
+                                                           self.header[
+                                                               'BeamPosX'], 0,
+                                                           self.header[
+                                                               'BeamPosY'], 0,
+                                                           1 -
+                                                           self.mask.mask, qrange,
                                                            returnmask=returnmask, errorpropagation=errorpropagation,
                                                            autoqrange_linear=autoqrange_linear, abscissa_kind=3,
                                                            abscissa_errorpropagation=abscissa_errorpropagation)
-            p,dp,I,E,A=res[:5]
+            p, dp, I, E, A = res[:5]
             if returnmask:
-                retmask = res[5];
+                retmask = res[5]
             ds = SASPixelCurve(p, I, E, dp, area=A)
         ds.header = SASHeader(self.header)
         if returnmask:
             return ds, retmask
         else:
             return ds
-
 
     def radial_average_old(self, qrange=None, pixel=False, matrix='Intensity',
                            errormatrix='Error', q_average=True, returnmask=False,
@@ -931,32 +961,36 @@ class SASExposure(ArithmeticBase):
                 qrange = None
                 autoqrange_linear = False
             else:
-                raise NotImplementedError('Value given for qrange (''%s'') not understood.' % qrange)
+                raise NotImplementedError(
+                    'Value given for qrange (''%s'') not understood.' % qrange)
         else:
             autoqrange_linear = True  # whatever
         if not pixel:
             res = utils2d.integrate.radint_fullq(mat, err, self.header['WavelengthCalibrated'],
                                                  self.header['DistCalibrated'],
-                                                 (self.header['XPixel'], self.header['YPixel']),
-                                                 self.header['BeamPosX'], self.header['BeamPosY'],
-                                                 (self.mask.mask == 0).astype(np.uint8),
+                                                 (self.header[
+                                                  'XPixel'], self.header['YPixel']),
+                                                 self.header['BeamPosX'], self.header[
+                                                     'BeamPosY'],
+                                                 (self.mask.mask == 0).astype(
+                                                     np.uint8),
                                                  qrange, returnavgq=q_average,
                                                  returnmask=returnmask, errorpropagation=errorpropagation,
                                                  autoqrange_linear=autoqrange_linear)
             i = 0
-            q = res[i];
+            q = res[i]
             i += 1
-            I = res[i];
+            I = res[i]
             i += 1
             if err is not None:
-                E = res[i];
+                E = res[i]
                 i += 1
             else:
                 E = np.zeros_like(q)
-            A = res[i];
+            A = res[i]
             i += 1
             if returnmask:
-                retmask = res[i];
+                retmask = res[i]
                 i += 1
             p = self.qtopixel_radius(q)
             ds = SASCurve(q, I, E, pixel=p, area=A)
@@ -969,19 +1003,19 @@ class SASExposure(ArithmeticBase):
                                               returnavgpix=q_average, errorpropagation=errorpropagation,
                                               autoqrange_linear=autoqrange_linear)
             i = 0
-            p = res[i];
+            p = res[i]
             i += 1
-            I = res[i];
+            I = res[i]
             i += 1
             if err is not None:
-                E = res[i];
+                E = res[i]
                 i += 1
             else:
                 E = np.zeros_like(p)
-            A = res[i];
+            A = res[i]
             i += 1
             if returnmask:
-                retmask = res[i];
+                retmask = res[i]
                 i += 1
             ds = SASPixelCurve(p, I, E, area=A)
         ds.header = SASHeader(self.header)
@@ -1033,14 +1067,16 @@ class SASExposure(ArithmeticBase):
                 qrange = None
                 autoqrange_linear = False
             else:
-                raise NotImplementedError('Value given for qrange (''%s'') not understood.' % qrange)
+                raise NotImplementedError(
+                    'Value given for qrange (''%s'') not understood.' % qrange)
         else:
             autoqrange_linear = True  # whatever
         if not pixel:
             res = utils2d.integrate.radint(mat, err,
                                            self.header['WavelengthCalibrated'],
                                            self.header['DistCalibrated'],
-                                           (self.header['XPixel'], self.header['YPixel']),
+                                           (self.header['XPixel'],
+                                            self.header['YPixel']),
                                            self.header['BeamPosX'],
                                            self.header['BeamPosY'],
                                            1 - self.mask.mask, qrange,
@@ -1050,21 +1086,21 @@ class SASExposure(ArithmeticBase):
                                            phi0=phi0, dphi=dphi, symmetric_sector=symmetric_sector,
                                            errorpropagation=errorpropagation, autoqrange_linear=autoqrange_linear)
             i = 0
-            q = res[i];
+            q = res[i]
             i += 1
-            I = res[i];
+            I = res[i]
             i += 1
             if err is not None:
-                E = res[i];
+                E = res[i]
                 i += 1
             else:
                 E = np.zeros_like(q)
-            A = res[i];
+            A = res[i]
             i += 1
             if returnmask:
-                retmask = res[i];
+                retmask = res[i]
                 i += 1
-            p = res[i];
+            p = res[i]
             i += 1
             ds = SASCurve(q, I, E, pixel=p, area=A)
         else:
@@ -1077,19 +1113,19 @@ class SASExposure(ArithmeticBase):
                                               dphi=dphi, symmetric_sector=symmetric_sector,
                                               errorpropagation=errorpropagation, autoqrange_linear=autoqrange_linear)
             i = 0
-            p = res[i];
+            p = res[i]
             i += 1
-            I = res[i];
+            I = res[i]
             i += 1
             if err is not None:
-                E = res[i];
+                E = res[i]
                 i += 1
             else:
                 E = np.zeros_like(p)
-            A = res[i];
+            A = res[i]
             i += 1
             if returnmask:
-                retmask = res[i];
+                retmask = res[i]
                 i += 1
             ds = SASPixelCurve(p, I, E, area=A)
         ds.header = SASHeader(self.header)
@@ -1141,14 +1177,16 @@ class SASExposure(ArithmeticBase):
                 qrange = None
                 autoqrange_linear = False
             else:
-                raise NotImplementedError('Value given for qrange (''%s'') not understood.' % qrange)
+                raise NotImplementedError(
+                    'Value given for qrange (''%s'') not understood.' % qrange)
         else:
             autoqrange_linear = True  # whatever
         if not pixel:
             res = utils2d.integrate.radint(mat, err,
                                            self.header['WavelengthCalibrated'],
                                            self.header['DistCalibrated'],
-                                           (self.header['XPixel'], self.header['YPixel']),
+                                           (self.header['XPixel'],
+                                            self.header['YPixel']),
                                            self.header['BeamPosX'],
                                            self.header['BeamPosY'],
                                            1 - self.mask.mask, qrange,
@@ -1160,21 +1198,21 @@ class SASExposure(ArithmeticBase):
                                            symmetric_sector=symmetric_slice,
                                            errorpropagation=errorpropagation, autoqrange_linear=autoqrange_linear)
             i = 0
-            q = res[i];
+            q = res[i]
             i += 1
-            I = res[i];
+            I = res[i]
             i += 1
             if err is not None:
-                E = res[i];
+                E = res[i]
                 i += 1
             else:
                 E = np.zeros_like(q)
-            A = res[i];
+            A = res[i]
             i += 1
             if returnmask:
-                retmask = res[i];
+                retmask = res[i]
                 i += 1
-            p = res[i];
+            p = res[i]
             i += 1
             ds = SASCurve(q, I, E, pixel=p, area=A)
         else:
@@ -1188,19 +1226,19 @@ class SASExposure(ArithmeticBase):
                                               doslice=True,
                                               errorpropagation=errorpropagation, autoqrange_linear=autoqrange_linear)
             i = 0
-            p = res[i];
+            p = res[i]
             i += 1
-            I = res[i];
+            I = res[i]
             i += 1
             if err is not None:
-                E = res[i];
+                E = res[i]
                 i += 1
             else:
                 E = np.zeros_like(p)
-            A = res[i];
+            A = res[i]
             i += 1
             if returnmask:
-                retmask = res[i];
+                retmask = res[i]
                 i += 1
             ds = SASPixelCurve(p, I, E, area=A)
         ds.header = SASHeader(self.header)
@@ -1208,7 +1246,6 @@ class SASExposure(ArithmeticBase):
             return ds, retmask
         else:
             return ds
-
 
     def azimuthal_average(self, qmin, qmax, Ntheta=100, pixel=False,
                           matrix='Intensity', errormatrix='Error', returnmask=False,
@@ -1238,12 +1275,15 @@ class SASExposure(ArithmeticBase):
             err = None
         if not pixel:
             res = utils2d.integrate.azimint(mat, err,
-                                            self.header['WavelengthCalibrated'],
+                                            self.header[
+                                                'WavelengthCalibrated'],
                                             self.header['DistCalibrated'],
-                                            (self.header['XPixel'], self.header['YPixel']),
+                                            (self.header[
+                                             'XPixel'], self.header['YPixel']),
                                             self.header['BeamPosX'],
                                             self.header['BeamPosY'],
-                                            self.mask.mask == 0, Ntheta,
+                                            (self.mask.mask == 0).astype(
+                                                np.uint8), Ntheta,
                                             returnmask=returnmask,
                                             qmin=qmin, qmax=qmax,
                                             errorpropagation=errorpropagation)
@@ -1256,19 +1296,19 @@ class SASExposure(ArithmeticBase):
                                                pixmin=qmin, pixmax=qmax,
                                                errorpropagation=errorpropagation)
         i = 0
-        theta = res[i];
+        theta = res[i]
         i += 1
-        I = res[i];
+        I = res[i]
         i += 1
         if err is not None:
-            E = res[i];
+            E = res[i]
             i += 1
         else:
             E = np.zeros_like(theta)
-        A = res[i];
+        A = res[i]
         i += 1
         if returnmask:
-            retmask = res[i];
+            retmask = res[i]
             i += 1
         ds = SASAzimuthalCurve(theta, I, E, area=A)
         ds.header = SASHeader(self.header)
@@ -1277,8 +1317,7 @@ class SASExposure(ArithmeticBase):
         else:
             return ds
 
-
-    # ## ---------------------- Plotting -------------------------------------------
+    # ---------------------- Plotting ----------------------------------------
 
     def imshow(self, **kwargs):
         """Create a two-dimensional plot of the scattering pattern
@@ -1295,7 +1334,6 @@ class SASExposure(ArithmeticBase):
             colorbar in.
         destination (None): a matplotlib.Axes2D instance to plot the matrix to.
         """
-
 
     def plot2d(self, **kwargs):
         """Plot the matrix (imshow)
@@ -1367,7 +1405,8 @@ class SASExposure(ArithmeticBase):
         return_matrix = kwargs_default[
             'return_matrix']  # save this as this will be removed when kwars_default is fed into imshow()
 
-        kwargs_for_imshow = dict([(k, kwargs_default[k]) for k in kwargs_default if k not in my_kwargs])
+        kwargs_for_imshow = dict(
+            [(k, kwargs_default[k]) for k in kwargs_default if k not in my_kwargs])
         if isinstance(kwargs_default['zscale'], basestring):
             if kwargs_default['zscale'].upper().startswith('LOG10'):
                 kwargs_default['zscale'] = np.log10
@@ -1380,13 +1419,15 @@ class SASExposure(ArithmeticBase):
             elif kwargs_default['zscale'].upper().startswith('SQRT'):
                 kwargs_default['zscale'] = np.sqrt
             else:
-                raise ValueError('Invalid value for zscale: %s' % kwargs_default['zscale'])
+                raise ValueError(
+                    'Invalid value for zscale: %s' % kwargs_default['zscale'])
         if kwargs_default['zscale'] is np.log10:
             kwargs_for_imshow['norm'] = matplotlib.colors.LogNorm()
             kwargs_default['zscale'] = lambda a: a * 1.0
         for v in ['vmin', 'vmax']:
             if v in kwargs_for_imshow:
-                kwargs_for_imshow[v] = kwargs_default['zscale'](float(kwargs_for_imshow[v]))
+                kwargs_for_imshow[v] = kwargs_default[
+                    'zscale'](float(kwargs_for_imshow[v]))
         if kwargs_default['matrix'] is not None:
             mat = self.get_matrix(kwargs_default['matrix']).copy()
             mat[mat < kwargs_default['minvalue']] = kwargs_default['minvalue']
@@ -1400,7 +1441,8 @@ class SASExposure(ArithmeticBase):
                 self.check_for_mask()
             except SASExposureException:
                 if kwargs_default['fallback']:
-                    warnings.warn('Drawing of mask was requested, but mask is not present!')
+                    warnings.warn(
+                        'Drawing of mask was requested, but mask is not present!')
                     kwargs_default['drawmask'] = False
         if kwargs_default['qrange_on_axis']:
             try:
@@ -1417,16 +1459,16 @@ class SASExposure(ArithmeticBase):
         if kwargs_default['qrange_on_axis']:
             xmin = 4 * np.pi * np.sin(0.5 * np.arctan(
                 (0 - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) / self.header[
-                       'WavelengthCalibrated']
+                'WavelengthCalibrated']
             xmax = 4 * np.pi * np.sin(0.5 * np.arctan(
                 (mat.shape[1] - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) / \
-                   self.header['WavelengthCalibrated']
+                self.header['WavelengthCalibrated']
             ymin = 4 * np.pi * np.sin(0.5 * np.arctan(
                 (0 - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) / self.header[
-                       'WavelengthCalibrated']
+                'WavelengthCalibrated']
             ymax = 4 * np.pi * np.sin(0.5 * np.arctan(
                 (mat.shape[0] - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) / \
-                   self.header['WavelengthCalibrated']
+                self.header['WavelengthCalibrated']
             if kwargs_for_imshow['origin'].upper() == 'UPPER':
                 kwargs_for_imshow['extent'] = [xmin, xmax, ymax, ymin]
             else:
@@ -1438,17 +1480,18 @@ class SASExposure(ArithmeticBase):
                 bcx = self.header['BeamPosX']
                 bcy = self.header['BeamPosY']
             else:
-                bcx = None;
+                bcx = None
                 bcy = None
-            xmin = 0;
-            xmax = self.shape[1];
-            ymin = 0;
+            xmin = 0
+            xmax = self.shape[1]
+            ymin = 0
             ymax = self.shape[0]
 
         if kwargs_default['axes'] is None:
             kwargs_default['axes'] = plt.gca()
         if mat is not None:
-            ret = kwargs_default['axes'].imshow(mat, **kwargs_for_imshow)  # IGNORE:W0142
+            ret = kwargs_default['axes'].imshow(
+                mat, **kwargs_for_imshow)  # IGNORE:W0142
         else:
             ret = None
         if 'norm' in kwargs_for_imshow:
@@ -1459,15 +1502,19 @@ class SASExposure(ArithmeticBase):
             #   Thus if we have a fully unmasked matrix, skip this section.
             #   This also conserves memory.
             if self.mask.mask.sum() != self.mask.mask.size:
-                # Mask matrix should be plotted with plt.imshow(maskmatrix, cmap=_colormap_for_mask)
+                # Mask matrix should be plotted with plt.imshow(maskmatrix,
+                # cmap=_colormap_for_mask)
                 _colormap_for_mask = matplotlib.colors.ListedColormap(['white', 'white'],
                                                                       '_sastool_%s' % misc.random_str(10))
                 _colormap_for_mask._init()  # IGNORE:W0212
                 _colormap_for_mask._lut[:, -1] = 0  # IGNORE:W0212
-                _colormap_for_mask._lut[0, -1] = kwargs_default['mask_opacity']  # IGNORE:W0212
+                _colormap_for_mask._lut[
+                    0, -1] = kwargs_default['mask_opacity']  # IGNORE:W0212
                 kwargs_for_imshow['cmap'] = _colormap_for_mask
-                # print "kwargs_for_imshow while plotting mask: ", repr(kwargs_for_imshow)
-                kwargs_default['axes'].imshow(self.mask.mask, **kwargs_for_imshow)  # IGNORE:W0142
+                # print "kwargs_for_imshow while plotting mask: ",
+                # repr(kwargs_for_imshow)
+                kwargs_default['axes'].imshow(
+                    self.mask.mask, **kwargs_for_imshow)  # IGNORE:W0142
         if kwargs_default['crosshair']:
             if bcx is not None and bcy is not None:
                 ax = kwargs_default['axes'].axis()
@@ -1475,21 +1522,27 @@ class SASExposure(ArithmeticBase):
                 kwargs_default['axes'].plot([bcy] * 2, [ymin, ymax], 'w-')
                 kwargs_default['axes'].axis(ax)
             else:
-                warnings.warn('Cross-hair was requested but beam center was not found.')
-        kwargs_default['axes'].set_axis_bgcolor(kwargs_default['invalid_color'])
+                warnings.warn(
+                    'Cross-hair was requested but beam center was not found.')
+        kwargs_default['axes'].set_axis_bgcolor(
+            kwargs_default['invalid_color'])
         if kwargs_default['drawcolorbar'] and mat is not None:
             if isinstance(kwargs_default['drawcolorbar'], matplotlib.axes.Axes):
-                kwargs_default['axes'].figure.colorbar(ret, cax=kwargs_default['drawcolorbar'])
+                kwargs_default['axes'].figure.colorbar(
+                    ret, cax=kwargs_default['drawcolorbar'])
             else:
                 # try to find a suitable colorbar axes: check if the plot target axes already
-                # contains some images, then check if their colorbars exist as axes.
-                cax = [i.colorbar[1] for i in kwargs_default['axes'].images if i.colorbar is not None]
+                # contains some images, then check if their colorbars exist as
+                # axes.
+                cax = [i.colorbar[1]
+                       for i in kwargs_default['axes'].images if i.colorbar is not None]
                 cax = [c for c in cax if c in c.figure.axes]
                 if cax:
                     cax = cax[0]
                 else:
                     cax = None
-                kwargs_default['axes'].figure.colorbar(ret, cax=cax, ax=kwargs_default['axes'])
+                kwargs_default['axes'].figure.colorbar(
+                    ret, cax=cax, ax=kwargs_default['axes'])
         kwargs_default['axes'].figure.canvas.draw()
         if return_matrix:
             return ret, mat
@@ -1499,19 +1552,19 @@ class SASExposure(ArithmeticBase):
     def get_q_extent(self):
         xmin = 4 * np.pi * np.sin(
             0.5 * np.arctan((0 - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) / \
-               self.header['WavelengthCalibrated']
+            self.header['WavelengthCalibrated']
         xmax = 4 * np.pi * np.sin(0.5 * np.arctan(
             (self.shape[1] - 1 - self.header['BeamPosY']) * self.header['YPixel'] / self.header['DistCalibrated'])) / \
-               self.header['WavelengthCalibrated']
+            self.header['WavelengthCalibrated']
         ymin = 4 * np.pi * np.sin(
             0.5 * np.arctan((0 - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) / \
-               self.header['WavelengthCalibrated']
+            self.header['WavelengthCalibrated']
         ymax = 4 * np.pi * np.sin(0.5 * np.arctan(
             (self.shape[0] - 1 - self.header['BeamPosX']) * self.header['XPixel'] / self.header['DistCalibrated'])) / \
-               self.header['WavelengthCalibrated']
+            self.header['WavelengthCalibrated']
         return (xmin, xmax, ymin, ymax)
 
-    ###  ------------------------ Beam center finding -----------------------------
+    # ------------------------ Beam center finding ---------------------------
 
     def update_beampos(self, bc, source=None):
         """Update the beam position in the header.
@@ -1522,9 +1575,11 @@ class SASExposure(ArithmeticBase):
         """
         self.header['BeamPosX'], self.header['BeamPosY'] = bc
         if not source:
-            self.header.add_history('Beam position updated to:' + str(tuple(bc)))
+            self.header.add_history(
+                'Beam position updated to:' + str(tuple(bc)))
         else:
-            self.header.add_history('Beam found by *%s*: %s' % (source, str(tuple(bc))))
+            self.header.add_history(
+                'Beam found by *%s*: %s' % (source, str(tuple(bc))))
 
     def find_beam_semitransparent(self, bs_area, threshold=0.05, update=True, callback=None):
         """Find the beam position from the area under the semitransparent
@@ -1543,8 +1598,10 @@ class SASExposure(ArithmeticBase):
         Outputs:
             the beam position (row,col).
         """
-        bs_area = [min(bs_area[2:]), max(bs_area[2:]), min(bs_area[:2]), max(bs_area[:2])]
-        bc = utils2d.centering.findbeam_semitransparent(self.get_matrix(), bs_area, threshold)
+        bs_area = [min(bs_area[2:]), max(bs_area[2:]), min(
+            bs_area[:2]), max(bs_area[:2])]
+        bc = utils2d.centering.findbeam_semitransparent(
+            self.get_matrix(), bs_area, threshold)
         if update:
             self.update_beampos(bc, source='semitransparent')
         return bc
@@ -1594,7 +1651,8 @@ class SASExposure(ArithmeticBase):
             the beam position (row,col).
         """
         self.check_for_mask()
-        bc = utils2d.centering.findbeam_gravity(self.get_matrix(), self.mask.mask)
+        bc = utils2d.centering.findbeam_gravity(
+            self.get_matrix(), self.mask.mask)
         if update:
             self.update_beampos(bc, source='gravity')
         return bc
@@ -1693,7 +1751,23 @@ class SASExposure(ArithmeticBase):
             self.update_beampos(bc, source='Guinier')
         return bc
 
-    ### ----------------------- Writing routines ----------------------------------
+    def find_beam_powerlaw(self, pixmin, pixmax, drive_by='R2',
+                           update=True, callback=None):
+        """Find the beam position by power-law fitting. Beam position is where the parameter
+        designated by ``drive_by`` is optimal. 
+        """
+
+        self.check_for_mask()
+        bc = utils2d.centering.findbeam_powerlaw(self.get_matrix(),
+                                                 (self.header['BeamPosX'],
+                                                  self.header['BeamPosY']),
+                                                 self.mask.mask, pixmin,
+                                                 pixmax, drive_by=drive_by,
+                                                 callback=callback)
+        if update:
+            self.update_beampos(bc, source='PowerLaw')
+        return bc
+    # ----------------------- Writing routines -------------------------------
 
     def write(self, writeto, plugin=None, **kwargs):
         if plugin is None:
@@ -1702,19 +1776,21 @@ class SASExposure(ArithmeticBase):
             plugin = [p for p in self._plugins if p.name == plugin][0]
         plugin.write(writeto, self, **kwargs)
 
-    ### ------------------------ Calculation routines -------------------------
+    # ------------------------ Calculation routines -------------------------
     @property
     def Dpix(self):
         """The distance of each pixel from the beam center in pixel units"""
         self.check_for_q()
-        col, row = np.meshgrid(np.arange(self.shape[1]), np.arange(self.shape[0]))
+        col, row = np.meshgrid(
+            np.arange(self.shape[1]), np.arange(self.shape[0]))
         return np.sqrt((col - self.header['BeamPosY']) ** 2 + (row - self.header['BeamPosX']) ** 2)
 
     @property
     def D(self):
         """The distance of each pixel from the beam center in length units (mm)."""
         self.check_for_q()
-        col, row = np.meshgrid(np.arange(self.shape[1]), np.arange(self.shape[0]))
+        col, row = np.meshgrid(
+            np.arange(self.shape[1]), np.arange(self.shape[0]))
         return np.sqrt(((col - self.header['BeamPosY']) * self.header['YPixel']) ** 2 +
                        ((row - self.header['BeamPosX']) * self.header['XPixel']) ** 2)
 
@@ -1723,10 +1799,10 @@ class SASExposure(ArithmeticBase):
         """The magnitude of the momentum transfer (q=4*pi*sin(theta)/lambda)
         for each pixel. Units are defined by the dimension of WavelengthCalibrated."""
         self.check_for_q()
-        return 4 * np.pi * np.sin(0.5 * \
-                                  np.arctan(self.D / \
+        return 4 * np.pi * np.sin(0.5 *
+                                  np.arctan(self.D /
                                             self.header['DistCalibrated'])) / \
-               self.header['WavelengthCalibrated']
+            self.header['WavelengthCalibrated']
 
     @property
     def dq(self):
@@ -1751,7 +1827,7 @@ class SASExposure(ArithmeticBase):
         D = self.D
         return np.abs(D / (self.header['DistCalibrated'] ** 2 + D ** 2) * self.header['DistCalibratedError'])
 
-    ### ------------------------ Simple arithmetics ---------------------------
+    # ------------------------ Simple arithmetics ---------------------------
 
     def __str__(self):
         return str(self.header)

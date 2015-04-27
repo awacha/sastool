@@ -11,8 +11,7 @@ import re
 import time
 import os
 
-__all__ = ['ScanCurve', 'SASScan', 'read_from_spec',
-           'read_from_abtfio', 'SASScanStore']
+__all__ = ['ScanCurve', 'SASScan', 'SASScanStore']
 
 
 class ScanCurve(GeneralCurve):
@@ -92,7 +91,7 @@ class SASScan(object):
 
     @data.setter
     def data(self, newdata):
-        self._data = np.array(newdata, dtype=self._dtype)
+        self._data = np.array(newdata, dtype=self.dtype)
         self._idx = len(self._data)
 
     @property
@@ -127,7 +126,7 @@ class SASScan(object):
             newdata = np.array([tuple(newdata.tolist())], dtype=self.dtype)
         elif isinstance(newdata, np.ndarray) and newdata.ndim == 2:
             newdata = np.array([tuple(x)
-                               for x in newdata.tolist()], dtype=self.dtype)
+                                for x in newdata.tolist()], dtype=self.dtype)
         else:
             raise TypeError('Invalid type for data to be appended to scan.')
         if self.get_free_space() < len(newdata):
@@ -245,60 +244,70 @@ class SASScan(object):
         copy.comment = 'Integrate of ' + self.comment
         return copy
 
+    @classmethod
+    def read_from_spec(cls, specfilename, idx=None):
+        """Read a scan from a SPEC file.
 
-def read_from_spec(specfilename, idx=None):
-    if not isinstance(specfilename, dict):
-        spec = onedim.readspec(specfilename)
-        scan = spec['scans'][idx - 1]
-    else:
-        scan = specfilename
-    scn = SASScan(scan['data'].dtype, N=len(scan['data']))
+        Inputs:
+            specfilename: string or dict.
+                the name of the spec file (if it is a string), or
+                the scan loaded from the spec file as a dict
 
-    scn.data = scan['data']
-    scn.data.sort(order=scn.data.dtype.names[0])
-    scn.motors = scan['motors']
-    scn.motorpos = scan['positions']
-    scn.command = scan['command']
-    scn.fsn = scan['number']
-    scn._N = scan['N']
-    if 'countingtime' in scan:
-        scn.countingvalue = scan['countingtime']
-        scn.countingtype = SASScan.COUNTING_TIME
-    elif 'countingcounts' in scan:
-        scn.countingvalue = scan['countingcounts']
-        scn.countingtype = SASScan.COUNTING_MONITOR
-    scn.timestamp = float(
-        dateutil.parser.parse(scan['datestring']).strftime('%s.%f'))
-    scn.default_x = 0
-    scn.default_y = -1
-    scn.default_moni = -2
-    scn.comment = scan['comment']
-    return scn
+        Output:
+            a SASScan object
+        """
+        if not isinstance(specfilename, dict):
+            spec = onedim.readspec(specfilename, idx)
+            scan = spec['scans'][idx]
+        else:
+            scan = specfilename
+        scn = cls(scan['data'].dtype, N=len(scan['data']))
 
-
-def read_from_abtfio(abtfilename):
-    abt = onedim.readabt(abtfilename)
-    scn = SASScan(abt['data'].dtype, N=len(abt['data']))
-    scn.data = abt['data']
-    scn.motors = sorted(abt['params'].keys())
-    scn.motorpos = [abt['params'][k] for k in scn.motors]
-    scn.countingvalue = abt['sampling']
-    scn.countingtype = SASScan.COUNTING_TIME
-    scn.fsn = re.search('\d+', abt['name'])
-    if scn.fsn is not None:
-        scn.fsn = int(scn.fsn)
-    scn.command = 'ABT'
-    scn.comment = abt['title']
-    if abt['scantype'] in ['EXAFS', 'ENERGY']:
-        scn.default_x = abt['scantype']
-        scn.default_y = 'TX_MUD'
-        scn.default_moni = None
-    else:
+        scn.data = scan['data']
+        scn.data.sort(order=scn.data.dtype.names[0])
+        scn.motors = scan['motors']
+        scn.motorpos = scan['positions']
+        scn.command = scan['command']
+        scn.fsn = scan['number']
+        scn._N = scan['N']
+        if 'countingtime' in scan:
+            scn.countingvalue = scan['countingtime']
+            scn.countingtype = SASScan.COUNTING_TIME
+        elif 'countingcounts' in scan:
+            scn.countingvalue = scan['countingcounts']
+            scn.countingtype = SASScan.COUNTING_MONITOR
+        scn.timestamp = float(
+            dateutil.parser.parse(scan['datestring']).strftime('%s.%f'))
         scn.default_x = 0
         scn.default_y = -1
         scn.default_moni = -2
-    scn.timestamp = float(abt['start'].strftime('%s.%f'))
-    return scn
+        scn.comment = scan['comment']
+        return scn
+
+    @classmethod
+    def read_from_abtfio(cls, abtfilename):
+        abt = onedim.readabt(abtfilename)
+        scn = cls(abt['data'].dtype, N=len(abt['data']))
+        scn.data = abt['data']
+        scn.motors = sorted(abt['params'].keys())
+        scn.motorpos = [abt['params'][k] for k in scn.motors]
+        scn.countingvalue = abt['sampling']
+        scn.countingtype = SASScan.COUNTING_TIME
+        scn.fsn = re.search('\d+', abt['name'])
+        if scn.fsn is not None:
+            scn.fsn = int(scn.fsn)
+        scn.command = 'ABT'
+        scn.comment = abt['title']
+        if abt['scantype'] in ['EXAFS', 'ENERGY']:
+            scn.default_x = abt['scantype']
+            scn.default_y = 'TX_MUD'
+            scn.default_moni = None
+        else:
+            scn.default_x = 0
+            scn.default_y = -1
+            scn.default_moni = -2
+        scn.timestamp = float(abt['start'].strftime('%s.%f'))
+        return scn
 
 
 class SASScanStore(object):
@@ -309,7 +318,7 @@ class SASScanStore(object):
     """
 
     def __init__(self, filename, comment=None, motors=None):
-        self.scans = []
+        self.scans = {}
         if not os.path.exists(filename):
             self.datetime = datetime.datetime.now()
             self.epoch = int(self.datetime.strftime('%s'))
@@ -317,6 +326,7 @@ class SASScanStore(object):
                 motors = []
             self.motors = motors
             self.comment = comment
+            self.maxnumber = 0
             with open(filename, 'w') as sf:
                 sf.write('#F ' + filename + '\n')
                 sf.write('#E ' + str(self.epoch) + '\n')
@@ -327,13 +337,12 @@ class SASScanStore(object):
                     sf.write('#O%d ' % i + '  '.join(
                         '%8s' % m for m in self.motors[i * 8:(i + 1) * 8]) + '\n')
         else:
-            spec = onedim.readspec(filename)
-            maxfsn = 0
+            spec = onedim.readspec(filename, None)
             self.epoch = spec['epoch']
             self.datetime = spec['datetime']
             self.comment = spec['comment']
             self.motors = spec['motors']
-            self.scans = [read_from_spec(s) for s in spec['scans']]
+            self.maxnumber = spec['maxscannumber']
             if motors is not None and set(motors) != set(self.motors):
                 warnings.warn('Different motors in SPEC file!')
             del spec
@@ -341,7 +350,7 @@ class SASScanStore(object):
 
     @property
     def nextscan(self):
-        return len(self.scans) + 1
+        return self.maxnumber + 1
 
     def add_scan(self, scn, N=None):
         if scn.fsn is None:
@@ -355,13 +364,13 @@ class SASScanStore(object):
                 sf.write('#T ' + str(scn.countingvalue) + '  (Seconds)\n')
             else:
                 sf.write('#M ' + str(scn.countingvalue) + '  (Counts)\n')
-                         # I am not sure of this.
+                # I am not sure of this.
             sf.write('#G0 0\n')
             sf.write('#G1 0\n')
             sf.write('#Q 0 0 0\n')
             for i in range(len(scn.motors)):
                 sf.write('#P%d ' % i + ' '.join(str(m)
-                         for m in scn.motorpos[i * 8:(i + 1) * 8]) + '\n')
+                                                for m in scn.motorpos[i * 8:(i + 1) * 8]) + '\n')
             if N is None:
                 N = len(scn)
             if isinstance(N, tuple):
@@ -369,29 +378,46 @@ class SASScanStore(object):
             else:
                 sf.write('#N ' + str(N) + '\n')
             sf.write('#L ' + '  '.join(scn.columns()) + '\n')
-        self.scans.append(scn)
+        self.scans[self.nextscan] = scn
         scn.scanstore = weakref.ref(self)
+        self.maxfilenumber = self.maxfilenumber + 1
 
     def append_data(self, data):
         with open(self.filename, 'a') as sf:
             np.savetxt(sf, data, fmt='%g', delimiter=' ', newline='\x0a')
 
     def get_scan(self, idx):
-        if idx < 1 or idx > len(self.scans):
+        if idx < 1 or idx > self.maxnumber:
             raise ValueError('Invalid scan index!')
-        return self.scans[idx - 1]
+        if idx not in self.scans:
+            self.scans[idx] = SASScan.read_from_spec(self.filename, idx)
+        return self.scans[idx]
 
     def __getitem__(self, value):
         return self.get_scan(value)
 
     def finalize(self):
         for scn in self.scans:
-            self.scans.remove(scn)
-            del scn
+            del self.scans[scn]
         del self.scans
 
     def __len__(self):
-        return len(self.scans)
+        return self.maxnumber
 
     def __iter__(self):
-        return iter(self.scans)
+        return ScanStoreIterator(self)
+
+
+class ScanStoreIterator(object):
+
+    def __init__(self, scanstore):
+        self._scanstore = scanstore
+        self._i = 1
+
+    def next(self):
+        try:
+            self._i += 1
+            return self._scanstore[self._i - 1]
+        # invalid scan index, will be raised by self._scanstore
+        except ValueError:
+            raise StopIteration
