@@ -29,6 +29,7 @@ from _io import cbfdecompress  # IGNORE:E0611
 """Decompress algorithm for the byte-offset encoding found in CBF files.
 Implemented in `Cython` for the sake of speed."""
 
+
 def readjusifaorg(filename):
     """Read an original ASCII scattering data file (measured at the beamline
     B1/JUSIFA, HASYLAB, Hamburg).
@@ -49,6 +50,7 @@ def readjusifaorg(filename):
     caller.
     """
     return np.loadtxt(filename, skiprows=133)
+
 
 def readPAXE(filename):
     """Read an exposure measured at the PAXE instrument of LLB, Saclay, France
@@ -74,7 +76,8 @@ def readPAXE(filename):
     """
     return header.readPAXE(filename, load_data=True)
 
-def readcbf(name, load_header=False, load_data=True):
+
+def readcbf(name, load_header=False, load_data=True, for_nexus=False):
     """Read a cbf (crystallographic binary format) file from a Dectris PILATUS
     detector.
 
@@ -86,6 +89,8 @@ def readcbf(name, load_header=False, load_data=True):
         if the header data is to be loaded.
     load_data: bool
         if the binary data is to be loaded.
+    for_nexus: bool
+        if the array should be opened with NeXus ordering.
 
     Output
     ------
@@ -109,7 +114,8 @@ def readcbf(name, load_header=False, load_data=True):
         elif hed[i] == ';':
             continue
         elif hed[i].startswith('_array_data.header_convention'):
-            header['CBF_header_convention'] = hed[i][len('_array_data.header_convention'):].strip().replace('"', '')
+            header['CBF_header_convention'] = hed[i][
+                len('_array_data.header_convention'):].strip().replace('"', '')
         elif hed[i].startswith('_array_data.header_contents'):
             readingmode = 'PilatusHeader'
         elif hed[i].startswith('_array_data.data'):
@@ -123,8 +129,9 @@ def readcbf(name, load_header=False, load_data=True):
                 header['CBF_Date'] = dateutil.parser.parse(line)
                 header['Date'] = header['CBF_Date']
                 continue
-            except (ValueError,TypeError):
-                # eat exception: if we cannot parse this line as a date, try another format.
+            except (ValueError, TypeError):
+                # eat exception: if we cannot parse this line as a date, try
+                # another format.
                 pass
             treated = False
             for sep in (':', '='):
@@ -133,15 +140,19 @@ def readcbf(name, load_header=False, load_data=True):
                 if line.count(sep) == 1:
                     name, value = tuple(x.strip() for x in line.split(sep, 1))
                     if re.match('^(?P<number>-?(\d+(.\d+)?(e-?\d+)?))\s+(?P<unit>m|s|counts|eV)$', value) is not None:
-                        m = re.match('^(?P<number>-?(\d+(.\d+)?(e-?\d+)?))\s+(?P<unit>m|s|counts|eV)$', value).groupdict()
+                        m = re.match(
+                            '^(?P<number>-?(\d+(.\d+)?(e-?\d+)?))\s+(?P<unit>m|s|counts|eV)$', value).groupdict()
                         value = float(m['number'])
                     header[name] = value
                     treated = True
-            if treated: continue
+            if treated:
+                continue
             if line.startswith('Pixel_size'):
-                header['XPixel'], header['YPixel'] = tuple([float(a.strip().split(' ')[0]) * 1000 for a in line[len('Pixel_size'):].split('x')])
+                header['XPixel'], header['YPixel'] = tuple(
+                    [float(a.strip().split(' ')[0]) * 1000 for a in line[len('Pixel_size'):].split('x')])
             elif re.match('^(?P<label>[a-zA-Z0-9,_\.\-!\?\ ]*?)\s+(?P<number>-?(\d+(.\d+)?(e-?\d+)?))\s+(?P<unit>m|s|counts|eV)$', line) is not None:
-                m = re.match('^(?P<label>[a-zA-Z0-9,_\.\-!\?\ ]*?)\s+(?P<number>-?(\d+(.\d+)?(e-?\d+)?))\s+(?P<unit>m|s|counts|eV)$', line).groupdict()
+                m = re.match(
+                    '^(?P<label>[a-zA-Z0-9,_\.\-!\?\ ]*?)\s+(?P<number>-?(\d+(.\d+)?(e-?\d+)?))\s+(?P<unit>m|s|counts|eV)$', line).groupdict()
                 if m['unit'] == 'counts':
                     header[m['label']] = int(m['number'])
                 else:
@@ -152,7 +163,8 @@ def readcbf(name, load_header=False, load_data=True):
             line = hed[i]
             for sep in (':', '='):
                 if line.count(sep) == 1:
-                    label, content = tuple(x.strip() for x in line.split(sep, 1))
+                    label, content = tuple(x.strip()
+                                           for x in line.split(sep, 1))
                     if '"' in content:
                         content = content.replace('"', '')
                     try:
@@ -165,13 +177,16 @@ def readcbf(name, load_header=False, load_data=True):
     ret = []
     if load_data:
         if header['CBF_X-Binary-Element-Type'] != 'signed 32-bit integer':
-            raise NotImplementedError('element type is not "signed 32-bit integer" in CBF, but %s.' % header['CBF_X-Binary-Element-Type'])
+            raise NotImplementedError(
+                'element type is not "signed 32-bit integer" in CBF, but %s.' % header['CBF_X-Binary-Element-Type'])
         if header['CBF_conversions'] != 'x-CBF_BYTE_OFFSET':
-            raise NotImplementedError('compression is not "x-CBF_BYTE_OFFSET" in CBF!')
+            raise NotImplementedError(
+                'compression is not "x-CBF_BYTE_OFFSET" in CBF!')
         dim1 = header['CBF_X-Binary-Size-Fastest-Dimension']
         dim2 = header['CBF_X-Binary-Size-Second-Dimension']
         nbytes = header['CBF_X-Binary-Size']
-        cbfdata = cbfdecompress(cbfbin[datastart:datastart + nbytes], dim1, dim2)
+        cbfdata = cbfdecompress(
+            bytearray(cbfbin[datastart:datastart + nbytes]), dim1, dim2, for_nexus)
         ret.append(cbfdata)
     if load_header:
         ret.append(header)
@@ -196,6 +211,7 @@ def readbdfv1(filename, bdfext='.bdf', bhfext='.bhf'):
     """
     return header.readbhfv1(filename, True, bdfext, bhfext)
 
+
 def readtif(filename):
     """Read image files (TIFF, JPEG, PNG... supported by PIL).
 
@@ -213,6 +229,7 @@ def readtif(filename):
     ``scipy.misc.imread()`` is used, which in turn depends on PIL.
     """
     return scipy.misc.imread(filename, True)
+
 
 def readint2dnorm(filename):
     """Read corrected intensity and error matrices (Matlab mat or numpy npz
@@ -254,7 +271,7 @@ def readint2dnorm(filename):
     elif filename.upper().endswith('.NPZ'):  # Numpy
         m = np.load(filename)
     else:  # loadtxt
-        m = {'Intensity':np.loadtxt(filename)}
+        m = {'Intensity': np.loadtxt(filename)}
         name, ext = os.path.splitext(filename)
         errorfilename = name + '_error' + ext
         if os.path.exists(errorfilename):
@@ -265,6 +282,7 @@ def readint2dnorm(filename):
         return Intensity, Error
     except:
         return Intensity, None
+
 
 def writeint2dnorm(filename, Intensity, Error=None):
     """Save the intensity and error matrices to a file
@@ -282,7 +300,7 @@ def writeint2dnorm(filename, Intensity, Error=None):
     ------
     None
     """
-    whattosave = {'Intensity':Intensity}
+    whattosave = {'Intensity': Intensity}
     if Error is not None:
         whattosave['Error'] = Error
     if filename.upper().endswith('.NPZ'):
@@ -294,6 +312,7 @@ def writeint2dnorm(filename, Intensity, Error=None):
         if Error is not None:
             name, ext = os.path.splitext(filename)
             np.savetxt(name + '_error' + ext, Error)
+
 
 def readmask(filename, fieldname=None):
     """Try to load a maskfile from a matlab(R) matrix file
@@ -313,12 +332,14 @@ def readmask(filename, fieldname=None):
     if fieldname is not None:
         return f[fieldname].astype(np.uint8)
     else:
-        validkeys = [k for k in f.keys() if not (k.startswith('_') and k.endswith('_'))];
+        validkeys = [
+            k for k in f.keys() if not (k.startswith('_') and k.endswith('_'))]
         if len(validkeys) < 1:
             raise ValueError('mask file contains no masks!')
         if len(validkeys) > 1:
             raise ValueError('mask file contains multiple masks!')
         return f[validkeys[0]].astype(np.uint8)
+
 
 def readedf(filename):
     """Read an ESRF data file (measured at beamlines ID01 or ID02)
@@ -343,9 +364,12 @@ def readedf(filename):
     if edf['DataType'] == 'FloatValue':
         dtype = np.float32
     else:
-        raise NotImplementedError('Not supported data type: %s' % edf['DataType'])
-    edf['data'] = np.fromstring(f.read(edf['EDF_BinarySize']), dtype).reshape(edf['Dim_1'], edf['Dim_2'])
+        raise NotImplementedError(
+            'Not supported data type: %s' % edf['DataType'])
+    edf['data'] = np.fromstring(f.read(edf['EDF_BinarySize']), dtype).reshape(
+        edf['Dim_1'], edf['Dim_2'])
     return edf
+
 
 def readbdfv2(filename, bdfext='.bdf', bhfext='.bhf'):
     """Read a version 2 Bessy Data File
@@ -372,8 +396,10 @@ def readbdfv2(filename, bdfext='.bdf', bhfext='.bhf'):
     datas = header.readbhfv2(filename, True, bdfext, bhfext)
     return datas
 
+
 def readbdf(filename, bdfext='.bdf', bhfext='.bhf'):
     return header.readbhf(filename, True, bdfext, bhfext)
+
 
 def readmar(filename):
     """Read a two-dimensional scattering pattern from a MarResearch .image file.
@@ -381,11 +407,14 @@ def readmar(filename):
     hed = header.readmarheader(filename)
     with open(filename, 'rb') as f:
         h = f.read(hed['recordlength'])
-        data = np.fromstring(f.read(2 * hed['Xsize'] * hed['Ysize']), '<u2').astype(np.float64)
+        data = np.fromstring(
+            f.read(2 * hed['Xsize'] * hed['Ysize']), '<u2').astype(np.float64)
         if hed['highintensitypixels'] > 0:
-            raise NotImplementedError('Intensities over 65535 are not yet supported!')
+            raise NotImplementedError(
+                'Intensities over 65535 are not yet supported!')
         data = data.reshape(hed['Xsize'], hed['Ysize'])
     return data, hed
+
 
 def writebdfv2(filename, bdf, bdfext='.bdf', bhfext='.bhf'):
     """Write a version 2 Bessy Data File
@@ -420,13 +449,15 @@ def writebdfv2(filename, bdf, bdfext='.bdf', bhfext='.bhf'):
     header.writebhfv2(basename + '.bhf', bdf)
     f = open(basename + '.bdf', 'wb')
     keys = ['RAWDATA', 'RAWERROR', 'CORRDATA', 'CORRERROR', 'NANDATA']
-    keys.extend([x for x in bdf.keys() if isinstance(bdf[x], np.ndarray) and x not in keys])
+    keys.extend(
+        [x for x in bdf.keys() if isinstance(bdf[x], np.ndarray) and x not in keys])
     for k in keys:
         if k not in bdf.keys():
             continue
         f.write('#%s[%d:%d]\n' % (k, bdf['xdim'], bdf['ydim']))
         f.write(np.rot90(bdf[k], 3).astype('float32').tostring(order='F'))
     f.close()
+
 
 def rebinmask(mask, binx, biny, enlarge=False):
     """Re-bin (shrink or enlarge) a mask matrix.
@@ -454,11 +485,13 @@ def rebinmask(mask, binx, biny, enlarge=False):
     one is nonmasked, zero is masked.
     """
     if not enlarge and ((mask.shape[0] % binx) or (mask.shape[1] % biny)):
-        raise ValueError('The number of pixels of the mask matrix should be divisible by the binning in each direction!')
+        raise ValueError(
+            'The number of pixels of the mask matrix should be divisible by the binning in each direction!')
     if enlarge:
         return mask.repeat(binx, axis=0).repeat(biny, axis=1)
     else:
         return mask[::binx, ::biny]
+
 
 def readBerSANSdata(filename):
     hed = header.readBerSANS(filename)
@@ -473,11 +506,13 @@ def readBerSANSdata(filename):
             l = f.readline()
         l = f.readline()
         while not l.startswith('%') and len(l) > 0:
-            counts.append([float(x) for x in l.replace(',', ' ').replace('-', ' -').replace('e -', 'e-').replace('E -', 'E-').split()])
+            counts.append([float(x) for x in l.replace(',', ' ').replace(
+                '-', ' -').replace('e -', 'e-').replace('E -', 'E-').split()])
             l = f.readline()
         l = f.readline()
         while len(l) > 0:
-            errors.append([float(x) for x in l.replace(',', ' ').replace('-', ' -').replace('e -', 'e-').replace('E -', 'E-').split()])
+            errors.append([float(x) for x in l.replace(',', ' ').replace(
+                '-', ' -').replace('e -', 'e-').replace('E -', 'E-').split()])
             l = f.readline()
         c = np.array(counts, dtype=np.float64)
         e = np.array(errors, dtype=np.float64)
@@ -493,6 +528,7 @@ def readBerSANSdata(filename):
             raise ValueError('Invalid size of the error matrix!')
     return c, e, hed
 
+
 def readBerSANSmask(filename):
     with open(filename, 'rt') as f:
         l = f.readline()
@@ -504,17 +540,20 @@ def readBerSANSmask(filename):
     mask[mask == 35] = 0
     return mask
 
+
 def writeBerSANSmask(filename, maskmatrix):
     with open(filename, 'wt') as f:
         f.write('%File\n')
         f.write('FileName=%s\n' % filename)
         d = datetime.datetime.now()
-        month = [None, 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        month = [None, 'Jan', 'Feb', 'Mar', 'Apr', 'May',
+                 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         f.write('FileDate=%02d-%s-%04d\n' % (d.day, month[d.month], d.year))
         f.write('FileTime=%02d:%02d:%02d\n' % (d.hour, d.minute, d.second))
         f.write('Type=SANSMAni\n')
         f.write('DataSize=%d\n' % maskmatrix.size)
         f.write('%Mask\n')
         maskmatrix = (maskmatrix != 0) * 1
-        data = '\n'.join([''.join([str(a) for a in x]) for x in maskmatrix.tolist()])
+        data = '\n'.join([''.join([str(a) for a in x])
+                          for x in maskmatrix.tolist()])
         f.write(data.replace('0', '#').replace('1', '-') + '\n')

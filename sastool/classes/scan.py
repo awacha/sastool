@@ -380,7 +380,7 @@ class SASScanStore(object):
             sf.write('#L ' + '  '.join(scn.columns()) + '\n')
         self.scans[self.nextscan] = scn
         scn.scanstore = weakref.ref(self)
-        self.maxfilenumber = self.maxfilenumber + 1
+        self.maxnumber = self.maxnumber + 1
 
     def append_data(self, data):
         with open(self.filename, 'a') as sf:
