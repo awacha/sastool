@@ -19,7 +19,7 @@ funcs={'slice':lambda data,orig_initial,mask:sastool.utils2d.centering.findbeam_
        }
 mask=scipy.io.loadmat('mask.mat')['mask']
 
-print "Loading file %d"%fsn
+print("Loading file %d"%fsn)
 data,header=sastool.io.b1.read2dB1data(fsn, 'ORG%05d', '.')
 
 dist={}; bcx={}; bcy={}; xtime={}
@@ -30,7 +30,7 @@ for i in modes:
     xtime[i]=np.ones((256,256),np.double)*np.nan;
 for x in range(xmin,xmax+1):
     for y in range(ymin,ymax+1):
-        print "X: ",x,"    Y: ",y
+        print("X: ",x,"    Y: ",y)
         orig_initial=[x+1,y+1]
         for m in modes:
             orig=[np.nan,np.nan]
@@ -38,8 +38,8 @@ for x in range(xmin,xmax+1):
                 t0=time.time()
                 orig=funcs[m](data,orig_initial,mask)
                 t1=time.time()
-            except Exception,e:
-                print str(e)
+            except Exception as e:
+                print(str(e))
                 continue
             dist[m][x,y]=np.sqrt((orig_initial[0]-orig[0])**2+(orig_initial[1]-orig[1])**2)
             bcx[m][x,y]=orig[0]

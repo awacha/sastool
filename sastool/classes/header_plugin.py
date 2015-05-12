@@ -5,9 +5,9 @@ import numbers
 import collections
 import datetime
 import h5py
-import cPickle as pickle
+import pickle as pickle
 
-from header import SASHeader, SASHistory
+from .header import SASHeader, SASHistory
 from ..io import header
 from .. import misc
 from .common import _HDF_parse_group
@@ -51,7 +51,7 @@ class SASHeaderPlugin(object):
                 return filename_or_dict['__Origin__'] == self._name
             else:
                 return False
-        elif isinstance(filename_or_dict, basestring):
+        elif isinstance(filename_or_dict, str):
             if self._filename_regex is not None:
                 return (self._filename_regex.search(filename_or_dict) is not None)
             else:
@@ -110,7 +110,7 @@ class SHPlugin_ESRF(SASHeaderPlugin):
             are kept unchanged.
         """
         self._before_read(kwargs)
-        if isinstance(filename_or_edf, basestring):
+        if isinstance(filename_or_edf, str):
             filename_or_edf = header.readehf(
                 misc.findfileindirs(filename_or_edf, kwargs['dirs']))
         h = filename_or_edf
@@ -147,7 +147,7 @@ class SHPlugin_B1_org(SASHeaderPlugin):
 
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
-        if isinstance(filename, basestring):
+        if isinstance(filename, str):
             hed = header.readB1header(
                 misc.findfileindirs(filename, kwargs['dirs']))
         else:
@@ -156,7 +156,7 @@ class SHPlugin_B1_org(SASHeaderPlugin):
             hed['History'] = SASHistory(hed['History'])
         else:
             hed['History'] = SASHistory()
-        if isinstance(filename, basestring):
+        if isinstance(filename, str):
             hed['History'].add('Original header loaded: ' + filename)
         hed['__particle__'] = 'photon'
         return (hed, {})
@@ -172,7 +172,7 @@ class SHPlugin_B1_int2dnorm(SASHeaderPlugin):
 
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
-        if isinstance(filename, basestring):
+        if isinstance(filename, str):
             hed = header.readB1logfile(
                 misc.findfileindirs(filename, kwargs['dirs']))
         else:
@@ -181,7 +181,7 @@ class SHPlugin_B1_int2dnorm(SASHeaderPlugin):
             hed['History'] = SASHistory(hed['History'])
         else:
             hed['History'] = SASHistory()
-        if isinstance(filename, basestring):
+        if isinstance(filename, str):
             hed['History'].add('B1 logfile loaded: ' + filename)
         hed['__particle__'] = 'photon'
         return (hed, {})
@@ -199,7 +199,7 @@ class SHPlugin_CREDO_Reduced(SASHeaderPlugin):
 
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
-        if isinstance(filename, basestring):
+        if isinstance(filename, str):
             hed = header.readB1logfile(
                 misc.findfileindirs(filename, kwargs['dirs']))
         else:
@@ -208,7 +208,7 @@ class SHPlugin_CREDO_Reduced(SASHeaderPlugin):
             hed['History'] = SASHistory(hed['History'])
         else:
             hed['History'] = SASHistory()
-        if isinstance(filename, basestring):
+        if isinstance(filename, str):
             hed['History'].add('CREDO Reduced logfile loaded: ' + filename)
         hed['__particle__'] = 'photon'
         return (hed, {})
@@ -242,7 +242,7 @@ class SHPlugin_HDF5(SASHeaderPlugin):
         self._before_read(kwargs)
         we_have_loaded_a_hdf5_file = False
         try:
-            if isinstance(filenameformat, basestring):
+            if isinstance(filenameformat, str):
                 try:
                     filenameformat % 1
                 except TypeError:
@@ -275,8 +275,8 @@ class SHPlugin_HDF5(SASHeaderPlugin):
         self._before_read(kwargs)
         hed = {}
         with _HDF_parse_group(hdf_entity) as hdf_group:
-            if kwargs['HDF5_Intensityname'] in hdf_group.keys():
-                for k in hdf_entity.attrs.keys():
+            if kwargs['HDF5_Intensityname'] in list(hdf_group.keys()):
+                for k in list(hdf_entity.attrs.keys()):
                     attr = hdf_entity.attrs[k]
                     if k in self._HDF5_read_postprocess_name:
                         hed[k] = self._HDF5_read_postprocess_name[k](attr)
@@ -297,7 +297,7 @@ class SHPlugin_HDF5(SASHeaderPlugin):
                 try:
                     # try to get all possible fsns.
                     fsns = [int(re.match(misc.re_from_Cformatstring_numbers(kwargs['HDF5_Groupnameformat']), k).group(1))
-                            for k in hdf_group.keys() if re.match(misc.re_from_Cformatstring_numbers(kwargs['HDF5_Groupnameformat']), k)]
+                            for k in list(hdf_group.keys()) if re.match(misc.re_from_Cformatstring_numbers(kwargs['HDF5_Groupnameformat']), k)]
                     if not fsns:
                         # if we did not find any fsns, we raise an IOError
                         raise RuntimeError
@@ -320,7 +320,7 @@ class SHPlugin_HDF5(SASHeaderPlugin):
                     hdf_entity.attrs[k] = int(hed[k])
                 elif isinstance(hed[k], numbers.Number):
                     hdf_entity.attrs[k] = hed[k]
-                elif isinstance(hed[k], basestring):
+                elif isinstance(hed[k], str):
                     hdf_entity.attrs[k] = hed[k].encode('utf-8')
                 elif isinstance(hed[k], collections.Sequence):
                     hdf_entity.attrs[k] = hed[k]
@@ -348,7 +348,7 @@ class SHPlugin_BDF(SASHeaderPlugin):
 
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
-        if isinstance(filename, basestring):
+        if isinstance(filename, str):
             hed = misc.flatten_hierarchical_dict(
                 header.readbhf(misc.findfileindirs(filename, kwargs['dirs'])))
         else:
@@ -419,12 +419,12 @@ class SHPlugin_PAXE(SASHeaderPlugin):
             are kept unchanged.
         """
         self._before_read(kwargs)
-        if isinstance(filename_or_paxe, basestring):
+        if isinstance(filename_or_paxe, str):
             paxe = header.readPAXE(
                 misc.findfileindirs(filename_or_paxe, kwargs['dirs']))
         else:
             paxe = filename_or_paxe
-        if isinstance(filename_or_paxe, basestring):
+        if isinstance(filename_or_paxe, str):
             if 'History' in paxe:
                 paxe['History'] = SASHistory(paxe['History'])
             else:
@@ -476,7 +476,7 @@ class SHPlugin_BerSANS(SASHeaderPlugin):
 
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
-        if isinstance(filename, basestring):
+        if isinstance(filename, str):
             hed = header.readBerSANS(
                 misc.findfileindirs(filename, kwargs['dirs']))
         else:
@@ -499,7 +499,7 @@ class SHPlugin_ASA_SAS(SASHeaderPlugin):
 
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
-        if isinstance(filename, basestring):
+        if isinstance(filename, str):
             with open(misc.findfileindirs(filename, kwargs['dirs']), 'r') as f:
                 hed1 = pickle.load(f)
         else:
@@ -524,7 +524,7 @@ class SHPlugin_bare_image(SASHeaderPlugin):
         """Reader for an empty header.
         """
         self._before_read(kwargs)
-        if isinstance(filename_or_dict, basestring):
+        if isinstance(filename_or_dict, str):
             filename_or_dict = {'__Origin__': 'bare_image'}
         return (filename_or_dict, {})
 

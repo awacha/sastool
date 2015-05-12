@@ -1,4 +1,4 @@
-from __future__ import unicode_literals
+
 # define either 'nm' or 'A' (for Angstroem)
 #LENGTH_UNIT='nm'
 LENGTH_UNIT='A'

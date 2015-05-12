@@ -33,7 +33,7 @@ class SASHistory(object):
         """Return the history in a human-readable format"""
         return '\n'.join([str(h[0]) + ': ' + h[1] for h in self._list])
     def __unicode__(self):
-        return u'\n'.join([unicode(h[0]) + ': ' + h[1].encode('utf-8') for h in self._list])
+        return '\n'.join([str(h[0]) + ': ' + h[1].encode('utf-8') for h in self._list])
     def pop(self):
         return self._list.pop()
     def __iter__(self):

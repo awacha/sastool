@@ -29,7 +29,7 @@ class _HDF_parse_group(object):
         self.hdf_mode = mode
         self.dirs = dirs
     def __enter__(self):
-        if isinstance(self.hdf_argument, basestring):
+        if isinstance(self.hdf_argument, str):
             try:
                 filename = misc.findfileindirs(self.hdf_argument, self.dirs)
             except IOError:

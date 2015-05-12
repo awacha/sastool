@@ -22,10 +22,10 @@ __docformat__ = 'restructuredtext'
 
 __all__ = ['twodim', 'b1', 'asa', 'onedim', 'statistics', 'header']
 
-import twodim
-import b1
-import asa
-import onedim
-import statistics
-import header
+from . import twodim
+from . import b1
+from . import asa
+from . import onedim
+from . import statistics
+from . import header
 

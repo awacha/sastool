@@ -10,6 +10,7 @@ from .curve import GeneralCurve
 import re
 import time
 import os
+from functools import reduce
 
 __all__ = ['ScanCurve', 'SASScan', 'SASScanStore']
 
@@ -57,7 +58,7 @@ class SASScan(object):
             self._record_mode = datadefs._record_mode
             self.scanstore = datadefs.scanstore
         else:
-            if not isinstance(datadefs, np.dtype) and all(isinstance(x, basestring) for x in datadefs):
+            if not isinstance(datadefs, np.dtype) and all(isinstance(x, str) for x in datadefs):
                 datadefs = [(x, float) for x in datadefs]
             if isinstance(N, tuple):
                 Nrows = reduce(lambda a, b: a * b, N)
@@ -172,7 +173,7 @@ class SASScan(object):
         return self._data.dtype.names
 
     def __getitem__(self, columnname):
-        if isinstance(columnname, basestring):
+        if isinstance(columnname, str):
             return self.data[columnname]
         else:
             return self.data[self.dtype.names[columnname]]
@@ -205,7 +206,7 @@ class SASScan(object):
                 'Argument "what" should be either "x" or "y" or "moni".')
         if label is None:
             label = getattr(self, 'default_' + what)
-        if not isinstance(label, basestring):
+        if not isinstance(label, str):
             label = self.dtype.names[label]
         return label
 
@@ -383,7 +384,7 @@ class SASScanStore(object):
         self.maxnumber = self.maxnumber + 1
 
     def append_data(self, data):
-        with open(self.filename, 'a') as sf:
+        with open(self.filename, 'ab') as sf:
             np.savetxt(sf, data, fmt='%g', delimiter=' ', newline='\x0a')
 
     def get_scan(self, idx):
@@ -414,7 +415,7 @@ class ScanStoreIterator(object):
         self._scanstore = scanstore
         self._i = 1
 
-    def next(self):
+    def __next__(self):
         try:
             self._i += 1
             return self._scanstore[self._i - 1]

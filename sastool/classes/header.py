@@ -12,9 +12,10 @@ import datetime
 import math
 import re
 import warnings
-import copy_reg
+import copyreg
 from .headerfields import SASHeaderField, SASHeaderFieldLink
 from .history import SASHistory
+from functools import reduce
 __all__ = ['SASHeader']
 from ..libconfig import HC
 
@@ -22,10 +23,13 @@ import scipy.constants
 
 NEUTRON_WAVELENGTH_CONVERTOR = scipy.constants.codata.value('Planck constant') ** 2 * 0.5 / \
     (scipy.constants.codata.value('neutron mass')) / \
-    scipy.constants.codata.value('electron volt-joule relationship') * 1e20  # J
+    scipy.constants.codata.value(
+        'electron volt-joule relationship') * 1e20  # J
+
 
 class SASHeaderException(Exception):
     pass
+
 
 class SASHeader(dict):
     """A class for holding measurement meta-data, such as sample-detector
@@ -161,15 +165,16 @@ class SASHeader(dict):
                     ('Energy', 1),
                     ('Temperature', 0.5),
                     ('Title', None),
-                   ]
+                    ]
     # dictionary of key aliases. Note that multi-level aliases are not allowed!
-    # This is a 
+    # This is a
     _key_aliases = None
     _protectedfields_to_copy = ['_protectedfields_to_copy', '_key_aliases',
-                              '_fields_to_sum', '_fields_to_average',
-                              '_fields_to_collect', '_equiv_tests']
+                                '_fields_to_sum', '_fields_to_average',
+                                '_fields_to_collect', '_equiv_tests']
     _needs_init = True
     # -- Housekeeping methods: __init__, iterators, __missing__ etc. ----------
+
     @staticmethod
     def _set_default_kwargs_for_readers(kwargs):
         if 'dirs' not in kwargs:
@@ -229,22 +234,25 @@ class SASHeader(dict):
                 gen = cls._read_multi(res)
                 if len(args) == 2 and not isinstance(args[1], collections.Sequence):
                     return list(gen)[0]
-                elif kwargs['generator'] :
+                elif kwargs['generator']:
                     return gen
                 else:
                     return list(gen)
+
     @classmethod
     def _read_multi(cls, lis):
         for l in lis:
             yield cls(l)
         return
+
     @classmethod
     def _autoguess_experiment_type(cls, file_or_dict):
         plugin = [p for p in cls._plugins if p.check_if_applies(file_or_dict)]
         if not plugin:
-            raise SASHeaderException('No plugin can handle ' + str(file_or_dict))
+            raise SASHeaderException(
+                'No plugin can handle ' + str(file_or_dict))
         return plugin[0]
-    
+
     @classmethod
     def get_valid_experiment_types(cls, mode='read'):
         """Get the available plugins which support 'read', 'write' or 'both'.
@@ -288,7 +296,7 @@ class SASHeader(dict):
         elif isinstance(args[0], tuple):
             if args[0] and args[0][0] == 'PICKLED_SASHEADER':
                 self.update(args[0][1]['data'])
-                for f in args[0][1].keys():
+                for f in list(args[0][1].keys()):
                     if f == 'data':
                         continue
                     self.__setattr__(f, args[0][1][f])
@@ -300,15 +308,18 @@ class SASHeader(dict):
             try:
                 plugin = self.get_IOplugin(args[0], 'READ', **kwargs)
             except ValueError:
-                raise NotImplementedError('__init__() not supported with args[0]==' + str(args[0]))
+                raise NotImplementedError(
+                    '__init__() not supported with args[0]==' + str(args[0]))
             else:
                 d, ka = plugin.read(args[0], **kwargs)
                 del self._was_init
                 self.__init__((d, ka))
+
     def copy(self, *args, **kwargs):
         """Make a copy of this header structure"""
         d = super(SASHeader, self).copy(*args, **kwargs)
         return SASHeader(d)
+
     def __missing__(self, key, dry_run=False):
         """Create default values for missing fields"""
         if key in ['FSNs']:
@@ -317,7 +328,7 @@ class SASHeader(dict):
             val = ''
         elif key.endswith('Error'):
             if 'Calibrated' in key:
-                val=self[key.replace('Calibrated','')]
+                val = self[key.replace('Calibrated', '')]
             else:
                 val = 0
         elif key.startswith('Monitor'):
@@ -332,7 +343,8 @@ class SASHeader(dict):
             elif self['__particle__'] == 'neutron':
                 val = NEUTRON_WAVELENGTH_CONVERTOR / self['Wavelength'] ** 2
             else:
-                raise ValueError('Invalid particle type: ' + self['__particle__'])
+                raise ValueError(
+                    'Invalid particle type: ' + self['__particle__'])
         elif key == 'Wavelength':
             if not self.__contains__('Energy', False):
                 raise KeyError(key)
@@ -341,7 +353,8 @@ class SASHeader(dict):
             elif self['__particle__'] == 'neutron':
                 val = (NEUTRON_WAVELENGTH_CONVERTOR / self['Energy']) ** 0.5
             else:
-                raise ValueError('Invalid particle type: ' + self['__particle__'])
+                raise ValueError(
+                    'Invalid particle type: ' + self['__particle__'])
         elif key in ['maskid']:
             val = None
         elif key.startswith('FSN'):
@@ -349,7 +362,7 @@ class SASHeader(dict):
         elif key == 'Title':
             val = '<untitled>'
         elif 'Calibrated' in key:
-            val = self[key.replace('Calibrated','')]
+            val = self[key.replace('Calibrated', '')]
         # elif key in ['Dist', 'Energy', 'BeamPosX', 'BeamPosY', 'PixelSize']:
         #    val = np.NAN
         elif key in ['XPixel', 'YPixel']:
@@ -359,44 +372,61 @@ class SASHeader(dict):
         if not dry_run:
             super(SASHeader, self).__setitem__(key, val)
         return val
-    def __unicode__(self):
+
+    def __str__(self, *args):
         """Print a short summary of this header"""
-        if 'FSN' in self: fsn = self['FSN']
-        else: fsn = '<no FSN>'
-        if 'Title' in self: title = self['Title']
-        else: title = '<no title>'
-        if 'Dist' in self: dist = '%.2f mm' % self['Dist']
-        else: dist = '<no dist>'
-        if 'Energy' in self: energy = '%.2f eV' % self['Energy']
-        else: energy = '<no energy>'
-        if 'MeasTime' in self: meastime = '%.3f s' % self['MeasTime']
-        else: meastime = '<no exptime>'
+        if 'FSN' in self:
+            fsn = self['FSN']
+        else:
+            fsn = '<no FSN>'
+        if 'Title' in self:
+            title = self['Title']
+        else:
+            title = '<no title>'
+        if 'Dist' in self:
+            dist = '%.2f mm' % self['Dist']
+        else:
+            dist = '<no dist>'
+        if 'Energy' in self:
+            energy = '%.2f eV' % self['Energy']
+        else:
+            energy = '<no energy>'
+        if 'MeasTime' in self:
+            meastime = '%.3f s' % self['MeasTime']
+        else:
+            meastime = '<no exptime>'
         return "FSN %s; %s; %s; %s; %s" % (fsn, title, dist, energy, meastime)
-    __str__ = __unicode__
+
     def __repr__(self):
-        return "<SASHeader: " + unicode(self) + '>'
+        return "<SASHeader: " + str(self) + '>'
+
     def __getitem__(self, key):
         """ respond to header[key] requests, implements key aliasing."""
         if key in self._key_aliases:
             return super(SASHeader, self).__getitem__(self._key_aliases[key])
         else:
             return super(SASHeader, self).__getitem__(key)
+
     def __setitem__(self, key, value, notricks=False):
         """ respond to header[key]=value requests, implements key aliasing."""
         if key.startswith('Energy') and not notricks:
             # set the wavelength as well.
             if self.__getitem__('__particle__') == 'photon':
-                self.__setitem__(key.replace('Energy', 'Wavelength'), HC() / value, notricks=True)
+                self.__setitem__(
+                    key.replace('Energy', 'Wavelength'), HC() / value, notricks=True)
             elif self.__getitem__('__particle__') == 'neutron':
-                self.__setitem__(key.replace('Energy', 'Wavelength'), (NEUTRON_WAVELENGTH_CONVERTOR / value) ** 0.5, notricks=True)
+                self.__setitem__(key.replace(
+                    'Energy', 'Wavelength'), (NEUTRON_WAVELENGTH_CONVERTOR / value) ** 0.5, notricks=True)
             else:
                 warnings.warn('Particle type not defined in header')
             self.__setitem__(key, value, notricks=True)
         elif key.startswith('Wavelength') and not notricks:
             if self.__getitem__('__particle__') == 'photon':
-                self.__setitem__(key.replace('Wavelength', 'Energy'), HC() / value, notricks=True)
+                self.__setitem__(
+                    key.replace('Wavelength', 'Energy'), HC() / value, notricks=True)
             elif self.__getitem__('__particle__') == 'neutron':
-                self.__setitem__(key.replace('Wavelength', 'Energy'), NEUTRON_WAVELENGTH_CONVERTOR / value ** 2, notricks=True)
+                self.__setitem__(key.replace(
+                    'Wavelength', 'Energy'), NEUTRON_WAVELENGTH_CONVERTOR / value ** 2, notricks=True)
             else:
                 warnings.warn('Particle type not defined in header')
             self.__setitem__(key, value, notricks=True)
@@ -404,6 +434,7 @@ class SASHeader(dict):
             return self.__setitem__(self._key_aliases[key], value)
         else:
             return super(SASHeader, self).__setitem__(key, value)
+
     def __delitem__(self, key):
         """ respond to del header[key] requests, implements key aliasing."""
         if key in self:
@@ -412,13 +443,15 @@ class SASHeader(dict):
             return self.__delitem__(self._key_aliases[key])
         else:
             raise KeyError(key)
+
     def __contains__(self, key, generate_missing=True):
         """ respond to 'key' in header requests, implements key aliasing."""
         if key in self._key_aliases:
             return super(SASHeader, self).__contains__(self._key_aliases[key])
         else:
             ret = super(SASHeader, self).__contains__(key)
-            if not ret and generate_missing:  # try if the key can be auto-generated by __missing__()
+            # try if the key can be auto-generated by __missing__()
+            if not ret and generate_missing:
                 try:
                     self.__missing__(key, dry_run=True)
                 except KeyError:
@@ -426,30 +459,24 @@ class SASHeader(dict):
                 return True
             else:
                 return ret
+
     def __iter__(self):
         """ Return an iterator. This is used e.g. in for k in header constructs.
         """
-        return self.iterkeys()
+        return iter(self.keys())
+
     def keys(self):
-        """ Return the keys present. Alias names are also listed."""
-        return [k for k in self.iterkeys()]
-    def values(self):
-        """ Return values. Aliases are listed more than one times."""
-        return [v for v in self.itervalues()]
-    def items(self):
-        """ Return (key,value) pairs. Aliases are listed more than one times.
-        """
-        return [i for i in self.iteritems()]
-    def iterkeys(self):
         """ Iterator version of keys()."""
-        return itertools.chain(super(SASHeader, self).iterkeys(), itertools.ifilter(lambda x: x in self, self._key_aliases.iterkeys()))
-    def itervalues(self):
+        return itertools.chain(super(SASHeader, self).keys(), filter(lambda x: x in self, self._key_aliases.keys()))
+
+    def values(self):
         """ Iterator version of values()."""
-        return itertools.chain(super(SASHeader, self).itervalues(),
-                 itertools.imap(lambda x:self[self._key_aliases[x]], itertools.ifilter(lambda x:x in self, self._key_aliases.iterkeys())))
-    def iteritems(self):
+        return itertools.chain(super(SASHeader, self).values(),
+                               map(lambda x: self[self._key_aliases[x]], filter(lambda x: x in self, self._key_aliases.keys())))
+
+    def items(self):
         """ Iterator version of items()."""
-        return itertools.izip(self.iterkeys(), self.itervalues())
+        return zip(self.keys(), self.values())
 
     @classmethod
     def register_IOplugin(cls, plugin, idx=None):
@@ -457,28 +484,33 @@ class SASHeader(dict):
             cls._plugins.append(plugin)
         else:
             cls._plugins.insert(idx, plugin)
+
     @classmethod
     def get_IOplugin(cls, filename, mode='READ', **kwargs):
         plugin = []
         if mode.upper() == 'READ':
-            checkmode = lambda a:a.is_read_supported()
+            checkmode = lambda a: a.is_read_supported()
         elif mode.upper() == 'WRITE':
-            checkmode = lambda a:a.is_write_supported()
+            checkmode = lambda a: a.is_write_supported()
         elif mode.upper() == 'BOTH':
-            checkmode = lambda a:(a.is_read_supported() and a.is_write_supported())
+            checkmode = lambda a: (
+                a.is_read_supported() and a.is_write_supported())
         else:
             raise ValueError('Invalid mode!')
         if 'experiment_type' in kwargs:
-            plugin = [p for p in cls._plugins if p.name == kwargs['experiment_type'] and checkmode(p)]
+            plugin = [p for p in cls._plugins if p.name ==
+                      kwargs['experiment_type'] and checkmode(p)]
         if not plugin:
-            plugin = [p for p in cls._plugins if p.check_if_applies(filename) and checkmode(p)]
+            plugin = [
+                p for p in cls._plugins if p.check_if_applies(filename) and checkmode(p)]
         if not plugin:
             raise ValueError('No plugin can handle ' + str(filename))
         return plugin[0]
+
     def write(self, writeto, **kwargs):
         plugin = self.get_IOplugin(writeto, 'WRITE', **kwargs)
         plugin.write(writeto, self, **kwargs)
-        
+
     # ------------------------ History manipulation ---------------------------
 
     def add_history(self, text, time=None):
@@ -503,7 +535,7 @@ class SASHeader(dict):
         """Add in-place. The actual work is done by the SASHeader.summarize()
         classmethod."""
         obj = SASHeader.summarize(self, other)
-        for k in obj.keys():
+        for k in list(obj.keys()):
             self[k] = obj[k]
         return self
 
@@ -528,7 +560,8 @@ class SASHeader(dict):
             raise NotImplementedError('Only SASHeaders can be averaged!')
         obj = cls()
         fields_treated = []
-        allfieldnames = set(reduce(lambda (a, b):a + b, [a.keys() for a in args], []))
+        allfieldnames = set(
+            reduce(lambda a_b: a_b[0] + a_b[1], [list(a.keys()) for a in args], []))
         for k in allfieldnames.intersection(cls._fields_to_sum):
             dk = k + 'Error'
             obj[k] = sum([a[k] for a in args])
@@ -542,7 +575,7 @@ class SASHeader(dict):
             obj[dk] = 1 / math.sqrt(sumweight)
             fields_treated.extend([k, dk])
         allfieldnames = allfieldnames.difference(fields_treated)
-        for k in allfieldnames.intersection(cls._fields_to_collect.keys()):
+        for k in allfieldnames.intersection(list(cls._fields_to_collect.keys())):
             k_c = cls._fields_to_collect[k]
             obj[k_c] = sum([a[k_c] for a in args])
             obj[k_c].extend([a[k] for a in args])
@@ -552,23 +585,22 @@ class SASHeader(dict):
         allfieldnames = allfieldnames.difference(fields_treated)
         for k in allfieldnames:
             # find the first occurrence of the field
-            obj[k] = [a for a in args if k in a.keys()][0][k]
-        obj.add_history('Summed from: ' + ' and '.join([unicode(a) for a in args]))
+            obj[k] = [a for a in args if k in list(a.keys())][0][k]
+        obj.add_history('Summed from: ' + ' and '.join([str(a) for a in args]))
         return obj
 
     def isequiv(self, other):
         """Test if the two headers are equivalent. The information found in
         SASHeader._equiv_tests is used to decide equivalence.
         """
-        return all([self._equiv_tests[k](self[k], other[k]) for k in self._equiv_tests] + 
+        return all([self._equiv_tests[k](self[k], other[k]) for k in self._equiv_tests] +
                    [other._equiv_tests[k](self[k], other[k]) for k in other._equiv_tests])  # IGNORE:W0212
 
     # ---------------------------- HDF5 I/O ----------------------------------
 
     def __reduce__(self):
-        d = {'data':dict(self)}
+        d = {'data': dict(self)}
         d['_protectedfields_to_copy'] = self._protectedfields_to_copy
         for f in self._protectedfields_to_copy:
             d[f] = self.__getattribute__(f)
         return (SASHeader, (('PICKLED_SASHEADER', d),))
-

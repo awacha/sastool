@@ -10,14 +10,14 @@ FitFunction and descendants: various fitting functions. See help(FitFunction)
 Transform and descendants: transformations for sastool.dataset.PlotAndTransform
     and its descendants. Check out help(Transform)
 '''
-import fitfunctions
-import standalone
+from . import fitfunctions
+from . import standalone
 from ..misc import easylsq
 
 __all__ = ['fitfunctions', 'standalone', 'easylsq']
 
-from fitfunctions import *
-from standalone import *
+from .fitfunctions import *
+from .standalone import *
 from ..misc.easylsq import *
 
 for k in __all__[:]:

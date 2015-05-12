@@ -23,9 +23,9 @@ def get_I0(data,header,pri):
 
 datadirs=[os.path.join(datarootdir,sd) for sd in subdirs];
 
-data,header=sastool.io.b1.read2dB1data(range(10),'org_%05d',dirs=datadirs)
+data,header=sastool.io.b1.read2dB1data(list(range(10)),'org_%05d',dirs=datadirs)
 
 I0=[get_I0(d,h,pri) for d,h in zip(data,header)]
 
 for i in range(len(data)):
-    print header[i]['FSN'],header[i]['Title'],header[i]['Transm'], I0[i][0]/I0[0][0], np.sqrt(I0[i][0]**2*I0[0][1]**2/I0[0][0]**4+I0[i][1]**2/I0[0][0]);
+    print(header[i]['FSN'],header[i]['Title'],header[i]['Transm'], I0[i][0]/I0[0][0], np.sqrt(I0[i][0]**2*I0[0][1]**2/I0[0][0]**4+I0[i][1]**2/I0[0][0]));

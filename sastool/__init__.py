@@ -38,21 +38,21 @@ __docformat__ = "restructuredtext en"
 
 __all__ = ['io', 'misc', 'utils2d', 'fitting', 'sim', 'classes']
 
-import libconfig
+from . import libconfig
 
-import misc
-import utils2d
-import io
-import fitting
-import sim
-import classes
+from . import misc
+from . import utils2d
+from . import io
+from . import fitting
+from . import sim
+from . import classes
 
 for k in __all__[:]:
     __all__.extend(eval('%s.__all__' % k))
 
-from fitting import *
-from misc import *
-from io import *
-from utils2d import *
-from sim import *
-from classes import *
+from .fitting import *
+from .misc import *
+from .io import *
+from .utils2d import *
+from .sim import *
+from .classes import *

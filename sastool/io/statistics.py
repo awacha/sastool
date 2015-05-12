@@ -37,14 +37,14 @@ def listyellowsubmarine(outputname, fsns, nameformat = 'XE%04d.DAT', dirs = '.')
             h, d = readPAXE(findfileindirs(nameformat % f, dirs))
         except IOError:
             continue
-        print f
+        print(f)
         ws.write(i, 0, h['FSN'])
         ws.write(i, 1, h['Title'].decode('latin1', 'replace'))
         ws.write(i, 2, h['Owner'].decode('latin1', 'replace'))
         ws.write(i, 3, h['MeasTime'])
         ws.write(i, 4, h['Dist'])
         ws.write(i, 5, h['comments'].replace('\n', ' ').strip().decode('latin1', 'replace'))
-        ws.write(i, 6, unicode(h['Date']))
+        ws.write(i, 6, str(h['Date']))
         ws.write(i, 7, h['Monitor'])
         ws.write(i, 8, h['PosSample'])
         ws.write(i, 9, h['PosDetector'])
@@ -80,7 +80,7 @@ def listedf(outputname, fileglob = '*/*ccd'):
         ws.write(i, 2, edf['Intensity1'] / edf['Intensity0'])
         ws.write(i, 3, edf['ExposureTime'])
         ws.write(i, 4, edf['SampleDistance'] * 1e3)
-        ws.write(i, 5, unicode(edf['Time']))
+        ws.write(i, 5, str(edf['Time']))
         ws.write(i, 6, edf['WaveLength'] * 1e11)
         ws.write(i, 7, edf['ESRF_ID2_SAXS_SFD'])
         ws.write(i, 8, edf['ESRF_ID2_SAXS_SAX'])
@@ -88,7 +88,7 @@ def listedf(outputname, fileglob = '*/*ccd'):
         ws.write(i, 10, edf['ESRF_ID2_SAXS_TABLEZ'])
         ws.write(i, 11, '%d x %d' % (edf['BSize_1'], edf['BSize_2']))
         ws.write(i, 12, '%.3f x %.3f' % (edf['PSize_1'] * 1e3, edf['PSize_2'] * 1e3))
-        ws.write(i, 13, unicode(edf['MaskFileName']))
+        ws.write(i, 13, str(edf['MaskFileName']))
     wb.save(outputname)
 
 def listabtfiles(directory = '.', fileformat = 'abt*.fio'):
@@ -98,7 +98,7 @@ def listabtfiles(directory = '.', fileformat = 'abt*.fio'):
             abt = readabt(filename, [''])
         except IOError:
             pass
-        print abt['name'], abt['scantype'], abt['title'], abt['start'].isoformat(), abt['end'].isoformat()
+        print(abt['name'], abt['scantype'], abt['title'], abt['start'].isoformat(), abt['end'].isoformat())
 
 def listB1(fsns, xlsname, dirs, whattolist = None, headerformat = 'org_%05d.header'):
     """ getsamplenames revisited, XLS output.

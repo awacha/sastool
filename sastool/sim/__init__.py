@@ -1,9 +1,10 @@
 """Small-angle scattering simulation subpackage for SASTOOL"""
 
-from _sim import *
+from ._sim import *
 import numpy as np
 
 __all__ = []
+
 
 def Fsphere(q, R):
     """Scattering factor of a sphere, normalized to F(q=0)=N_electrons
@@ -19,6 +20,7 @@ def Fsphere(q, R):
     qR = np.outer(q, R)
     q1 = np.outer(q, np.ones_like(R))
     return 4 * np.pi / q1 ** 3 * (np.sin(qR) - qR * np.cos(qR))
+
 
 def FGaussProfile(q, R, sigma):
     """Form factor of a radial layer with a Gaussian radial profile, normalized

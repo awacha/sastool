@@ -3,7 +3,7 @@ Created on Jun 15, 2012
 
 @author: andris
 '''
-from __future__ import division, absolute_import, print_function#, unicode_literals
+#, unicode_literals
 import numpy as np
 import os
 import scipy.io
@@ -75,15 +75,15 @@ class SASMask(object):
                      str(type(maskmatrix)) + ' value: ' + repr(maskmatrix))
         kwargs = self._set_default_kwargs(kwargs)
         super(SASMask, self).__init__()
-        if isinstance(maskmatrix, basestring) and \
+        if isinstance(maskmatrix, str) and \
                 maskmatrix.lower()[-4:] in ['.mat', '.npz', '.npy']:
             # load from a '.mat', '.npz' or '.npy' file
             self.read_from_mat(maskmatrix, **kwargs)
-        elif isinstance(maskmatrix, basestring) and \
+        elif isinstance(maskmatrix, str) and \
                 maskmatrix.lower()[-4:] in ['.edf']:
             # load from an EDF file
             self.read_from_edf(maskmatrix, **kwargs)
-        elif isinstance(maskmatrix, basestring) and \
+        elif isinstance(maskmatrix, str) and \
                 maskmatrix.lower()[-4:] in ['.sma']:
             self.read_from_sma(maskmatrix)
         elif isinstance(maskmatrix, np.ndarray):
@@ -95,7 +95,7 @@ class SASMask(object):
             self.mask = maskmatrix.mask.copy()
             self.maskid = maskmatrix.maskid
         elif isinstance(maskmatrix, h5py.highlevel.Group) or \
-            (isinstance(maskmatrix, basestring) and
+            (isinstance(maskmatrix, str) and
              (maskmatrix.lower().endswith('.h5') or maskmatrix.lower().endswith('.hdf5'))):
             self.read_from_hdf5(maskmatrix, **kwargs)
         elif isinstance(maskmatrix, numbers.Integral):
@@ -104,13 +104,13 @@ class SASMask(object):
         elif isinstance(maskmatrix, collections.Sequence) and len(maskmatrix) >= 2:
             self.mask = np.zeros(maskmatrix[:2], dtype=np.uint8)
             self.maskid = kwargs['maskid']
-        elif isinstance(maskmatrix, basestring):
+        elif isinstance(maskmatrix, str):
             raise IOError('Could not open mask file: ' + maskmatrix)
         else:
             raise NotImplementedError
 
     def __unicode__(self):
-        return u'SASMask(' + self.maskid + ')'
+        return 'SASMask(' + self.maskid + ')'
     __str__ = __unicode__
     __repr__ = __unicode__
 
@@ -154,7 +154,7 @@ class SASMask(object):
         if f is None:
             raise IOError('Cannot find mask file %s!' % filename)
         if fieldname is None:
-            validkeys = [k for k in f.keys() if not (
+            validkeys = [k for k in list(f.keys()) if not (
                 k.startswith('_') and k.endswith('_'))]
             if len(validkeys) < 1:
                 raise ValueError('mask file contains no masks!')
@@ -207,7 +207,7 @@ class SASMask(object):
         """
         kwargs = self._set_default_kwargs(kwargs)
         with _HDF_parse_group(hdf_entity, kwargs['dirs']) as hpg:
-            if self.maskid in hpg.keys():
+            if self.maskid in list(hpg.keys()):
                 del hpg[self.maskid]
             hpg.create_dataset(self.maskid, data=self.mask, compression='gzip')
 
@@ -224,11 +224,11 @@ class SASMask(object):
         """
         kwargs = self._set_default_kwargs(kwargs)
         with _HDF_parse_group(hdf_entity, kwargs['dirs']) as hpg:
-            if len(hpg.keys()) == 0:
+            if len(list(hpg.keys())) == 0:
                 raise ValueError('No datasets in the HDF5 group!')
             if maskid is None:
-                if len(hpg.keys()) == 1:
-                    self.maskid = hpg.keys()[0]
+                if len(list(hpg.keys())) == 1:
+                    self.maskid = list(hpg.keys())[0]
                     self.mask = hpg[self.maskid].value
                     self.filename = hpg.file.filename + \
                         ':' + hpg[self.maskid].name
@@ -236,9 +236,9 @@ class SASMask(object):
                     raise ValueError('More than one datasets in the HDF5 group\
 and maskid argument was omitted.')
             else:
-                if maskid not in hpg.keys():
+                if maskid not in list(hpg.keys()):
                     maskid_new = os.path.splitext(os.path.basename(maskid))[0]
-                    if maskid_new not in hpg.keys():
+                    if maskid_new not in list(hpg.keys()):
                         raise ValueError(
                             'Cannot find mask with ID %s in the HDF5 group!' % maskid)
                     else:

@@ -140,7 +140,7 @@ def findpeak_multi(x, y, dy, N, Ntolerance, Nfit=None, curve='Lorentz', return_x
     pos = []; ampl = []; hwhm = []; baseline = []; xfit = []; stat = []
     dy1 = None
     for i in range(len(ypeak)):
-        if not [j for j in range(i + 1, len(ypeak)) + range(0, i) if abs(peakpospix[j] - peakpospix[i]) <= N and ypeak[i] < ypeak[j]]:
+        if not [j for j in list(range(i + 1, len(ypeak))) + list(range(0, i)) if abs(peakpospix[j] - peakpospix[i]) <= N and ypeak[i] < ypeak[j]]:
             # only leave maxima.
             idx = peakpospix[i]
             if dy is not None:

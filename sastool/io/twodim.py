@@ -24,8 +24,8 @@ import scipy.io
 import datetime
 import dateutil.parser
 import re
-import header
-from _io import cbfdecompress  # IGNORE:E0611
+from . import header
+from ._io import cbfdecompress  # IGNORE:E0611
 """Decompress algorithm for the byte-offset encoding found in CBF files.
 Implemented in `Cython` for the sake of speed."""
 
@@ -103,25 +103,25 @@ def readcbf(name, load_header=False, load_data=True, for_nexus=False):
     """
     with open(name, 'rb') as f:
         cbfbin = f.read()
-    datastart = cbfbin.find('\x0c\x1a\x04\xd5') + 4
-    hed = [x.strip() for x in cbfbin[:datastart].split('\n')]
+    datastart = cbfbin.find(b'\x0c\x1a\x04\xd5') + 4
+    hed = [x.strip() for x in cbfbin[:datastart].split(b'\n')]
     header = {}
     readingmode = None
-    for i in xrange(len(hed)):
+    for i in range(len(hed)):
         if not hed[i]:
             # skip empty header lines
             continue
-        elif hed[i] == ';':
+        elif hed[i] == b';':
             continue
-        elif hed[i].startswith('_array_data.header_convention'):
-            header['CBF_header_convention'] = hed[i][
-                len('_array_data.header_convention'):].strip().replace('"', '')
-        elif hed[i].startswith('_array_data.header_contents'):
+        elif hed[i].startswith(b'_array_data.header_convention'):
+            header['CBF_header_convention'] = str(hed[i][
+                len(b'_array_data.header_convention'):].strip().replace(b'"', b''), encoding='utf-8')
+        elif hed[i].startswith(b'_array_data.header_contents'):
             readingmode = 'PilatusHeader'
-        elif hed[i].startswith('_array_data.data'):
+        elif hed[i].startswith(b'_array_data.data'):
             readingmode = 'CIFHeader'
         elif readingmode == 'PilatusHeader':
-            if not hed[i].startswith('#'):
+            if not hed[i].startswith(b'#'):
                 continue
             line = hed[i].strip()[1:].strip()
             try:
@@ -134,44 +134,56 @@ def readcbf(name, load_header=False, load_data=True, for_nexus=False):
                 # another format.
                 pass
             treated = False
-            for sep in (':', '='):
+            for sep in (b':', b'='):
                 if treated:
                     continue
                 if line.count(sep) == 1:
                     name, value = tuple(x.strip() for x in line.split(sep, 1))
-                    if re.match('^(?P<number>-?(\d+(.\d+)?(e-?\d+)?))\s+(?P<unit>m|s|counts|eV)$', value) is not None:
+                    try:
                         m = re.match(
-                            '^(?P<number>-?(\d+(.\d+)?(e-?\d+)?))\s+(?P<unit>m|s|counts|eV)$', value).groupdict()
+                            b'^(?P<number>-?(\d+(.\d+)?(e-?\d+)?))\s+(?P<unit>m|s|counts|eV)$', value).groupdict()
                         value = float(m['number'])
-                    header[name] = value
+                        m['unit'] = str(m['unit'], encoding='utf-8')
+                    except AttributeError:
+                        # the regex did not match the string, thus re.match()
+                        # returned None.
+                        pass
+                    header[str(name, 'utf-8')] = value
                     treated = True
             if treated:
                 continue
-            if line.startswith('Pixel_size'):
+            if line.startswith(b'Pixel_size'):
                 header['XPixel'], header['YPixel'] = tuple(
-                    [float(a.strip().split(' ')[0]) * 1000 for a in line[len('Pixel_size'):].split('x')])
-            elif re.match('^(?P<label>[a-zA-Z0-9,_\.\-!\?\ ]*?)\s+(?P<number>-?(\d+(.\d+)?(e-?\d+)?))\s+(?P<unit>m|s|counts|eV)$', line) is not None:
-                m = re.match(
-                    '^(?P<label>[a-zA-Z0-9,_\.\-!\?\ ]*?)\s+(?P<number>-?(\d+(.\d+)?(e-?\d+)?))\s+(?P<unit>m|s|counts|eV)$', line).groupdict()
-                if m['unit'] == 'counts':
-                    header[m['label']] = int(m['number'])
+                    [float(a.strip().split(b' ')[0]) * 1000 for a in line[len(b'Pixel_size'):].split(b'x')])
+            else:
+                try:
+                    m = re.match(
+                        b'^(?P<label>[a-zA-Z0-9,_\.\-!\?\ ]*?)\s+(?P<number>-?(\d+(.\d+)?(e-?\d+)?))\s+(?P<unit>m|s|counts|eV)$', line).groupdict()
+                except AttributeError:
+                    pass
                 else:
-                    header[m['label']] = float(m['number'])
-                if 'sensor' in m['label'] and 'thickness' in m['label']:
-                    header[m['label']] *= 1e6
+                    m['label'] = str(m['label'], 'utf-8')
+                    m['unit'] = str(m['unit'], encoding='utf-8')
+                    if m['unit'] == b'counts':
+                        header[m['label']] = int(m['number'])
+                    else:
+                        header[m['label']] = float(m['number'])
+                    if 'sensor' in m['label'] and 'thickness' in m['label']:
+                        header[m['label']] *= 1e6
         elif readingmode == 'CIFHeader':
             line = hed[i]
-            for sep in (':', '='):
+            for sep in (b':', b'='):
                 if line.count(sep) == 1:
                     label, content = tuple(x.strip()
                                            for x in line.split(sep, 1))
-                    if '"' in content:
-                        content = content.replace('"', '')
+                    if b'"' in content:
+                        content = content.replace(b'"', b'')
                     try:
                         content = int(content)
                     except ValueError:
-                        pass
-                    header['CBF_' + label] = content
+                        content = str(content, encoding='utf-8')
+                    header['CBF_' + str(label, encoding='utf-8')] = content
+
         else:
             pass
     ret = []
@@ -333,7 +345,7 @@ def readmask(filename, fieldname=None):
         return f[fieldname].astype(np.uint8)
     else:
         validkeys = [
-            k for k in f.keys() if not (k.startswith('_') and k.endswith('_'))]
+            k for k in list(f.keys()) if not (k.startswith('_') and k.endswith('_'))]
         if len(validkeys) < 1:
             raise ValueError('mask file contains no masks!')
         if len(validkeys) > 1:
@@ -450,9 +462,9 @@ def writebdfv2(filename, bdf, bdfext='.bdf', bhfext='.bhf'):
     f = open(basename + '.bdf', 'wb')
     keys = ['RAWDATA', 'RAWERROR', 'CORRDATA', 'CORRERROR', 'NANDATA']
     keys.extend(
-        [x for x in bdf.keys() if isinstance(bdf[x], np.ndarray) and x not in keys])
+        [x for x in list(bdf.keys()) if isinstance(bdf[x], np.ndarray) and x not in keys])
     for k in keys:
-        if k not in bdf.keys():
+        if k not in list(bdf.keys()):
             continue
         f.write('#%s[%d:%d]\n' % (k, bdf['xdim'], bdf['ydim']))
         f.write(np.rot90(bdf[k], 3).astype('float32').tostring(order='F'))

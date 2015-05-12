@@ -2,6 +2,7 @@
 
 __all__ = ['ArithmeticBase']
 
+
 class ArithmeticBase(object):
     """A mixin class for defining simple arithmetics with minimal user effort.
 
@@ -21,6 +22,7 @@ class ArithmeticBase(object):
         __div__, __rdiv__ and __idiv__ are constructed automatically from the
         given functions (assuming commutative addition and multiplication)
     """
+
     def __add__(self, value):
         try:
             copier = getattr(self, 'copy')
@@ -30,13 +32,17 @@ class ArithmeticBase(object):
             obj = copier()
         obj = obj.__iadd__(value)
         return obj
+
     def __radd__(self, value):
-        retval = self +value
+        retval = self + value
         if retval is NotImplemented:
-            raise NotImplementedError('addition is not implemented between %s and %s types' % (type(self), type(value)))
+            raise NotImplementedError(
+                'addition is not implemented between %s and %s types' % (type(self), type(value)))
         return retval
+
     def __isub__(self, value):
         return self.__iadd__(-value)
+
     def __sub__(self, value):
         try:
             copier = getattr(self, 'copy')
@@ -46,11 +52,14 @@ class ArithmeticBase(object):
             obj = copier()
         obj = obj.__isub__(value)
         return obj
+
     def __rsub__(self, value):
         retval = (-self) + value
         if retval is NotImplemented:
-            raise NotImplementedError('subtraction is not implemented between %s and %s types' % (type(self), type(value)))
+            raise NotImplementedError(
+                'subtraction is not implemented between %s and %s types' % (type(self), type(value)))
         return retval
+
     def __mul__(self, value):
         try:
             copier = getattr(self, 'copy')
@@ -60,32 +69,44 @@ class ArithmeticBase(object):
             obj = copier()
         obj = obj.__imul__(value)
         return obj
+
     def __rmul__(self, value):
         retval = self * value
         if retval is NotImplemented:
-            raise NotImplementedError('multiplication is not implemented between %s and %s types' % (type(self), type(value)))
+            raise NotImplementedError(
+                'multiplication is not implemented between %s and %s types' % (type(self), type(value)))
         return retval
-    def __idiv__(self, value):
-        return self.__imul__(1.0 / value)
-    def __div__(self, value):
+
+    def __itruediv__(self, value):
         try:
-            copier = getattr(self, 'copy')
+            value_recip = value._recip()
+        except AttributeError:
+            value_recip = 1.0 / value
+        return self.__imul__(value_recip)
+
+    def __truediv__(self, value):
+        try:
+            obj = self.copy()
         except AttributeError:
             obj = type(self)(self)
-        else:
-            obj = copier()
-        obj = obj.__idiv__(value)
+        return obj.__itruediv__(value)
         return obj
-    def __rdiv__(self, value):
+
+    def __rtruediv__(self, value):
         retval = self._recip() * value
         if retval is NotImplemented:
-            raise NotImplementedError('division is not implemented between %s and %s types' % (type(self), type(value)))
+            raise NotImplementedError(
+                'division is not implemented between %s and %s types' % (type(self), type(value)))
         return retval
+
     def __iadd__(self, value):
         raise NotImplementedError
+
     def __imul__(self, value):
         raise NotImplementedError
+
     def __neg__(self):
         raise NotImplementedError
+
     def _recip(self):
         raise NotImplementedError

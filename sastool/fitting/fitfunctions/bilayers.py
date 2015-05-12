@@ -1,5 +1,5 @@
 import numpy as np
-from sasbasic import Fsphere
+from .sasbasic import Fsphere
 from scipy.special import sinc
 
 __all__ = []

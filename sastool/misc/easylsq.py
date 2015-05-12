@@ -13,7 +13,7 @@ from scipy.optimize import leastsq
 import scipy.odr as odr
 import numpy as np
 import collections
-from errorvalue import ErrorValue
+from .errorvalue import ErrorValue
 import time
 
 __all__ = ['FixedParameter', 'nonlinear_leastsquares',
@@ -245,13 +245,13 @@ def nlsq_fit(x, y, dy, func, params_init, verbose=False, **kwargs):
     """
     if verbose:
         t0 = time.time()
-        print "nlsq_fit starting."
+        print("nlsq_fit starting.")
     func_orig = func
     params_init_orig = params_init
     func, params_init = hide_fixedparams(func_orig, params_init_orig)
     if (dy is None) or (dy == np.nan).sum() > 0 or (dy <= 0).sum() > 0:
         if verbose:
-            print "nlsq_fit: no weighting"
+            print("nlsq_fit: no weighting")
         dy = None
 
     def objectivefunc(params, x, y, dy):
@@ -262,16 +262,16 @@ def nlsq_fit(x, y, dy, func, params_init, verbose=False, **kwargs):
             return (func(x, *(params.tolist())) - y) / dy
     # do the fitting
     if verbose:
-        print "nlsq_fit: now doing the fitting..."
+        print("nlsq_fit: now doing the fitting...")
         t1 = time.time()
     par, cov, infodict, mesg, ier = leastsq(objectivefunc,
                                             np.array(params_init),
                                             (x, y, dy), full_output=True,
                                             **kwargs)
     if verbose:
-        print "nlsq_fit: fitting done in %.2f seconds." % (time.time() - t1)
-        print "nlsq_fit: status from scipy.optimize.leastsq(): %d (%s)" % (ier, mesg)
-        print "nlsq_fit: extracting statistics."
+        print("nlsq_fit: fitting done in %.2f seconds." % (time.time() - t1))
+        print("nlsq_fit: status from scipy.optimize.leastsq(): %d (%s)" % (ier, mesg))
+        print("nlsq_fit: extracting statistics.")
     # test if the covariance was singular (cov is None)
     if cov is None:
         cov = np.ones((len(par), len(par))) * np.nan  # set it to a NaN matrix
@@ -301,8 +301,8 @@ def nlsq_fit(x, y, dy, func, params_init, verbose=False, **kwargs):
     statdict['Correlation_coeffs'] = statdict['Covariance'] / np.outer(dpar,
                                                                        dpar)
     if verbose:
-        print "nlsq_fit: returning with results."
-        print "nlsq_fit: total time: %.2f sec." % (time.time() - t0)
+        print("nlsq_fit: returning with results.")
+        print("nlsq_fit: total time: %.2f sec." % (time.time() - t0))
     return par, dpar, statdict
 
 def slice_covarmatrix(cov, indices):
@@ -394,17 +394,17 @@ def simultaneous_nlsq_fit(xs, ys, dys, func, params_inits, verbose=False,
                 param_indices[jorig].append(param_indices[j][i])
 
     if verbose:
-        print "Number of datasets for simultaneous fitting:", Ndata
-        print "Total number of data points:", len(xcat)
-        print "Number of parameters in each dataset:", Npar
-        print "Total number of parameters:", Ndata * Npar
-        print "Number of independent parameters:", len(paramcat)
+        print("Number of datasets for simultaneous fitting:", Ndata)
+        print("Total number of data points:", len(xcat))
+        print("Number of parameters in each dataset:", Npar)
+        print("Total number of parameters:", Ndata * Npar)
+        print("Number of independent parameters:", len(paramcat))
     # the flattened function
     def func_flat(x, *params):
         y = []
         for j in range(Ndata):
             if verbose > 1:
-                print "Simultaneous fitting: evaluating function for dataset #", j, "/", Ndata
+                print("Simultaneous fitting: evaluating function for dataset #", j, "/", Ndata)
             pars = [params[i] for i in param_indices[j]]
             y.append(func(x[starts[j]:ends[j]], *pars))
         return np.concatenate(tuple(y))

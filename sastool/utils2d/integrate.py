@@ -1,8 +1,9 @@
-from _integrate import radint, azimint, bin2D, autoqscale, calculateDmatrix, \
-polartransform, twodimfromonedim, radint_fullq, radint_nsector, groupsum, radint_errorprop, \
-radint_fullq_errorprop, autoabscissa
+from ._integrate import radint, azimint, bin2D, autoqscale, calculateDmatrix, \
+    polartransform, twodimfromonedim, radint_fullq, radint_nsector, groupsum, radint_errorprop, \
+    radint_fullq_errorprop, autoabscissa
 
 import numpy as np
+
 
 def radintpix(data, dataerr, bcx, bcy, mask=None, pix=None, returnavgpix=False,
               phi0=0, dphi=0, returnmask=False, symmetric_sector=False,
@@ -74,4 +75,3 @@ def azimintpix(data, dataerr, bcx, bcy, mask=None, Ntheta=100, pixmin=0,
     return azimint(data, dataerr, -1, -1,
                    - 1, bcx, bcy, mask, Ntheta, pixmin,
                    pixmax, returnmask, errorpropagation)
-

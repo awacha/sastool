@@ -44,7 +44,7 @@ def read2dintfile(fsn, fileformat = 'int2dnorm%d', logfileformat = 'intnorm%d.lo
         try:
             return SASExposure.new_from_B1_int2dnorm(f, fileformat, logfileformat, dirs)
         except IOError:
-            print "Could not load files for FSN", f
+            print("Could not load files for FSN", f)
             return None
     loaded = [read_and_eat_exception(f) for f in fsns]
     loaded = [l for l in loaded if l is not None]
@@ -154,7 +154,7 @@ def convert_B1intnorm_to_HDF5(fsns, hdf5_filename, maskrules,
         try:
             a = SASExposure.new_from_B1_int2dnorm(f, int2dnormformat, logformat, dirs)
         except IOError:
-            print "Could not open file", f
+            print("Could not open file", f)
             continue
         try:
             # find a matching mask
@@ -164,13 +164,13 @@ def convert_B1intnorm_to_HDF5(fsns, hdf5_filename, maskrules,
         except MatchesException as me:
             mask = me.args[0]
         else:
-            raise ValueError('No mask found for ' + unicode(a.header))
-        if isinstance(mask, basestring):
+            raise ValueError('No mask found for ' + str(a.header))
+        if isinstance(mask, str):
             mask = findfileindirs(mask, dirs)
         mask = SASMask(mask)
         a.set_mask(mask)
         a.write_to_hdf5(hdf)
         del mask
         del a
-        print "Converted ", f
+        print("Converted ", f)
     hdf.close()

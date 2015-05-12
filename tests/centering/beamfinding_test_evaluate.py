@@ -14,20 +14,20 @@ ymax=210
 modes=['slice','azim','azimfold']
 
 bcxfiles=[f for f in os.listdir('.') if re.match('bcx[a-z]+_([0-9]+).npy',f)]
-print bcxfiles
+print(bcxfiles)
 fsns=set([re.match('bcx[a-z]+_([0-9]+).npy',f).group(1) for f in bcxfiles])
-print fsns
+print(fsns)
 
 plt.figure(figsize=(11,7),dpi=80)
 for f in fsns:
     f=int(f)
-    print f
+    print(f)
     data,header=sastool.io.b1.read2dB1data(f,'ORG%05d','.')
     plt.clf()
     plt.subplot(3,5,1)
     plt.imshow(data[0],interpolation='nearest')
     modeidx=0
-    for m,i in zip(modes,range(len(modes))):
+    for m,i in zip(modes,list(range(len(modes)))):
         bcx=np.load('bcx%s_%d.npy'%(m,f))
         bcy=np.load('bcy%s_%d.npy'%(m,f))
         dist=np.load('dist%s_%d.npy'%(m,f))
@@ -48,6 +48,6 @@ for f in fsns:
         plt.imshow(xtime,interpolation='nearest')
         plt.axis((xmin-2,xmax+2,ymin-2,ymax+2))
         plt.colorbar()
-    print "Saving image"
+    print("Saving image")
     plt.savefig('bftest_%d.pdf'%f)
     

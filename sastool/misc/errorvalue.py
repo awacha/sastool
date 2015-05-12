@@ -4,7 +4,7 @@ Created on Thu Aug 25 11:18:05 2011
 
 @author: -
 """
-from arithmetic import ArithmeticBase
+from .arithmetic import ArithmeticBase
 import numpy as np
 import numbers
 import math
@@ -103,7 +103,7 @@ class ErrorValue(ArithmeticBase):
     def __str__(self):
         return self.tostring(plusminus=' +/- ')
     def __unicode__(self):
-        return self.tostring(plusminus=u' \xb1 ')
+        return self.tostring(plusminus=' \xb1 ')
     def __pow__(self, other, modulo=None):
         if modulo is not None:
             return NotImplemented
@@ -119,7 +119,7 @@ class ErrorValue(ArithmeticBase):
     def __float__(self):
         return float(self.val)
     def __trunc__(self):
-        return long(self.val)
+        return int(self.val)
     def __array__(self, dt=None):
         if dt is None:
             return np.array(self.val)
@@ -146,7 +146,7 @@ class ErrorValue(ArithmeticBase):
         --------
             the string representation.
         """
-        if isinstance(fmt, basestring) and fmt.lower().endswith('tex'):
+        if isinstance(fmt, str) and fmt.lower().endswith('tex'):
             return re.subn('(\d*)(\.(\d)*)?[eE]([+-]?\d+)', lambda m:(r'$%s%s\cdot 10^{%s}$' % (m.group(1), m.group(2), m.group(4))).replace('None', ''),
                            self.tostring(extra_digits=extra_digits, plusminus=plusminus, fmt=None))[0]
         if isinstance(self.val, numbers.Real):

@@ -5,8 +5,8 @@ Created on Jul 25, 2012
 '''
 import os
 import sys
-from utils import normalize_listargument
-from searchpath import sastool_search_path
+from .utils import normalize_listargument
+from .searchpath import sastool_search_path
 import logging
 
 logger = logging.getLogger(__name__)

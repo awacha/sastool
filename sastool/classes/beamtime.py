@@ -1,11 +1,12 @@
 import os
 import re
 import sastool
-import cPickle as pickle
+import pickle as pickle
 import time
 import logging
 import numpy as np
 import warnings
+import collections
 
 __all__ = ['SASBeamTime']
 # file formats can contain a subset of C-style format strings:
@@ -57,9 +58,9 @@ class SASBeamTime(object):
             warnings.warn('Could not open cache file: %s. Reason: %s' % (self._cachefile, str(exc)))
         self._cache_headers()
     def _normalize_path(self, path, recursive_paths=False):
-        if isinstance(path, basestring):
+        if isinstance(path, str):
             path = [path]
-        if not all(isinstance(p, basestring) for p in path):
+        if not all(isinstance(p, str) for p in path):
             raise ValueError('Path should be either a single folder name or a list of folder names.')
         # if recursive paths are desired, we add subdirectories onto the path just after their parent.
         if recursive_paths:
@@ -84,11 +85,11 @@ class SASBeamTime(object):
         if force:
             self._headercache = {}
         def _load(fname):
-            if callable(self.callbackfunc):
+            if isinstance(self.callbackfunc, collections.Callable):
                 self.callbackfunc()
             return (sastool.classes.SASHeader(fname), os.stat(fname).st_mtime)
         regex = re.compile(formatstring_to_regexp(self.headerformat))
-        have_fsns = [h[0]['FSN'] for h in self._headercache.itervalues()]
+        have_fsns = [h[0]['FSN'] for h in self._headercache.values()]
         fsns = set()
         have_files = []
         for d in self.path:
@@ -102,8 +103,8 @@ class SASBeamTime(object):
                              if (fsn <= self.maxfsn) and (fsn >= self.minfsn) and ((f not in self._headercache) or (self._headercache[f][1] < stat.st_mtime))
                              ]
 
-            dict_for_upd = dict(zip([x[0] for x in files_to_load],
-                                              [_load(os.path.join(d, f)) for f, s, fsn in files_to_load]))
+            dict_for_upd = dict(list(zip([x[0] for x in files_to_load],
+                                              [_load(os.path.join(d, f)) for f, s, fsn in files_to_load])))
 #            print dict_for_upd
             # print dict_for_upd[0]
             self._headercache.update(dict_for_upd)
@@ -143,7 +144,7 @@ class SASBeamTime(object):
         while args:
             field = args[0]
             value = args[1]
-            if callable(value):
+            if isinstance(value, collections.Callable):
                 lis = [l for l in lis if value(l[field])]
             else:
                 lis = [l for l in lis if value == l[field]]
@@ -199,7 +200,7 @@ class SASBeamTime(object):
             warnings.warn('Could not load file ' + filetoread)
             return
     def __iter__(self):
-        for val in self._headercache.itervalues():
+        for val in self._headercache.values():
             yield val[0]
     def refresh_cache(self, force=False):
         self._cache_headers(force)

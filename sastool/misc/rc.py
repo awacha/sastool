@@ -48,11 +48,11 @@ class SASToolRC(object):
             l = lines[i].strip()
             if re.match('^' + path.replace('.', '\.'), l) is None:
                 continue
-            lines[i] = path + ' : ' + unicode(value)
+            lines[i] = path + ' : ' + str(value)
             found = True
             break
         if not found:
-            lines.append(path + ' : ' + unicode(value))
+            lines.append(path + ' : ' + str(value))
         with open(self.configfile, 'wt') as f:
             for l in sorted(lines):
                 if l.strip():

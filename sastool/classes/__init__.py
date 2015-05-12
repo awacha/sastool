@@ -11,19 +11,19 @@ __all__ = ['common', 'exposure', 'header', 'mask', 'arithmetic', 'curve', 'error
 
 from sastool.misc import errorvalue
 from sastool.misc import arithmetic
-import common
-import exposure
-import header
-import mask
-import curve
-import exposure_plugin
-import header_plugin
-import scan
-import beamtime
+from . import common
+from . import exposure
+from . import header
+from . import mask
+from . import curve
+from . import exposure_plugin
+from . import header_plugin
+from . import scan
+from . import beamtime
 
 from sastool.misc.errorvalue import *
 from sastool.misc.arithmetic import *
-from common import *
+from .common import *
 
 from .exposure import *
 from .mask import *

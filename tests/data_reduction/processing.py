@@ -5,8 +5,8 @@ import numpy as np
 import datetime
 
 datadirs=['/afs/bionano/misc/synchrotron_neutron/desy/hasylab/hasjusi1/ORG/']
-sensfsns=range(7721,7765)
-sensfsns=range(7721,7727)
+sensfsns=list(range(7721,7765))
+sensfsns=list(range(7721,7727))
 dcfsns=[7817]
 
 #configuration parameters
@@ -58,11 +58,11 @@ config={'datadirs':datadirs,
 def config_reloadmasks(config):
     """(Re)load mask files into the config structure"""
     if config['verbose']:
-        print "Reloading masks..."
-    for k in set(config['maskfile'].values() + [config['maskfile'].default_factory()]):
+        print("Reloading masks...")
+    for k in set(list(config['maskfile'].values()) + [config['maskfile'].default_factory()]):
         config['masks'][k]=sastool.io.twodim.readmask(k,config['datadirs']).astype(np.uint8)
         if config['verbose']:
-            print "  reloaded mask",k
+            print("  reloaded mask",k)
     return config
 
 def config_getmask(config,samplename):
@@ -71,9 +71,9 @@ def config_getmask(config,samplename):
     return config['masks'][config['maskfile'][samplename]]
 
 def summarize(data,dataerr,header):
-    print "Summarizing the following samples:"
+    print("Summarizing the following samples:")
     for h in header:
-        print "  "+describe_header(h)
+        print("  "+describe_header(h))
     datas=sum(data)
     dataerrs=np.sqrt(sum([de**2 for de in dataerr]))
     headers=header[0].copy()
@@ -84,9 +84,9 @@ def summarize(data,dataerr,header):
 
 def correcttransmission(data,dataerr,header,config):
     if config['verbose']:
-        print "Correcting for transmission"
+        print("Correcting for transmission")
     for i in range(len(header)):
-        print "  "+describe_header(header[i])
+        print("  "+describe_header(header[i]))
         #transmission adjustment
         if header[i]['Title'] in config['transmissionoverride']:
             header[i]['Transm']=config['transmissionoverride'][header[i]['Title']]
@@ -149,10 +149,10 @@ def correctenergy(data,dataerr,header,config):
 
 def correctmonitor(data,dataerr,header,config):
     if config['verbose']:
-        print "Normalizing by monitor counts"
+        print("Normalizing by monitor counts")
     for i in range(len(header)):
         if config['verbose']:
-            print "  "+describe_header(header[i])
+            print("  "+describe_header(header[i]))
         dataerr[i]=np.sqrt(data[i]**2/header[i]['Monitor']**4*header[i]['MonitorError']**2+\
                            dataerr[i]**2/header[i]['Monitor']**2)
         data[i]=data[i]/header[i]['Monitor']

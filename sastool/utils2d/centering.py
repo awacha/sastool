@@ -1,5 +1,5 @@
 import numpy as np
-from integrate import radintpix, azimintpix, radint_nsector
+from .integrate import radintpix, azimintpix, radint_nsector
 import scipy.optimize
 from .. import misc
 
@@ -140,7 +140,7 @@ def findbeam_azimuthal(data, orig_initial, mask=None, maxiter=100, Ntheta=50,
         t, I, a = azimintpix(data, None, orig[
                              0] + orig_orig[0], orig[1] + orig_orig[1], mask.astype('uint8'), Ntheta, dmin, dmax)
         if len(a) > (a > 0).sum():
-            raise ValueError, 'findbeam_azimuthal: non-complete azimuthal average, please consider changing dmin, dmax and/or orig_initial!'
+            raise ValueError('findbeam_azimuthal: non-complete azimuthal average, please consider changing dmin, dmax and/or orig_initial!')
         p = ((I.max() - I.min()) / 2.0, t[I == I.max()][0], I.mean())
         p = scipy.optimize.leastsq(sinfun, p, (t, I))[0]
         # print "findbeam_azimuthal: orig=",orig,"amplitude=",abs(p[0])
@@ -384,7 +384,7 @@ def findbeam_powerlaw(data, orig_initial, mask, rmin, rmax, maxiter=100,
             pix, I, E, lambda q, A, alpha: A * q ** alpha, [1.0, -3.0])
         if callback is not None:
             callback()
-        print orig, orig_orig, orig + orig_orig, stat[drive_by]
+        print(orig, orig_orig, orig + orig_orig, stat[drive_by])
         if drive_by == 'R2':
             return 1 - stat['R2']
         elif drive_by.startswith('Chi2'):

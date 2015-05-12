@@ -19,7 +19,7 @@ def twotheta(matrix, bcx, bcy, pixsizeperdist):
     Outputs:
         the two theta matrix, same shape as 'matrix'.
     """
-    col, row = np.meshgrid(range(matrix.shape[1]), range(matrix.shape[0]))
+    col, row = np.meshgrid(list(range(matrix.shape[1])), list(range(matrix.shape[0])))
     return np.arctan(np.sqrt((row - bcx) ** 2 + (col - bcy) ** 2) * pixsizeperdist)
 
 def solidangle(twotheta, sampletodetectordistance):

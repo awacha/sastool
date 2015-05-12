@@ -12,7 +12,7 @@ __all__ = ['parse_list_from_string', 'normalize_listargument', 'parse_number',
          'flatten_hierarchical_dict', 're_from_Cformatstring_numbers', 'random_str']
 
 def parse_list_from_string(s):
-    if not isinstance(s, basestring):
+    if not isinstance(s, str):
         raise ValueError('argument should be a string, not ' + type(s))
     s = s.strip()
     if (s.startswith('[') and s.endswith(']')) or (s.startswith('(') and s.endswith(')')):
@@ -27,7 +27,7 @@ def normalize_listargument(arg):
         converted to lists."""
     if isinstance(arg, np.ndarray):
         return arg.flatten()
-    if isinstance(arg, basestring):
+    if isinstance(arg, str):
         return [arg]
     if isinstance(arg, list) or isinstance(arg, tuple) or isinstance(arg, dict) or isinstance(arg, set):
         return list(arg)
@@ -39,9 +39,9 @@ def parse_number(val, use_dateutilparser=False):
     is executed. If this also fails, a ValueError is raised.
     """
     if use_dateutilparser:
-        funcs = [int, float, parse_list_from_string, dateutil.parser.parse, str, unicode]
+        funcs = [int, float, parse_list_from_string, dateutil.parser.parse, str, str]
     else:
-        funcs = [int, float, parse_list_from_string, str, unicode]
+        funcs = [int, float, parse_list_from_string, str, str]
         
     if (val.strip().startswith("'") and val.strip().endswith("'")) or (val.strip().startswith('"') and val.strip().endswith('"')):
         return val[1:-1]
@@ -107,4 +107,4 @@ def random_str(Nchars=6, randstrbase='0123456789abcdefghijklmnopqrstuvwxyzABCDEF
     """Return a random string of <Nchars> characters. Characters are sampled
     uniformly from <randstrbase>.
     """
-    return ''.join([randstrbase[random.randint(0, len(randstrbase) - 1)] for i in xrange(Nchars)])
+    return ''.join([randstrbase[random.randint(0, len(randstrbase) - 1)] for i in range(Nchars)])

@@ -75,7 +75,7 @@ def readspecscan(f, number=None):
         l = f.readline()
     if scan is not None:
         scan['data'] = np.array(
-            scan['data'], dtype=zip(scan['Columns'], itertools.repeat(np.float)))
+            scan['data'], dtype=list(zip(scan['Columns'], itertools.repeat(np.float))))
         return scan
     else:
         return scannumber
@@ -106,7 +106,7 @@ def readspec(filename, read_scan=None):
             if l.startswith('#F'):
                 sf['filename'] = l[2:].strip()
             elif l.startswith('#E'):
-                sf['epoch'] = long(l[2:].strip())
+                sf['epoch'] = int(l[2:].strip())
                 sf['datetime'] = datetime.datetime.fromtimestamp(sf['epoch'])
             elif l.startswith('#D'):
                 sf['datestring'] = l[2:].strip()
@@ -117,7 +117,7 @@ def readspec(filename, read_scan=None):
                     l = l.split(None, 1)[1]
                 except IndexError:
                     continue
-                if 'motors' not in sf.keys():
+                if 'motors' not in list(sf.keys()):
                     sf['motors'] = []
                 sf['motors'].extend([x.strip() for x in l.split('  ')])
             elif not l.strip():
@@ -240,7 +240,7 @@ def readabt(filename, dirs='.'):
             break
     abt['columns'] = [c[l - 1:] for c in abt['columns']]
     # represent data as a structured array
-    dt = np.dtype(zip(abt['columns'], itertools.repeat(np.double)))
+    dt = np.dtype(list(zip(abt['columns'], itertools.repeat(np.double))))
     abt['data'] = np.array(abt['data'], dtype=np.double).view(dt)
     # dates and times in datetime formats
     monthnames = ['Jan', 'Feb', 'Mar', 'Apr', 'May',

@@ -1,5 +1,6 @@
 import datetime
 from .history import SASHistory
+import collections
 
 class SASHeaderFieldLink(object):
     def __init__(self, tofield, strong=False):
@@ -54,18 +55,18 @@ class SASHeaderField(object):
             raise ValueError('Value is lower than the minimum for field %s.' % self.fieldname)
         if (maximum is not None) and (value > maximum):
             raise ValueError('Value is higher than the maximum for field %s.' % self.fieldname)
-        if callable(self.custom_validator) and not self.custom_validator(value):
+        if isinstance(self.custom_validator, collections.Callable) and not self.custom_validator(value):
             raise ValueError('Custom validator for field %s not matched.' % self.fieldname)
         return True
 
     def fromstring(self, string):
-        if callable(self.custom_fromstring):
+        if isinstance(self.custom_fromstring, collections.Callable):
             return self.custom_fromstring(string)
         else:
             return self.type_(string)
     
     def tostring(self, value):
-        if callable(self.custom_tostring):
+        if isinstance(self.custom_tostring, collections.Callable):
             return self.custom_tostring(value)
         else:
             return str(value)
@@ -247,7 +248,7 @@ SASHeaderField(type_=float,
                mnemonic='Wavelength',
                default=1,
                minimum=0,
-               unit=u'nm',
+               unit='nm',
                can_error=True,
                can_calibrated=True,
                collect_mode=SASHeaderFieldCollectMode.LIST)

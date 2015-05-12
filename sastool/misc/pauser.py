@@ -34,7 +34,7 @@ class Pauser(object):
             self._is_enabled = arg
         elif isinstance(arg, numbers.Number):
             time.sleep(arg)
-        elif arg is None or isinstance(arg, basestring):
+        elif arg is None or isinstance(arg, str):
             self.do_ui_pause(arg)
         else:
             raise NotImplementedError(arg)
@@ -49,7 +49,7 @@ class Pauser(object):
         if prompt is None:
             prompt = 'Paused. Press ENTER to continue...'
         if not plt.get_fignums():  # empty list: no figures are open
-            raw_input(prompt)
+            input(prompt)
         else:  # a figure is open
             if matplotlib.get_backend().upper().startswith('GTK'):
                 title_before = plt.gcf().canvas.get_toplevel().get_title()
@@ -58,9 +58,9 @@ class Pauser(object):
             elif matplotlib.get_backend().upper().startswith('WX'):
                 title_before = plt.gcf().canvas.GetTopLevelParent().GetTitle()
             elif matplotlib.get_backend().upper().startswith('QT'):
-                title_before = unicode(plt.gcf().canvas.topLevelWidget().windowTitle())
+                title_before = str(plt.gcf().canvas.topLevelWidget().windowTitle())
             else:
-                title_before = u'Figure %d' % plt.gcf().number
+                title_before = 'Figure %d' % plt.gcf().number
             while True:  # wait until a key is pressed. Blink the title meanwhile.
                 plt.gcf().canvas.set_window_title(prompt)
                 result = plt.gcf().waitforbuttonpress(1)

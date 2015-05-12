@@ -399,7 +399,7 @@ class SASExposure(ArithmeticBase):
         2) otherwise a copy is made of this instance with the Intensity, Error and
             mask matrices sliced accordingly.
         """
-        if isinstance(key, basestring):
+        if isinstance(key, str):
             return self.header[key]
         else:
             obj = self.__class__()
@@ -626,7 +626,7 @@ class SASExposure(ArithmeticBase):
         return getattr(self, name)
 
     def get_matrix_name(self, name='Intensity', othernames=None):
-        if name in self.matrices.values():
+        if name in list(self.matrices.values()):
             name = [k for k in self.matrices if self.matrices[k] == name][0]
         if hasattr(self, name) and (getattr(self, name) is not None):
             return name
@@ -667,6 +667,8 @@ class SASExposure(ArithmeticBase):
                 else:
                     raise ValueError('Incompatible shape!')
         else:
+            print('!!!!!!!!!!!!!!! check_arithmetic_compatibility failed with type: %s!!!!!!!!!!!!!' % str(
+                type(other)))
             raise NotImplementedError
 
     def __iadd__(self, other):
@@ -857,7 +859,7 @@ class SASExposure(ArithmeticBase):
             the mask matrix (if returnmask was True)
         """
         self.check_for_mask()
-        if isinstance(qrange, basestring):
+        if isinstance(qrange, str):
             if qrange == 'linear':
                 qrange = None
                 autoqrange_linear = True
@@ -953,7 +955,7 @@ class SASExposure(ArithmeticBase):
             err = getattr(self, errormatrix).astype(np.double)
         else:
             err = None
-        if isinstance(qrange, basestring):
+        if isinstance(qrange, str):
             if qrange == 'linear':
                 qrange = None
                 autoqrange_linear = True
@@ -1059,7 +1061,7 @@ class SASExposure(ArithmeticBase):
             err = getattr(self, errormatrix).astype(np.double)
         else:
             err = None
-        if isinstance(qrange, basestring):
+        if isinstance(qrange, str):
             if qrange == 'linear':
                 qrange = None
                 autoqrange_linear = True
@@ -1169,7 +1171,7 @@ class SASExposure(ArithmeticBase):
             err = getattr(self, errormatrix).astype(np.double)
         else:
             err = None
-        if isinstance(qrange, basestring):
+        if isinstance(qrange, str):
             if qrange == 'linear':
                 qrange = None
                 autoqrange_linear = True
@@ -1407,7 +1409,7 @@ class SASExposure(ArithmeticBase):
 
         kwargs_for_imshow = dict(
             [(k, kwargs_default[k]) for k in kwargs_default if k not in my_kwargs])
-        if isinstance(kwargs_default['zscale'], basestring):
+        if isinstance(kwargs_default['zscale'], str):
             if kwargs_default['zscale'].upper().startswith('LOG10'):
                 kwargs_default['zscale'] = np.log10
             elif kwargs_default['zscale'].upper().startswith('LN'):
@@ -1833,4 +1835,4 @@ class SASExposure(ArithmeticBase):
         return str(self.header)
 
     def __unicode__(self):
-        return unicode(self.header)
+        return str(self.header)
