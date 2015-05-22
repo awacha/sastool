@@ -164,7 +164,7 @@ def readB1logfile(filename):
                         # fix the character encoding in files written by a
                         # previous version of this software.
                         dic[key] = dic[key].encode('latin2').decode('utf-8')
-                    except (UnicodeDecodeError, AttributeError):
+                    except (UnicodeDecodeError, UnicodeEncodeError, AttributeError):
                         pass
                 else:
                     dic[l.strip()] = True
@@ -177,7 +177,7 @@ def readB1logfile(filename):
             try:
                 vals = reader(rhs)
             except ValueError:
-                if rhs == 'none':
+                if rhs.lower() == 'none':
                     vals = None
                 else:
                     raise

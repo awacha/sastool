@@ -548,11 +548,11 @@ class GeneralCurve(ArithmeticBase):
                 filetobeclosed = False
             elif isinstance(filename, str) and filename.upper().endswith('.GZ'):
                 fileopened = gzip.GzipFile(filename, 'wb')
-                fileopened.write(headerline)
+                fileopened.write(headerline.encode('utf-8'))
                 filetobeclosed = True
             elif isinstance(filename, str):
-                fileopened = open(filename, 'wt', encoding='utf-8')
-                fileopened.write(headerline)
+                fileopened = open(filename, 'wb')
+                fileopened.write(headerline.encode('utf-8'))
                 filetobeclosed = True
             else:
                 fileopened = filename
