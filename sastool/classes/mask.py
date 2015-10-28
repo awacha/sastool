@@ -4,6 +4,7 @@ Created on Jun 15, 2012
 @author: andris
 '''
 #, unicode_literals
+from __future__ import print_function
 import numpy as np
 import os
 import scipy.io
@@ -23,6 +24,10 @@ import h5py
 import numbers
 import collections
 import logging
+import sys
+if sys.version_info[0] == 3:
+    basestring = str
+
 
 from .common import _HDF_parse_group, SASMaskException
 from .. import misc
@@ -75,15 +80,15 @@ class SASMask(object):
                      str(type(maskmatrix)) + ' value: ' + repr(maskmatrix))
         kwargs = self._set_default_kwargs(kwargs)
         super(SASMask, self).__init__()
-        if isinstance(maskmatrix, str) and \
-                maskmatrix.lower()[-4:] in ['.mat', '.npz', '.npy']:
+        if isinstance(maskmatrix, basestring) and \
+                maskmatrix.strip().lower()[-4:] in ['.mat', '.npz', '.npy']:
             # load from a '.mat', '.npz' or '.npy' file
             self.read_from_mat(maskmatrix, **kwargs)
-        elif isinstance(maskmatrix, str) and \
+        elif isinstance(maskmatrix, basestring) and \
                 maskmatrix.lower()[-4:] in ['.edf']:
             # load from an EDF file
             self.read_from_edf(maskmatrix, **kwargs)
-        elif isinstance(maskmatrix, str) and \
+        elif isinstance(maskmatrix, basestring) and \
                 maskmatrix.lower()[-4:] in ['.sma']:
             self.read_from_sma(maskmatrix)
         elif isinstance(maskmatrix, np.ndarray):
@@ -104,7 +109,7 @@ class SASMask(object):
         elif isinstance(maskmatrix, collections.Sequence) and len(maskmatrix) >= 2:
             self.mask = np.zeros(maskmatrix[:2], dtype=np.uint8)
             self.maskid = kwargs['maskid']
-        elif isinstance(maskmatrix, str):
+        elif isinstance(maskmatrix, basestring):
             raise IOError('Could not open mask file: ' + maskmatrix)
         else:
             raise NotImplementedError

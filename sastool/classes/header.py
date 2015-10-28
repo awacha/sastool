@@ -18,6 +18,9 @@ from .history import SASHistory
 from functools import reduce
 __all__ = ['SASHeader']
 from ..libconfig import HC
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 import scipy.constants
 
@@ -215,7 +218,9 @@ class SASHeader(dict):
         else:
             # everything from now on is handled by plug-ins.
             # Everything else is handled by IO plugins
-            plugin = cls.get_IOplugin(args[0], 'READ')
+            plugin = cls.get_IOplugin(args[0], 'READ', **kwargs)
+            logger.debug(
+                'Using header plugin %s for loading file %s.' % (plugin.name, args[0]))
             if len(args) == 2:
                 if not isinstance(args[1], collections.Sequence):
                     fsns = [args[1]]
@@ -497,6 +502,8 @@ class SASHeader(dict):
                 a.is_read_supported() and a.is_write_supported())
         else:
             raise ValueError('Invalid mode!')
+        if 'plugin' in kwargs:
+            kwargs['experiment_type'] = kwargs['plugin']
         if 'experiment_type' in kwargs:
             plugin = [p for p in cls._plugins if p.name ==
                       kwargs['experiment_type'] and checkmode(p)]

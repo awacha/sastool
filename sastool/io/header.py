@@ -1,7 +1,7 @@
 '''
 Procedures for reading/writing header metadata of exposures.
 '''
-
+from __future__ import absolute_import
 import re
 import dateutil.parser
 import datetime
@@ -10,6 +10,10 @@ import gzip
 import math
 import functools
 import os
+import sys
+if sys.version_info[0] == 2:
+    from io import open
+
 
 from .. import libconfig
 from .. import misc
@@ -250,7 +254,11 @@ of the same length as the field names in logfile_data.')
             raise SyntaxError(
                 'Invalid syntax (programming error) in logfile_data in writeparamfile().')
         # try to get the values
-        f.write(linebegin + ':\t' + formatted + '\n')
+        linetowrite = linebegin + ':\t' + formatted + '\n'
+        if sys.version_info[0] == 2:
+            if not isinstance(linetowrite, unicode):
+                linetowrite = linetowrite.decode('utf-8')
+        f.write(linetowrite)
         if isinstance(fieldnames, tuple):
             for fn in fieldnames:  # remove the params treated.
                 if fn in allkeys:
@@ -260,8 +268,11 @@ of the same length as the field names in logfile_data.')
                 allkeys.remove(fieldnames)
     # write untreated params
     for k in allkeys:
-        f.write(
-            k + ':\t' + str(data[k]) + '\n')
+        linetowrite = k + ':\t' + str(data[k]) + '\n'
+        if sys.version_info[0] == 2:
+            if not isinstance(linetowrite, unicode):
+                linetowrite = linetowrite.decode('utf-8')
+        f.write(linetowrite)
 
     f.close()
 

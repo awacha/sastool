@@ -99,6 +99,10 @@ class ArithmeticBase(object):
                 'division is not implemented between %s and %s types' % (type(self), type(value)))
         return retval
 
+    __idiv__ = __itruediv__  # Python2 compatibility
+    __div__ = __truediv__  # Python2 compatibility
+    __rdiv__ = __rtruediv__  # Python2 compatibility
+
     def __iadd__(self, value):
         raise NotImplementedError
 

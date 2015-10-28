@@ -13,6 +13,7 @@ import itertools
 import operator
 import sys
 
+
 from sastool.misc.arithmetic import ArithmeticBase
 from sastool.misc.errorvalue import ErrorValue
 from sastool.misc.easylsq import nonlinear_leastsquares, simultaneous_nonlinear_leastsquares, nonlinear_odr
@@ -543,7 +544,10 @@ class GeneralCurve(ArithmeticBase):
         filetobeclosed = False
         try:
             if hasattr(filename, 'write'):
-                filename.write(headerline)
+                if 'b' in filename.mode:
+                    filename.write(headerline.encode('utf-8'))
+                else:
+                    filename.write(headerline)
                 fileopened = filename
                 filetobeclosed = False
             elif isinstance(filename, str) and filename.upper().endswith('.GZ'):
