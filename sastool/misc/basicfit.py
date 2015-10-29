@@ -33,7 +33,7 @@ def findpeak(x, y, dy=None, position=None, hwhm=None, baseline=None, amplitude=N
     pos, hwhm, baseline, ampl = findpeak_single(x, y, dy, position, hwhm, baseline, amplitude, curve)
     return pos.val, pos.err, hwhm.val, hwhm.err, baseline.val, baseline.err, ampl.val, ampl.err
 
-def findpeak_single(x, y, dy=None, position=None, hwhm=None, baseline=None, amplitude=None, curve='Lorentz', return_stat=False, sign=(-1,1)):
+def findpeak_single(x, y, dy=None, position=None, hwhm=None, baseline=None, amplitude=None, curve='Lorentz', return_stat=False, signs=(-1,1)):
     """Find a (positive or negative) peak in the dataset.
 
     Inputs:
@@ -41,7 +41,7 @@ def findpeak_single(x, y, dy=None, position=None, hwhm=None, baseline=None, ampl
         position, hwhm, baseline, amplitude: first guesses for the named parameters
         curve: 'Gauss' or 'Lorentz' (default)
         return_stat: return fitting statistics from easylsq.nlsq_fit()
-        sign: a tuple, can be (1,), (-1,), (1,-1). Will try these signs for the peak amplitude
+        signs: a tuple, can be (1,), (-1,), (1,-1). Will try these signs for the peak amplitude
         
     Outputs:
         peak position, hwhm, baseline, amplitude as ErrorValue instances and the statistics 
