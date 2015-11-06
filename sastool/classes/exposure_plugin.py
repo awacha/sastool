@@ -346,7 +346,7 @@ class SEPlugin_CREDO(SASExposurePlugin):
     """SASExposure I/O plugin for the CREDO instrument."""
     _isread = True
     _name = 'CREDO Raw'
-    _default_read_kwargs = {'header_extns': ['.param'],
+    _default_read_kwargs = {'header_extns': ['.pickle','.param'],
                             'data_extns': ['.cbf', '.tif'],
                             'estimate_errors': True}
     _filename_regex = re.compile(r'_((\d+)|%(\d+)d).(cbf|tif)$', re.IGNORECASE)

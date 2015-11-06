@@ -92,6 +92,54 @@ class SASHeaderPlugin(object):
     def __setitem__(self, key, value):
         self._default_read_kwargs[key] = value
 
+@register_plugin
+class SHPlugin_CREDOpickle(SASHeaderPlugin):
+    _isread = True
+    _name = 'CREDO pickle'
+    _filename_regex = re.compile('(ccd|.edf)$', re.IGNORECASE)
+
+    def read(self, filename_or_dict, **kwargs):
+        """Read header data from an CREDO pickle file
+
+        Inputs:
+            filename_or_dict: the full name of the file or a dict
+
+        Outputs: the updated header structure. Fields not present in the file
+            are kept unchanged.
+        """
+        self._before_read(kwargs)
+        if isinstance(filename_or_dict, str):
+            with open(find_in_subfolders(filename_or_dict, kwargs['dirs']), 'rb') as f:
+                filename_or_dict = pickle.load(f)
+
+        h = flatten_dict(filename_or_dict)
+
+        ka = {}
+
+        ka['FSN'] = 'fsn'
+        ka['BeamPosX'] = 'geometry.beamposx'
+        ka['BeamPosY'] = 'geometry.beamposy'
+        ka['MeasTime'] = 'devices.pilatus.exptime'
+        ka['Monitor'] = 'devices.pilatus.exptime'
+        ka['Detector'] = 'devices.pilatus.cameraSN'
+        ka['Date'] = 'devices.pilatus.starttime'
+        ka['Wavelength'] = 'geometry.wavelength'
+        ka['WavelengthError']='geometry.wavelength.err'
+        ka['Transm']='sample.transmission.val'
+        ka['TransmError']='sample.transmissionl.err'
+        ka['Dist']='geometry.dist_sample_det'
+        ka['DistError']='geometry.dist_sample_det'
+        ka['DistCalibrated']='geometry.truedistance'
+        ka['DistCalibratedError']='geometry.truedistance.err'
+        ka['XPixel']='geometry.pixelsize'
+        ka['YPixel']='geometry.pixelsize'
+        ka['Title']='sample.title'
+        ka['maskid']='geometry.mask'
+        ka['Thickness']='sample.thickness.val'
+        ka['ThicknessError']='sample.thickness.err'
+        h['__particle__'] = 'photon'
+        return (h, ka)
+
 
 @register_plugin
 class SHPlugin_ESRF(SASHeaderPlugin):

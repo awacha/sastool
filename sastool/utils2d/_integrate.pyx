@@ -1,6 +1,7 @@
 # pylint: disable-msg-cat=WCREFI
 #cython: boundscheck=False
 #cython: embedsignature=True
+#cython: cdivision=True
 import numpy as np
 cimport numpy as np
 from libc.stdlib cimport *
