@@ -11,3 +11,8 @@ tests/centering
 /.gitignore~
 /MANIFEST.in~
 /setup.py~
+/.idea/
+*~
+__pycache__
+_*.c
+.pydevproject
