@@ -525,7 +525,7 @@ class SEPlugin_CREDO_Reduced(SASExposurePlugin):
                             'logfileformat': 'crd_%d',
                             'logfileextn': '.log',
                             'data_extns': ['.npz'], }
-    _filename_regex = re.compile(r'crd[^/\\]*\.(npz)$', re.IGNORECASE)
+    _filename_regex = re.compile(r'.*crd[^/\\]*\.(npz)$', re.IGNORECASE)
 
     def read(self, filename, **kwargs):
         self._before_read(kwargs)
@@ -554,16 +554,18 @@ class SEPlugin_CREDO_Reduced(SASExposurePlugin):
                 continue
         if not dataname:
             raise IOError('Cannot find two-dimensional file!')
-        m = re.match(kwargs['fileformat'].replace(
-            '%d', r'(\d+)'), os.path.split(basename)[1])
+        m = re.match('.*crd_(\\d+)', os.path.split(basename)[1])
         if m is None:
             raise ValueError('Filename %s does not have the format %s, \
-therefore the FSN cannot be determined.' % (dataname, kwargs['fileformat']))
+therefore the FSN cannot be determined.' % (os.path.split(basename)[1], kwargs['fileformat']))
         else:
             fsn = int(m.group(1))
-
-        headername = misc.findfileindirs(
-            kwargs['logfileformat'] % fsn + kwargs['logfileextn'], kwargs['dirs'])
+        try:
+            headername = misc.findfileindirs(
+                kwargs['logfileformat'] % fsn + kwargs['logfileextn'], kwargs['dirs'])
+        except OSError:
+            headername=misc.findfileindirs(
+                dataname.split('/')[-1].rsplit('.',1)[0]+'.param', kwargs['dirs'])
         header = SASHeader(headername, **kwargs)
         Intensity, Error = twodim.readint2dnorm(dataname)
         header.add_history(
