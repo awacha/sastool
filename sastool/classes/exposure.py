@@ -11,6 +11,7 @@ import collections
 
 import matplotlib.pyplot as plt
 import matplotlib.colors
+from mpl_toolkits.axes_grid import make_axes_locatable
 
 from .header import SASHeader
 from .common import SASExposureException
@@ -1542,7 +1543,8 @@ class SASExposure(ArithmeticBase):
                 if cax:
                     cax = cax[0]
                 else:
-                    cax = None
+                    
+                    cax = make_axes_locatable(kwargs_default['axes']).append_axes('right',size="5%",pad=0.05)
                 kwargs_default['axes'].figure.colorbar(
                     ret, cax=cax, ax=kwargs_default['axes'])
         kwargs_default['axes'].figure.canvas.draw()
