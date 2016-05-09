@@ -4,23 +4,22 @@ Created on Jun 15, 2012
 @author: andris
 '''
 
-import numpy as np
-import warnings
-import numbers
 import collections
+import numbers
+import warnings
 
-import matplotlib.pyplot as plt
 import matplotlib.colors
+import matplotlib.pyplot as plt
+import numpy as np
 
-from .header import SASHeader
 from .common import SASExposureException
 from .curve import SASCurve, SASAzimuthalCurve, SASPixelCurve
+from .header import SASHeader
 from .mask import SASMask
 from .. import misc
 from .. import utils2d
 from ..misc.arithmetic import ArithmeticBase
 from ..misc.errorvalue import ErrorValue
-
 
 __all__ = ['SASExposure']
 
@@ -687,7 +686,7 @@ class SASExposure(ArithmeticBase):
         obj.Intensity = -obj.Intensity
         return obj
 
-    def _recip(self):
+    def __reciprocal__(self):
         obj = SASExposure(self)
         if obj.Error is None:
             obj.Error = np.zeros_like(self.Intensity)

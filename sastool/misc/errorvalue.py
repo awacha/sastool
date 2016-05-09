@@ -4,12 +4,14 @@ Created on Thu Aug 25 11:18:05 2011
 
 @author: -
 """
-from .arithmetic import ArithmeticBase
-import numpy as np
-import numbers
-import math
 import collections
+import math
+import numbers
 import re
+
+import numpy as np
+
+from .arithmetic import ArithmeticBase
 
 __all__ = ['ErrorValue']
 
@@ -79,18 +81,17 @@ class ErrorValue(ArithmeticBase):
                 'ErrorValue class can hold only Python numbers or numpy ndarrays, got %s!' % type(val))
 
     def copy(self):
-        """Make a deep copy of this instance"""
-        return self.__class__(self.val, self.err)
+        return type(self)(self.val, self.err)
 
     def __neg__(self):
-        return self.__class__(-self.val, self.err)
+        return type(self)(-self.val, self.err)
 
-    def _recip(self):
+    def __reciprocal__(self):
         """Calculate the reciprocal of this instance"""
-        return self.__class__(1.0 / self.val, self.err / (self.val * self.val))
+        return type(self)(1.0 / self.val, self.err / (self.val * self.val))
 
     def __getitem__(self, key):
-        return self.__class__(self.val[key], self.err[key])
+        return type(self)(self.val[key], self.err[key])
 
     def __iadd__(self, value):
         try:
@@ -112,9 +113,6 @@ class ErrorValue(ArithmeticBase):
         return self
 
     def __str__(self):
-        return self.tostring(plusminus=' +/- ')
-
-    def __unicode__(self):
         return self.tostring(plusminus=' \xb1 ')
 
     def __pow__(self, other, modulo=None):
@@ -127,10 +125,10 @@ class ErrorValue(ArithmeticBase):
         err = ((self.val ** (other.val - 1) * other.val * self.err) ** 2 +
                (np.log(self.val) * self.val ** other.val * other.err) ** 2) ** 0.5
         val = self.val ** other.val
-        return self.__class__(val, err)
+        return type(self)(val, err)
 
     def __repr__(self):
-        return 'ErrorValue(' + repr(self.val) + ' +/- ' + repr(self.err) + ')'
+        return 'ErrorValue(' + repr(self.val) + ' \xb1 ' + repr(self.err) + ')'
 
     def __float__(self):
         return float(self.val)
@@ -178,52 +176,52 @@ class ErrorValue(ArithmeticBase):
         return str(self.val) + ' +/- ' + str(self.err)
 
     def abs(self):
-        return self.__class__(np.abs(self.val), self.err)
+        return type(self)(np.abs(self.val), self.err)
 
     def sin(self):
-        return self.__class__(np.sin(self.val), np.abs(np.cos(self.val) * self.err))
+        return type(self)(np.sin(self.val), np.abs(np.cos(self.val) * self.err))
 
     def cos(self):
-        return self.__class__(np.cos(self.val), np.abs(np.sin(self.val) * self.err))
+        return type(self)(np.cos(self.val), np.abs(np.sin(self.val) * self.err))
 
     def tan(self):
-        return self.__class__(np.tan(self.val), np.abs(1 + np.tan(self.val) ** 2) * self.err)
+        return type(self)(np.tan(self.val), np.abs(1 + np.tan(self.val) ** 2) * self.err)
 
     def sqrt(self):
         return self ** 0.5
 
     def sinh(self):
-        return self.__class__(np.sinh(self.val), np.abs(np.cosh(self.val) * self.err))
+        return type(self)(np.sinh(self.val), np.abs(np.cosh(self.val) * self.err))
 
     def cosh(self):
-        return self.__class__(np.cosh(self.val), np.abs(np.sinh(self.val) * self.err))
+        return type(self)(np.cosh(self.val), np.abs(np.sinh(self.val) * self.err))
 
     def tanh(self):
-        return self.__class__(np.tanh(self.val), np.abs(1 - np.tanh(self.val) ** 2) * self.err)
+        return type(self)(np.tanh(self.val), np.abs(1 - np.tanh(self.val) ** 2) * self.err)
 
     def arcsin(self):
-        return self.__class__(np.arcsin(self.val), np.abs(self.err / np.sqrt(1 - self.val ** 2)))
+        return type(self)(np.arcsin(self.val), np.abs(self.err / np.sqrt(1 - self.val ** 2)))
 
     def arccos(self):
-        return self.__class__(np.arccos(self.val), np.abs(self.err / np.sqrt(1 - self.val ** 2)))
+        return type(self)(np.arccos(self.val), np.abs(self.err / np.sqrt(1 - self.val ** 2)))
 
     def arcsinh(self):
-        return self.__class__(np.arcsinh(self.val), np.abs(self.err / np.sqrt(1 + self.val ** 2)))
+        return type(self)(np.arcsinh(self.val), np.abs(self.err / np.sqrt(1 + self.val ** 2)))
 
     def arccosh(self):
-        return self.__class__(np.arccosh(self.val), np.abs(self.err / np.sqrt(self.val ** 2 - 1)))
+        return type(self)(np.arccosh(self.val), np.abs(self.err / np.sqrt(self.val ** 2 - 1)))
 
     def arctanh(self):
-        return self.__class__(np.arctanh(self.val), np.abs(self.err / (1 - self.val ** 2)))
+        return type(self)(np.arctanh(self.val), np.abs(self.err / (1 - self.val ** 2)))
 
     def arctan(self):
-        return self.__class__(np.arctan(self.val), np.abs(self.err / (1 + self.val ** 2)))
+        return type(self)(np.arctan(self.val), np.abs(self.err / (1 + self.val ** 2)))
 
     def log(self):
-        return self.__class__(np.log(self.val), np.abs(self.err / self.val))
+        return type(self)(np.log(self.val), np.abs(self.err / self.val))
 
     def exp(self):
-        return self.__class__(np.exp(self.val), np.abs(self.err * np.exp(self.val)))
+        return type(self)(np.exp(self.val), np.abs(self.err * np.exp(self.val)))
 
     def random(self):
         """Sample a random number (array) of the distribution defined by

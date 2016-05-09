@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 
+import abc
+
 __all__ = ['ArithmeticBase']
 
 
-class ArithmeticBase(object):
+class ArithmeticBase(object, metaclass=abc.ABCMeta):
     """A mixin class for defining simple arithmetics with minimal user effort.
 
     Usage: subclass this object and define ALL of the following methods:
@@ -11,7 +13,7 @@ class ArithmeticBase(object):
         __iadd__(self, value): in-place addition of 'value' to 'self'
         __neg__(self): negation, i.e. '-self': should return an instance of the
             same class
-        _recip(self): reciprocal, i.e. '1.0/self'. Should return an instance of
+        __reciprocal__(self): reciprocal, i.e. '1.0/self'. Should return an instance of
             the same class
         copy(self): should return a deep copy of the current object.
 
@@ -25,12 +27,10 @@ class ArithmeticBase(object):
 
     def __add__(self, value):
         try:
-            copier = getattr(self, 'copy')
+            obj = self.copy()
         except AttributeError:
             obj = type(self)(self)
-        else:
-            obj = copier()
-        obj = obj.__iadd__(value)
+        obj.__iadd__(value)
         return obj
 
     def __radd__(self, value):
@@ -45,12 +45,10 @@ class ArithmeticBase(object):
 
     def __sub__(self, value):
         try:
-            copier = getattr(self, 'copy')
+            obj = self.copy()
         except AttributeError:
             obj = type(self)(self)
-        else:
-            obj = copier()
-        obj = obj.__isub__(value)
+        obj.__isub__(value)
         return obj
 
     def __rsub__(self, value):
@@ -62,11 +60,9 @@ class ArithmeticBase(object):
 
     def __mul__(self, value):
         try:
-            copier = getattr(self, 'copy')
+            obj = self.copy()
         except AttributeError:
             obj = type(self)(self)
-        else:
-            obj = copier()
         obj = obj.__imul__(value)
         return obj
 
@@ -79,7 +75,7 @@ class ArithmeticBase(object):
 
     def __itruediv__(self, value):
         try:
-            value_recip = value._recip()
+            value_recip = value.__reciprocal__()
         except AttributeError:
             value_recip = 1.0 / value
         return self.__imul__(value_recip)
@@ -89,11 +85,11 @@ class ArithmeticBase(object):
             obj = self.copy()
         except AttributeError:
             obj = type(self)(self)
-        return obj.__itruediv__(value)
+        obj.__itruediv__(value)
         return obj
 
     def __rtruediv__(self, value):
-        retval = self._recip() * value
+        retval = self.__reciprocal__() * value
         if retval is NotImplemented:
             raise NotImplementedError(
                 'division is not implemented between %s and %s types' % (type(self), type(value)))
@@ -103,14 +99,18 @@ class ArithmeticBase(object):
     __div__ = __truediv__  # Python2 compatibility
     __rdiv__ = __rtruediv__  # Python2 compatibility
 
+    @abc.abstractmethod
     def __iadd__(self, value):
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def __imul__(self, value):
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def __neg__(self):
-        raise NotImplementedError
+        pass
 
-    def _recip(self):
-        raise NotImplementedError
+    @abc.abstractmethod
+    def __reciprocal__(self):
+        pass

@@ -4,20 +4,19 @@ Created on Jul 5, 2012
 @author: andris
 '''
 
-import numpy as np
 import collections
-import numbers
-import matplotlib.pyplot as plt
 import gzip
 import itertools
+import numbers
 import operator
-import sys
+from functools import reduce
 
+import matplotlib.pyplot as plt
+import numpy as np
 
 from sastool.misc.arithmetic import ArithmeticBase
-from sastool.misc.errorvalue import ErrorValue
 from sastool.misc.easylsq import nonlinear_leastsquares, simultaneous_nonlinear_leastsquares, nonlinear_odr
-from functools import reduce
+from sastool.misc.errorvalue import ErrorValue
 
 __all__ = ['GeneralCurve', 'SASCurve', 'SASPixelCurve', 'SASAzimuthalCurve']
 
@@ -397,7 +396,7 @@ class GeneralCurve(ArithmeticBase):
         obj.y = -obj.y
         return obj
 
-    def _recip(self):
+    def __reciprocal__(self):
         obj = type(self)(self)
         if hasattr(self, 'dy'):
             obj.dy = (1.0 * obj.dy) / (obj.y * obj.y)

@@ -35,7 +35,7 @@ class Modulo(object):
     def __init__(self, modulus):
         self.modulus = modulus
     def __call__(self, value):
-        return value % modulus
+        return value % self.modulus
 
 class InClosedNeighbourhood(object):
     def __init__(self, point, radius):
