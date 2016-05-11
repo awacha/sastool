@@ -2,10 +2,11 @@ from typing import Optional
 
 import numpy as np
 
-from ...classes2 import Exposure, Header
+from .header import Header
+from ... import classes2
 
 
-class SAXSCtrl_Exposure(Exposure):
+class Exposure(classes2.Exposure):
     @classmethod
     def new_from_file(cls, filename: str, header_data: Optional[Header] = None, mask_data: Optional[np.ndarray] = None):
         data = np.load(filename)
@@ -19,3 +20,4 @@ class SAXSCtrl_Exposure(Exposure):
             mask_data = np.ones(ex.shape, dtype=np.bool)
         ex.mask = mask_data
         del data
+        return ex

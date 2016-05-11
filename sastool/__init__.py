@@ -46,6 +46,7 @@ from . import io
 from . import fitting
 from . import sim
 from . import classes
+from . import classes2
 
 for k in __all__[:]:
     __all__.extend(eval('%s.__all__' % k))

@@ -4,11 +4,11 @@ from typing import Optional
 import dateutil.parser
 import scipy.constants
 
-from ...classes2 import Header
+from ... import classes2
 from ...misc.errorvalue import ErrorValue
 
 
-class SAXSCtrl_Header(Header):
+class Header(classes2.Header):
     """Header file written by SAXSCtrl"""
 
     def __init__(self):
@@ -35,17 +35,19 @@ class SAXSCtrl_Header(Header):
                     self._data['BeamPosX'] = float(right.split()[0]) - 1
                     self._data['BeamPosY'] = float(right.split()[1]) - 1
                 elif left.startswith('Pixel size of 2D detector'):
-                    self._data['PixelSize'] = float(right)
+                    self._data['PixelSize'] = float(right) * 1000  # there is a bug in the header files.
                 elif left.startswith('Measurement time'):
                     self._data['ExpTime'] = float(right)
                 else:
                     for t in [int, float, dateutil.parser.parse, str]:
                         try:
                             self._data[left] = t(right)
-                        except:
+                            break
+                        except ValueError:
                             continue
                     if left not in self._data:
                         raise ValueError("Cannot interpret line: %s" % l)
+        return self
 
     @property
     def title(self) -> str:

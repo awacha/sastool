@@ -51,6 +51,8 @@ class ErrorValue(ArithmeticBase):
                 self.err = float(err)
             elif err is None:
                 self.err = 0.0
+            else:
+                raise TypeError('err argument is of type %s' % (type(err)))
         elif isinstance(val, np.ndarray):
             self.val = val.copy()
             if isinstance(err, np.ndarray) and (err.shape == val.shape):
@@ -66,6 +68,10 @@ class ErrorValue(ArithmeticBase):
             elif isinstance(val.val, numbers.Number):
                 self.val = val.val
                 self.err = val.err
+            else:
+                raise TypeError(
+                    "val argument is of type ErrorValue, but its .val attribute is of an unsupported type %s" % type(
+                        val.val))
         elif isinstance(val, collections.Sequence):
             if all(isinstance(v, ErrorValue) for v in val):
                 self.val = np.array([v.val for v in val])

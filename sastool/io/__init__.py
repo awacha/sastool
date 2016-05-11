@@ -20,12 +20,12 @@ There are other modules, which will be removed in a future release:
 
 __docformat__ = 'restructuredtext'
 
-__all__ = ['twodim', 'b1', 'asa', 'onedim', 'statistics', 'header']
+__all__ = ['twodim', 'b1', 'asa', 'onedim', 'statistics', 'header', 'credo_saxsctrl']
 
-from . import twodim
-from . import b1
 from . import asa
+from . import b1
+from . import credo_saxsctrl
+from . import header
 from . import onedim
 from . import statistics
-from . import header
-
+from . import twodim
