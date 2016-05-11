@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ..misc.arithmetic import ArithmeticBase
+from ..misc.basicfit import findpeak_single
 from ..misc.easylsq import nonlinear_leastsquares, nonlinear_odr
 from ..misc.errorvalue import ErrorValue
 
@@ -44,17 +45,20 @@ class Curve(ArithmeticBase):
 
     def fit(self, fitfunction, parinit, *args, **kwargs):
         result = list(nonlinear_leastsquares(self.q, self.Intensity, self.Error, fitfunction, parinit, *args, **kwargs))
-        result.append(type(self)(self.q, result[-1]['func_eval'], np.zeros_like(self.q), np.zeros_like(self.q)))
+        result.append(type(self)(self.q, result[-1]['func_value'], np.zeros_like(self.q), np.zeros_like(self.q)))
         return result
 
     def odr(self, fitfunction, parinit, *args, **kwargs):
         result = list(
             nonlinear_odr(self.q, self.Intensity, self.qError, self.Error, fitfunction, parinit, *args, **kwargs))
-        result.append(type(self)(self.q, result[-1]['func_eval'], np.zeros_like(self.q), np.zeros_like(self.q)))
+        result.append(type(self)(self.q, result[-1]['func_value'], np.zeros_like(self.q), np.zeros_like(self.q)))
         return result
 
-    def peakfit(self, peaktype='Gaussian'):
-        raise NotImplementedError
+    def peakfit(self, peaktype='Gaussian', signs=(1, -1)):
+        result = list(
+            findpeak_single(self.q, self.Intensity, self.Error, curve=peaktype, return_stat=True, signs=signs))
+        result.append(type(self)(self.q, result[-1]['func_value']))
+        return result
 
     def sanitize(self):
         idx = (self.q > 0) & np.isfinite(self.Intensity) & np.isfinite(self.q)
@@ -127,6 +131,7 @@ class Curve(ArithmeticBase):
             self.Intensity = self.Intensity + other
         else:
             return NotImplemented
+        return self
 
     def __imul__(self, other):
         if isinstance(other, Curve):
@@ -142,12 +147,16 @@ class Curve(ArithmeticBase):
             self.Intensity = self.Intensity * other
         else:
             return NotImplemented
+        return self
 
     def __reciprocal__(self):
         return type(self)(self.q, 1 / self.Intensity, self.Error / self.Intensity ** 2, self.qError)
 
     def __neg__(self):
         return type(self)(self.q, -self.Intensity, self.Error, self.qError)
+
+    def copy(self):
+        return type(self)(self.q, self.Intensity, self.Error, self.qError)
 
     def save(self, filename):
         data = np.stack((self.q, self.Intensity, self.Error, self.qError), 1)
@@ -254,6 +263,21 @@ class Curve(ArithmeticBase):
                         a[i, :][a[i, :] == 0] = 1
         I = (I / dI ** 2).sum(axis=1) / (1 / dI ** 2).sum(axis=1)
         dI = 1 / (1 / dI ** 2).sum(axis=1) ** 0.5
-        q = (q / dq ** 2).sum(axis=1) / (q / dq ** 2).sum(axis=1)
+        q = (q / dq ** 2).sum(axis=1) / (1 / dq ** 2).sum(axis=1)
         dq = 1 / (1 / dq ** 2).sum(axis=1) ** 0.5
         return cls(q, I, dI, dq)
+
+    @classmethod
+    def new_from_file(cls, filename, *args, **kwargs):
+        data = np.loadtxt(filename, *args, **kwargs)
+        q = data[:, 0]
+        I = data[:, 1]
+        try:
+            E = data[:, 2]
+        except IndexError:
+            E = None
+        try:
+            qE = data[:, 3]
+        except IndexError:
+            qE = None
+        return cls(q, I, E, qE)

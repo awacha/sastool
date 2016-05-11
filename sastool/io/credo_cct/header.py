@@ -1,7 +1,8 @@
 import datetime
+import os
+import pickle
 from typing import Optional
 
-import dateutil.parser
 import scipy.constants
 
 from ... import classes2
@@ -18,44 +19,17 @@ class Header(classes2.Header):
     @classmethod
     def new_from_file(cls, filename):
         self = cls()
-        with open(filename, 'rt', encoding='utf-8') as f:
-            for l in f:
-                if ':' not in l:
-                    continue
-                left, right = [x.strip() for x in l.split(':', 1)]
-                if left.startswith('Sample name'):
-                    self._data['Title'] = right
-                elif left.startswith('Sample-to-detector distance'):
-                    self._data['Dist'] = float(right)
-                elif left.startswith('Sample thickness'):
-                    self._data['Thickness'] = float(right)
-                elif left.startswith('Sample transmission'):
-                    self._data['Transm'] = float(right)
-                elif left.startswith('Beam x y for integration'):
-                    self._data['BeamPosY'] = float(right.split()[0]) - 1
-                    self._data['BeamPosX'] = float(right.split()[1]) - 1
-                elif left.startswith('Pixel size of 2D detector'):
-                    self._data['PixelSize'] = float(right) * 1000  # there is a bug in the header files.
-                elif left.startswith('Measurement time'):
-                    self._data['ExpTime'] = float(right)
-                else:
-                    for t in [int, float, dateutil.parser.parse, str]:
-                        try:
-                            self._data[left] = t(right)
-                            break
-                        except ValueError:
-                            continue
-                    if left not in self._data:
-                        raise ValueError("Cannot interpret line: %s" % l)
+        with open(filename, 'rb') as f:
+            self._data = pickle.load(f)
         return self
 
     @property
     def title(self) -> str:
-        return self._data['Title']
+        return self._data['sample']['title']
 
     @property
     def fsn(self) -> int:
-        return self._data['FSN']
+        return self._data['exposure']['fsn']
 
     @property
     def energy(self) -> ErrorValue:
@@ -68,70 +42,72 @@ class Header(classes2.Header):
     @property
     def wavelength(self) -> ErrorValue:
         """X-ray wavelength"""
-        return ErrorValue(self._data["Wavelength"], 0)
+        return ErrorValue(self._data["geometry"]['wavelength'], self._data['geometry']['wavelength.err'])
 
     @property
     def distance(self) -> ErrorValue:
         """Sample-to-detector distance"""
-        if 'DistCalibrated' in self._data:
-            dist = self._data['DistCalibrated']
-        else:
-            dist = self._data["Dist"]
-        if 'DistCalibratedError' in self._data:
-            disterr = self._data['DistCalibratedError']
-        elif 'DistError' in self._data:
-            disterr = self._data['DistError']
-        else:
-            disterr = 0
-        return ErrorValue(dist, disterr)
+        return ErrorValue(self._data['geometry']['truedistance'],
+                          self._data['geometry']['truedistance.err'])
 
     @property
     def temperature(self) -> Optional[ErrorValue]:
         """Sample temperature"""
         try:
-            return self._data['Temperature']
+            return self._data['environment']['temperature']
         except KeyError:
             return None
 
     @property
     def beamcenterx(self) -> ErrorValue:
         """X (column) coordinate of the beam center, pixel units, 0-based."""
-        return ErrorValue(self._data['BeamPosX'], 0)
+        return ErrorValue(self._data['geometry']['beamposy'], 0)
 
     @property
     def beamcentery(self) -> ErrorValue:
         """Y (row) coordinate of the beam center, pixel units, 0-based."""
-        return ErrorValue(self._data['BeamPosY'], 0)
+        return ErrorValue(self._data['geometry']['beamposx'], 0)
 
     @property
     def pixelsizex(self) -> ErrorValue:
         """X (column) size of a pixel, in mm units"""
-        return ErrorValue(self._data['PixelSize'], 0)
+        return ErrorValue(self._data['geometry']['pixelsize'], 0)
 
     @property
     def pixelsizey(self) -> ErrorValue:
         """Y (row) size of a pixel, in mm units"""
-        return ErrorValue(self._data['PixelSize'], 0)
+        return ErrorValue(self._data['geometry']['pixelsize'], 0)
 
     @property
     def exposuretime(self) -> ErrorValue:
         """Exposure time in seconds"""
-        return ErrorValue(self._data['ExpTime'], 0)
+        return ErrorValue(self._data['exposure']['exptime'], 0)
 
     @property
     def date(self) -> datetime.datetime:
         """Date of the experiment (start of exposure)"""
-        return self._data['Date']
+        return self._data['exposure']['startdate']
 
     @property
     def maskname(self) -> Optional[str]:
         """Name of the mask matrix file."""
-        try:
-            return self._data['maskid'] + '.mat'
-        except KeyError:
-            return None
+        mask = self._data['geometry']['mask']
+        if os.path.abspath(mask):
+            mask = os.path.split(mask)[-1]
+        return mask
 
     @property
     def transmission(self) -> ErrorValue:
         """Sample transmission."""
-        return ErrorValue(self._data['Transm'], self._data['TransmError'])
+        return ErrorValue(self._data['sample']['transmission.val'], self._data['sample']['transmission.err'])
+
+    @property
+    def vacuum(self) -> ErrorValue:
+        """Vacuum pressure around the sample"""
+        return ErrorValue(self._data['environment']['vacuum_pressure'], 0)
+
+    @property
+    def flux(self) -> ErrorValue:
+        """X-ray flux in photons/sec."""
+        return ErrorValue(self._data['datareduction']['flux'],
+                          self._data['datareduction']['flux.err'])

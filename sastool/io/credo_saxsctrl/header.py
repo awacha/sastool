@@ -32,12 +32,14 @@ class Header(classes2.Header):
                 elif left.startswith('Sample transmission'):
                     self._data['Transm'] = float(right)
                 elif left.startswith('Beam x y for integration'):
-                    self._data['BeamPosX'] = float(right.split()[0]) - 1
-                    self._data['BeamPosY'] = float(right.split()[1]) - 1
+                    self._data['BeamPosX'] = float(right.split()[1]) - 1
+                    self._data['BeamPosY'] = float(right.split()[0]) - 1
                 elif left.startswith('Pixel size of 2D detector'):
                     self._data['PixelSize'] = float(right) * 1000  # there is a bug in the header files.
                 elif left.startswith('Measurement time'):
                     self._data['ExpTime'] = float(right)
+                elif left.startswith('Normalisation factor'):
+                    self._data['NormFactor'] = float(right)
                 else:
                     for t in [int, float, dateutil.parser.parse, str]:
                         try:
@@ -96,12 +98,12 @@ class Header(classes2.Header):
     @property
     def beamcenterx(self) -> ErrorValue:
         """X (column) coordinate of the beam center, pixel units, 0-based."""
-        return ErrorValue(self._data['BeamPosY'], 0)
+        return ErrorValue(self._data['BeamPosX'], 0)
 
     @property
     def beamcentery(self) -> ErrorValue:
         """Y (row) coordinate of the beam center, pixel units, 0-based."""
-        return ErrorValue(self._data['BeamPosX'], 0)
+        return ErrorValue(self._data['BeamPosY'], 0)
 
     @property
     def pixelsizex(self) -> ErrorValue:
@@ -135,3 +137,14 @@ class Header(classes2.Header):
     def transmission(self) -> ErrorValue:
         """Sample transmission."""
         return ErrorValue(self._data['Transm'], self._data['TransmError'])
+
+    @property
+    def vacuum(self) -> ErrorValue:
+        """Vacuum pressure around the sample"""
+        return ErrorValue(self._data['Vacuum'], 0)
+
+    @property
+    def flux(self) -> ErrorValue:
+        """X-ray flux in photons/sec."""
+        return 1 / self.pixelsizex / self.pixelsizey / ErrorValue(self._data['NormFactor'],
+                                                                  self._data['NormFactorError'])

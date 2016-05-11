@@ -20,10 +20,11 @@ There are other modules, which will be removed in a future release:
 
 __docformat__ = 'restructuredtext'
 
-__all__ = ['twodim', 'b1', 'asa', 'onedim', 'statistics', 'header', 'credo_saxsctrl']
+__all__ = ['twodim', 'b1', 'asa', 'onedim', 'statistics', 'header', 'credo_saxsctrl', 'credo_cct']
 
 from . import asa
 from . import b1
+from . import credo_cct
 from . import credo_saxsctrl
 from . import header
 from . import onedim

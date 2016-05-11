@@ -74,3 +74,11 @@ class Header(object, metaclass=abc.ABCMeta):
     @abc.abstractproperty
     def transmission(self) -> ErrorValue:
         """Sample transmission."""
+
+    @abc.abstractproperty
+    def vacuum(self) -> ErrorValue:
+        """Vacuum pressure around the sample"""
+
+    @abc.abstractproperty
+    def flux(self) -> ErrorValue:
+        """X-ray flux in photons/sec."""

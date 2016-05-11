@@ -110,8 +110,8 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
             kwargs['aspect'] = 'equal'
 
         if show_qscale:
-            xmin, ymin = self.pixel_to_q(0, 0)
-            xmax, ymax = self.pixel_to_q(self.shape[1], self.shape[0])
+            ymin, xmin = self.pixel_to_q(0, 0)
+            ymax, xmax = self.pixel_to_q(*self.shape)
             if kwargs['origin'].upper() == 'UPPER':
                 kwargs['extent'] = [xmin, xmax, ymax, ymin]
             else:
@@ -182,6 +182,7 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
             # self.error remains the same.
         else:
             return NotImplemented
+        return self
 
     def __imul__(self, other):
         if isinstance(other, Exposure):
@@ -196,6 +197,7 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
             # self.error remains the same.
         else:
             return NotImplemented
+        return self
 
     def __neg__(self):
         obj = type(self)()
@@ -212,6 +214,14 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
         obj.mask = self.mask
         obj.header = self.header
         return obj
+
+    def __copy__(self):
+        c = type(self)()
+        c.error = self.error
+        c.intensity = self.intensity
+        c.mask = self.mask
+        c.header = self.header
+        return c
 
     def radial_average(self, qrange=None, pixel=False, returnmask=False,
                        errorpropagation=3, abscissa_errorpropagation=3):
@@ -250,10 +260,10 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
         if not pixel:
             res = radint_fullq_errorprop(self.intensity, self.error, self.header.wavelength.val,
                                          self.header.wavelength.err, self.header.distance.val,
-                                         self.header.distance.err, self.header.pixelsizex.val,
-                                         self.header.pixelsizey.val, self.header.beamcenterx.val,
-                                         self.header.beamcenterx.err, self.header.beamcentery.val,
-                                         self.header.beamcentery.err, (self.mask == 0).astype(np.uint8),
+                                         self.header.distance.err, self.header.pixelsizey.val,
+                                         self.header.pixelsizex.val, self.header.beamcentery.val,
+                                         self.header.beamcentery.err, self.header.beamcenterx.val,
+                                         self.header.beamcenterx.err, (self.mask == 0).astype(np.uint8),
                                          qrange, returnmask=returnmask, errorpropagation=errorpropagation,
                                          autoqrange_linear=autoqrange_linear, abscissa_kind=0,
                                          abscissa_errorpropagation=abscissa_errorpropagation)
@@ -266,9 +276,9 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
                                          self.header.wavelength.err,
                                          self.header.distance.val,
                                          self.header.distance.err,
-                                         self.header.pixelsizex.val, self.header.pixelsizey.val,
-                                         self.header.beamcenterx.val, self.header.beamcenterx.err,
+                                         self.header.pixelsizey.val, self.header.pixelsizex.val,
                                          self.header.beamcentery.val, self.header.beamcentery.err,
+                                         self.header.beamcenterx.val, self.header.beamcenterx.err,
                                          (self.mask == 0).astype(np.uint8), qrange,
                                          returnmask=returnmask, errorpropagation=errorpropagation,
                                          autoqrange_linear=autoqrange_linear, abscissa_kind=3,
