@@ -145,6 +145,7 @@ class Curve(ArithmeticBase):
             self.Error = (self.Error ** 2 * other.val ** 2 + self.Intensity ** 2 * other.err ** 2) ** 0.5
         elif isinstance(other, float) or isinstance(other, int) or isinstance(other, np.ndarray):
             self.Intensity = self.Intensity * other
+            self.Error = self.Error * other
         else:
             return NotImplemented
         return self

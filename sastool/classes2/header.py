@@ -82,3 +82,7 @@ class Header(object, metaclass=abc.ABCMeta):
     @abc.abstractproperty
     def flux(self) -> ErrorValue:
         """X-ray flux in photons/sec."""
+
+    @abc.abstractproperty
+    def thickness(self) -> ErrorValue:
+        """Sample thickness in cm"""

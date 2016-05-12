@@ -1,5 +1,5 @@
 import abc
-from typing import Optional
+from typing import Optional, Tuple
 
 import matplotlib
 import numpy as np
@@ -55,7 +55,7 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
         return np.arctan(rho / self.header.distance.val)
 
     @property
-    def shape(self) -> tuple:
+    def shape(self) -> Tuple[int, int]:
         """The shape of the matrices"""
         return self.intensity.shape
 
@@ -194,6 +194,7 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
         elif isinstance(other, int) or isinstance(other, float) or isinstance(other, np.ndarray) or isinstance(other,
                                                                                                                complex):
             self.intensity = self.intensity * other
+            self.error = self.error * other
             # self.error remains the same.
         else:
             return NotImplemented
@@ -215,7 +216,7 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
         obj.header = self.header
         return obj
 
-    def __copy__(self):
+    def copy(self):
         c = type(self)()
         c.error = self.error
         c.intensity = self.intensity

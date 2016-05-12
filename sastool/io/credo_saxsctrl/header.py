@@ -1,5 +1,5 @@
 import datetime
-from typing import Optional
+from typing import Optional, Union
 
 import dateutil.parser
 import scipy.constants
@@ -55,9 +55,17 @@ class Header(classes2.Header):
     def title(self) -> str:
         return self._data['Title']
 
+    @title.setter
+    def title(self, value: str):
+        self._data['Title'] = value
+
     @property
     def fsn(self) -> int:
         return self._data['FSN']
+
+    @fsn.setter
+    def fsn(self, value: int):
+        self._data['FSN'] = value
 
     @property
     def energy(self) -> ErrorValue:
@@ -67,10 +75,26 @@ class Header(classes2.Header):
                 scipy.constants.nano /
                 self.wavelength)
 
+    @energy.setter
+    def energy(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self.wavelength = (ErrorValue(*(scipy.constants.physical_constants['speed of light in vacuum'][0::2])) *
+                           ErrorValue(*(scipy.constants.physical_constants['Planck constant in eV s'][0::2])) /
+                           scipy.constants.nano /
+                           value)
+
     @property
     def wavelength(self) -> ErrorValue:
         """X-ray wavelength"""
         return ErrorValue(self._data["Wavelength"], 0)
+
+    @wavelength.setter
+    def wavelength(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['Wavelength'] = value.val
+        self._data['WavelengthError'] = value.err
 
     @property
     def distance(self) -> ErrorValue:
@@ -87,6 +111,13 @@ class Header(classes2.Header):
             disterr = 0
         return ErrorValue(dist, disterr)
 
+    @distance.setter
+    def distance(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['DistCalibrated'] = value.val
+        self._data['DistCalibratedError'] = value.err
+
     @property
     def temperature(self) -> Optional[ErrorValue]:
         """Sample temperature"""
@@ -95,56 +126,145 @@ class Header(classes2.Header):
         except KeyError:
             return None
 
+    @temperature.setter
+    def temperature(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['Temperature'] = value.val
+        self._data['TemperatureError'] = value.err
+
     @property
     def beamcenterx(self) -> ErrorValue:
         """X (column) coordinate of the beam center, pixel units, 0-based."""
         return ErrorValue(self._data['BeamPosX'], 0)
+
+    @beamcenterx.setter
+    def beamcenterx(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['BeamPosX'] = value.val
+        self._data['BeamPosXError'] = value.err
 
     @property
     def beamcentery(self) -> ErrorValue:
         """Y (row) coordinate of the beam center, pixel units, 0-based."""
         return ErrorValue(self._data['BeamPosY'], 0)
 
+    @beamcentery.setter
+    def beamcentery(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['BeamPosY'] = value.val
+        self._data['BeamPosYError'] = value.err
+
     @property
     def pixelsizex(self) -> ErrorValue:
         """X (column) size of a pixel, in mm units"""
         return ErrorValue(self._data['PixelSize'], 0)
+
+    @pixelsizex.setter
+    def pixelsizex(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['PixelSize'] = value.val
+        self._data['PixelSizeError'] = value.err
 
     @property
     def pixelsizey(self) -> ErrorValue:
         """Y (row) size of a pixel, in mm units"""
         return ErrorValue(self._data['PixelSize'], 0)
 
+    @pixelsizey.setter
+    def pixelsizey(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['PixelSize'] = value.val
+        self._data['PixelSizeError'] = value.err
+
     @property
     def exposuretime(self) -> ErrorValue:
         """Exposure time in seconds"""
         return ErrorValue(self._data['ExpTime'], 0)
+
+    @exposuretime.setter
+    def exposuretime(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['ExpTime'] = value.val
+        self._data['ExpTimeError'] = value.val
 
     @property
     def date(self) -> datetime.datetime:
         """Date of the experiment (start of exposure)"""
         return self._data['Date']
 
+    @date.setter
+    def date(self, value: datetime.datetime):
+        self._data['Date'] = value
+
     @property
     def maskname(self) -> Optional[str]:
         """Name of the mask matrix file."""
         try:
-            return self._data['maskid'] + '.mat'
+            maskid = self._data['maskid'] + '.mat'
+            if not maskid.endswith('.mat'):
+                maskid = maskid + '.mat'
+            return maskid
         except KeyError:
             return None
+
+    @maskname.setter
+    def maskname(self, value: str):
+        self._data['maskid'] = value
 
     @property
     def transmission(self) -> ErrorValue:
         """Sample transmission."""
         return ErrorValue(self._data['Transm'], self._data['TransmError'])
 
+    @transmission.setter
+    def transmission(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['Transm'] = value.val
+        self._data['TransmError'] = value.err
+
     @property
     def vacuum(self) -> ErrorValue:
         """Vacuum pressure around the sample"""
         return ErrorValue(self._data['Vacuum'], 0)
 
+    @vacuum.setter
+    def vacuum(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['Vacuum'] = value.val
+        self._data['VacuumError'] = value.err
+
     @property
     def flux(self) -> ErrorValue:
         """X-ray flux in photons/sec."""
-        return 1 / self.pixelsizex / self.pixelsizey / ErrorValue(self._data['NormFactor'],
-                                                                  self._data['NormFactorError'])
+        try:
+            return ErrorValue(self._data['Flux'], self._data['FluxError'])
+        except KeyError:
+            return 1 / self.pixelsizex / self.pixelsizey / ErrorValue(self._data['NormFactor'],
+                                                                      self._data['NormFactorError'])
+
+    @flux.setter
+    def flux(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['Flux'] = value.val
+        self._data['FluxError'] = value.err
+
+    @property
+    def thickness(self) -> ErrorValue:
+        """Sample thickness in cm"""
+        return ErrorValue(self._data['Thickness'], self._data['ThicknessError'])
+
+    @thickness.setter
+    def thickness(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['Thickness'] = value.val
+        self._data['ThicknessError'] = value.err

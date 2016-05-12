@@ -2,6 +2,8 @@ import abc
 import os
 from typing import Union, List
 
+import numpy as np
+
 from .curve import Curve
 from .exposure import Exposure
 from .header import Header
