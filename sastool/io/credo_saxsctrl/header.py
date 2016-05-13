@@ -160,26 +160,26 @@ class Header(classes2.Header):
     @property
     def pixelsizex(self) -> ErrorValue:
         """X (column) size of a pixel, in mm units"""
-        return ErrorValue(self._data['PixelSize'], 0)
+        return ErrorValue(self._data['XPixel'], 0)
 
     @pixelsizex.setter
     def pixelsizex(self, value: Union[ErrorValue, float]):
         if not isinstance(value, ErrorValue):
             value = ErrorValue(value, 0)
-        self._data['PixelSize'] = value.val
-        self._data['PixelSizeError'] = value.err
+        self._data['XPixel'] = value.val
+        self._data['XPixelError'] = value.err
 
     @property
     def pixelsizey(self) -> ErrorValue:
         """Y (row) size of a pixel, in mm units"""
-        return ErrorValue(self._data['PixelSize'], 0)
+        return ErrorValue(self._data['YPixel'], 0)
 
     @pixelsizey.setter
     def pixelsizey(self, value: Union[ErrorValue, float]):
         if not isinstance(value, ErrorValue):
             value = ErrorValue(value, 0)
-        self._data['PixelSize'] = value.val
-        self._data['PixelSizeError'] = value.err
+        self._data['YPixel'] = value.val
+        self._data['YPixelError'] = value.err
 
     @property
     def exposuretime(self) -> ErrorValue:
