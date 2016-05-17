@@ -196,11 +196,11 @@ class Curve(ArithmeticBase):
             errorrequested: True if error should be returned (true Gaussian
                 error-propagation of the trapezoid formula)
         """
-        y = self.y * self.x ** exponent
-        m = np.trapz(y, self.x)
+        y = self.Intensity * self.q ** exponent
+        m = np.trapz(y, self.q)
         if errorrequested:
-            err = self.dy * self.x ** exponent
-            dm = errtrapz(self.x, err)
+            err = self.Error * self.q ** exponent
+            dm = errtrapz(self.q, err)
             return ErrorValue(m, dm)
         else:
             return m
