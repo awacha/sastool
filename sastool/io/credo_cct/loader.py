@@ -28,7 +28,6 @@ class Loader(classes2.Loader):
             for d, sds, fs in os.walk(os.path.join(basedir, 'mask'), followlinks=True):
                 if d not in basepath:
                     basepath.append(d)
-        print('\n'.join(basepath))
         super().__init__(basepath, False, processed)
         self._exposureclass = exposureclass
 

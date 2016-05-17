@@ -11,12 +11,24 @@ from ... import classes2
 class Loader(classes2.Loader):
     def __init__(self, basedir: str, recursive: bool = True, processed: bool = True, exposureclass: str = 'crd'):
         if processed:
-            super().__init__([os.path.join(basedir, subdir) for subdir in ['eval2d', 'mask', 'eval1d']],
-                             recursive, processed)
+            datasubdirs = ['eval2d', 'eval1d']
         else:
-            super().__init__(
-                    [os.path.join(basedir, subdir) for subdir in ['param_override', 'param', 'images', 'mask']],
-                    recursive, processed)
+            datasubdirs = ['param_override', 'param', 'images']
+        basepath = []
+        for d in datasubdirs:
+            d = os.path.join(basedir, d)
+            basepath.append(d)
+            if recursive:
+                lis = os.listdir(d)
+                for l in [l_ for l_ in lis if '.' not in l_]:
+                    if os.path.isdir(os.path.join(d, l)):
+                        basepath.append(os.path.join(d, l))
+        basepath.append(os.path.join(basedir, 'mask'))
+        if recursive:
+            for d, sds, fs in os.walk(os.path.join(basedir, 'mask'), followlinks=True):
+                if d not in basepath:
+                    basepath.append(d)
+        super().__init__(basepath, False, processed)
         self._exposureclass = exposureclass
 
     def loadheader(self, fsn: int) -> Header:
