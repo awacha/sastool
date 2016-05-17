@@ -11,6 +11,7 @@ import warnings
 import matplotlib.colors
 import matplotlib.pyplot as plt
 import numpy as np
+from mpl_toolkits.axes_grid import make_axes_locatable
 
 from .common import SASExposureException
 from .curve import SASCurve, SASAzimuthalCurve, SASPixelCurve
@@ -1541,7 +1542,8 @@ class SASExposure(ArithmeticBase):
                 if cax:
                     cax = cax[0]
                 else:
-                    cax = None
+                    
+                    cax = make_axes_locatable(kwargs_default['axes']).append_axes('right',size="5%",pad=0.05)
                 kwargs_default['axes'].figure.colorbar(
                     ret, cax=cax, ax=kwargs_default['axes'])
         kwargs_default['axes'].figure.canvas.draw()
