@@ -11,6 +11,21 @@ from ..misc.easylsq import nonlinear_leastsquares, nonlinear_odr
 from ..misc.errorvalue import ErrorValue
 
 
+def errtrapz(x, yerr):
+    """Error of the trapezoid formula
+    Inputs:
+        x: the abscissa
+        yerr: the error of the dependent variable
+
+    Outputs:
+        the error of the integral
+    """
+    x = np.array(x)
+    yerr = np.array(yerr)
+    return 0.5 * np.sqrt((x[1] - x[0]) ** 2 * yerr[0] ** 2 +
+                         np.sum((x[2:] - x[:-2]) ** 2 * yerr[1:-1] ** 2) +
+                         (x[-1] - x[-2]) ** 2 * yerr[-1] ** 2)
+
 class Curve(ArithmeticBase):
     _q_rel_tolerance = 0.05  # relative tolerance when comparing two q values: if 2*(q1-q2)/(q1+q2) > _q_rel_tolerance then q1 ~= q2
 
@@ -171,6 +186,24 @@ class Curve(ArithmeticBase):
                           np.interp(newq, self.q, self.Intensity, **kwargs),
                           np.interp(newq, self.q, self.Error, **kwargs),
                           np.interp(newq, self.q, self.qError, **kwargs))
+
+    def momentum(self, exponent=1, errorrequested=True):
+        """Calculate momenta (integral of y times x^exponent)
+        The integration is done by the trapezoid formula (np.trapz).
+
+        Inputs:
+            exponent: the exponent of q in the integration.
+            errorrequested: True if error should be returned (true Gaussian
+                error-propagation of the trapezoid formula)
+        """
+        y = self.y * self.x ** exponent
+        m = np.trapz(y, self.x)
+        if errorrequested:
+            err = self.dy * self.x ** exponent
+            dm = errtrapz(self.x, err)
+            return ErrorValue(m, dm)
+        else:
+            return m
 
     @classmethod
     def merge(cls, first, last, qsep=None):
