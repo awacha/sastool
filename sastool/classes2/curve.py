@@ -213,7 +213,7 @@ class Curve(ArithmeticBase):
         if qsep is not None:
             first = first.trim(qmax=qsep)
             last = last.trim(qmin=qsep)
-        data = np.concatenate(first.as_structarray(), last.as_structarray())
+        data = np.concatenate((first.as_structarray(), last.as_structarray()))
         data = np.sort(data, order='q')
         return cls(data['q'], data['Intensity'], data['Error'], data['qError'])
 
