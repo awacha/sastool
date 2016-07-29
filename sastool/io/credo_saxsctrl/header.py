@@ -11,10 +11,6 @@ from ...misc.errorvalue import ErrorValue
 class Header(classes2.Header):
     """Header file written by SAXSCtrl"""
 
-    def __init__(self):
-        super().__init__()
-        self._data = {}
-
     @classmethod
     def new_from_file(cls, filename):
         self = cls()

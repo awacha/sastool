@@ -1,7 +1,7 @@
 import datetime
 import os
 import pickle
-from typing import Optional, Union
+from typing import Optional, Union, Dict
 
 import dateutil
 import scipy.constants
@@ -12,10 +12,6 @@ from ...misc.errorvalue import ErrorValue
 
 class Header(classes2.Header):
     """Header file written by SAXSCtrl"""
-
-    def __init__(self):
-        super().__init__()
-        self._data = {}
 
     @classmethod
     def new_from_file(cls, filename):
@@ -217,3 +213,7 @@ class Header(classes2.Header):
             value = ErrorValue(value, 0)
         self._data['sample']['thickness.val'] = value.val
         self._data['sample']['thickness.err'] = value.err
+
+    @property
+    def param(self) -> Dict:
+        return self._data

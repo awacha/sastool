@@ -2,6 +2,8 @@ import abc
 from typing import Optional, Tuple
 
 import matplotlib
+import matplotlib.axes
+import matplotlib.cm
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -20,6 +22,27 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
     mask: two-dimensional np.ndarray (dtype=bool): True if the pixel is valid, False if it is invalid.
     header: an instance of the appropriate subclass of Header
     """
+
+    def __init__(self, intensity: Optional[np.ndarray] = None,
+                 error: Optional[np.ndarray] = None,
+                 header: Optional[Header] = None,
+                 mask: Optional[np.ndarray] = None):
+        if intensity is None:
+            # simulate a default constructor with no arguments
+            self.intensity = None
+            self.error = None
+            self.header = None
+            self.mask = None
+        self.intensity = intensity
+        if error is None:
+            error = self.intensity ** 0.5
+        self.error = error
+        if header is None:
+            header = Header()
+        self.header = header
+        if mask is None:
+            mask = np.ones_like(self.intensity, dtype=np.bool)
+        self.mask = mask
 
     @abc.abstractclassmethod
     def new_from_file(self, filename: str, header_data: Optional[Header] = None,
@@ -70,37 +93,42 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
 
         Coordinates are 0-based and calculated from the top left corner.
         """
-        qrow = 4 * np.pi * np.sin(0.5 * np.arctan(
-            float((row - self.header.beamcentery) * self.header.pixelsizey / self.header.distance))) / float(
-            self.header.wavelength)
-        qcol = 4 * np.pi * np.sin(0.5 * np.arctan((
-                                                  column - self.header.beamcenterx) * self.header.pixelsizex / self.header.distance)) / self.header.wavelength
+        qrow = 4 * np.pi * np.sin(0.5 * np.arctan(float(
+                (row - float(self.header.beamcentery)) *
+                float(self.header.pixelsizey) /
+                float(self.header.distance)))) / float(self.header.wavelength)
+        qcol = 4 * np.pi * np.sin(0.5 * np.arctan(
+                (column - float(self.header.beamcenterx)) *
+                float(self.header.pixelsizex) /
+                float(self.header.distance))) / float(self.header.wavelength)
         return qrow, qcol
 
-    def imshow(self, *args, show_crosshair=True, show_mask=True, show_qscale=True, axes=None, invalid_color='black',
+    def imshow(self, *args, show_crosshair=True, show_mask=True,
+               show_qscale=True, axes=None, invalid_color='black',
                mask_opacity=0.8, show_colorbar=True, **kwargs):
         """Plot the matrix (imshow)
 
         Keyword arguments [and their default values]:
 
-        show_crosshair [True]: if a cross-hair marking the beam position is to be
-            plotted.
+        show_crosshair [True]: if a cross-hair marking the beam position is
+            to be plotted.
         show_mask [True]: if the mask is to be plotted.
-        show_qscale [True]: if the horizontal and vertical axes are to be scaled into q
-        axes [None]: the axes into which the image should be plotted. If None,
-            defaults to the currently active axes (returned by plt.gca())
+        show_qscale [True]: if the horizontal and vertical axes are to be
+            scaled into q
+        axes [None]: the axes into which the image should be plotted. If
+            None, defaults to the currently active axes (returned by plt.gca())
         invalid_color ['black']: the color for invalid (NaN or infinite) pixels
-        mask_opacity [0.8]: the opacity of the overlaid mask (1 is fully opaque,
-            0 is fully transparent)
-        show_colorbar [True]: if a colorbar is to be added. Can be a boolean value
-            (True or False) or an instance of matplotlib.axes.Axes, into which the
-            color bar should be drawn.
+        mask_opacity [0.8]: the opacity of the overlaid mask (1 is fully
+            opaque, 0 is fully transparent)
+        show_colorbar [True]: if a colorbar is to be added. Can be a boolean
+            value (True or False) or an instance of matplotlib.axes.Axes, into
+            which the color bar should be drawn.
 
-        All other keywords are forwarded to plt.imshow() / matplotlib.Axes.imshow()
+        All other keywords are forwarded to plt.imshow() or
+            matplotlib.Axes.imshow()
 
         Returns: the image instance returned by imshow()
         """
-        kwargs_default = {'interpolation': 'nearest'}
         if 'origin' not in kwargs:
             kwargs['origin'] = None
         if kwargs['origin'] is None:
@@ -176,8 +204,7 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
         elif isinstance(other, ErrorValue):
             self.error = (self.error ** 2 + other.err ** 2) ** 0.5
             self.intensity = (self.intensity + other.val)
-        elif isinstance(other, int) or isinstance(other, float) or isinstance(other, np.ndarray) or isinstance(other,
-                                                                                                               complex):
+        elif isinstance(other, (int, float, np.ndarray, complex)):
             self.intensity = self.intensity + other
             # self.error remains the same.
         else:
@@ -225,7 +252,8 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
         return c
 
     def radial_average(self, qrange=None, pixel=False, returnmask=False,
-                       errorpropagation=3, abscissa_errorpropagation=3):
+                       errorpropagation=3, abscissa_errorpropagation=3,
+                       raw_result=True) -> Curve:
         """Do a radial averaging
 
         Inputs:
@@ -240,12 +268,16 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
             abscissa_errorpropagation: the type of the error propagation in the
                 abscissa (3: highest of squared or std-dev, 2: squared, 1: linear,
                 0: independent measurements of the same quantity)
+            raw_result: if True, do not pack the result in a SASCurve, return the
+                individual np.ndarrays.
 
         Outputs:
             the one-dimensional curve as an instance of SASCurve (if pixel is
-                False) or SASPixelCurve (if pixel is True)
+                False) or SASPixelCurve (if pixel is True), if raw_result was True.
+                otherwise the q (or pixel), dq (or dpixel), I, dI, area vectors
             the mask matrix (if returnmask was True)
         """
+        retmask = None
         if isinstance(qrange, str):
             if qrange == 'linear':
                 qrange = None
@@ -258,37 +290,37 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
                         'Value given for qrange (''%s'') not understood.' % qrange)
         else:
             autoqrange_linear = True  # whatever
-        if not pixel:
-            res = radint_fullq_errorprop(self.intensity, self.error, self.header.wavelength.val,
-                                         self.header.wavelength.err, self.header.distance.val,
-                                         self.header.distance.err, self.header.pixelsizey.val,
-                                         self.header.pixelsizex.val, self.header.beamcentery.val,
-                                         self.header.beamcentery.err, self.header.beamcenterx.val,
-                                         self.header.beamcenterx.err, (self.mask == 0).astype(np.uint8),
-                                         qrange, returnmask=returnmask, errorpropagation=errorpropagation,
-                                         autoqrange_linear=autoqrange_linear, abscissa_kind=0,
-                                         abscissa_errorpropagation=abscissa_errorpropagation)
-            q, dq, I, E = res[:4]
-            if returnmask:
-                retmask = res[5]
+        if pixel:
+            abscissa_kind = 3
+        else:
+            abscissa_kind = 0
+        res = radint_fullq_errorprop(self.intensity, self.error, self.header.wavelength.val,
+                                     self.header.wavelength.err, self.header.distance.val,
+                                     self.header.distance.err, self.header.pixelsizey.val,
+                                     self.header.pixelsizex.val, self.header.beamcentery.val,
+                                     self.header.beamcentery.err, self.header.beamcenterx.val,
+                                     self.header.beamcenterx.err, (self.mask == 0).astype(np.uint8),
+                                     qrange, returnmask=returnmask, errorpropagation=errorpropagation,
+                                     autoqrange_linear=autoqrange_linear, abscissa_kind=abscissa_kind,
+                                     abscissa_errorpropagation=abscissa_errorpropagation)
+        q, dq, I, E, area = res[:5]
+        if not raw_result:
             c = Curve(q, I, E, dq)
-        else:
-            res = radint_fullq_errorprop(self.intensity, self.error, self.header.wavelength.val,
-                                         self.header.wavelength.err,
-                                         self.header.distance.val,
-                                         self.header.distance.err,
-                                         self.header.pixelsizey.val, self.header.pixelsizex.val,
-                                         self.header.beamcentery.val, self.header.beamcentery.err,
-                                         self.header.beamcenterx.val, self.header.beamcenterx.err,
-                                         (self.mask == 0).astype(np.uint8), qrange,
-                                         returnmask=returnmask, errorpropagation=errorpropagation,
-                                         autoqrange_linear=autoqrange_linear, abscissa_kind=3,
-                                         abscissa_errorpropagation=abscissa_errorpropagation)
-            p, dp, I, E = res[:4]
             if returnmask:
-                retmask = res[5]
-            c = Curve(p, I, E, dp)
-        if returnmask:
-            return c, retmask
+                return c, res[5]
+            else:
+                return c
         else:
-            return c
+            if returnmask:
+                return q, dq, I, E, area, res[5]
+            else:
+                return q, dq, I, E, area
+
+    def get_statistics(self):
+        return {
+            'NaNs'             : np.isnan(self.intensity).sum(), 'finites': np.isfinite(self.intensity).sum(),
+            'negatives'        : (self.intensity < 0).sum(),
+            'unmaskedNaNs'     : np.isnan(self.intensity[self.mask != 0]).sum(),
+            'unmaskednegatives': (self.intensity[self.mask != 0] < 0).sum(),
+            'masked'           : (self.mask == 0).sum(),
+            }

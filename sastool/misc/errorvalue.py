@@ -8,6 +8,7 @@ import collections
 import math
 import numbers
 import re
+from typing import TypeVar
 
 import numpy as np
 
@@ -15,6 +16,7 @@ from .arithmetic import ArithmeticBase
 
 __all__ = ['ErrorValue']
 
+EVType = TypeVar('ErrorValue')
 
 class ErrorValue(ArithmeticBase):
     """Class to hold a value and its uncertainty (1sigma, absolute error etc.).
@@ -43,7 +45,7 @@ class ErrorValue(ArithmeticBase):
             read access is supported.
     """
 
-    def __init__(self, val, err=None):
+    def __init__(self: EVType, val, err=None):
         ArithmeticBase.__init__(self)
         if isinstance(val, numbers.Number):
             self.val = float(val)
@@ -86,20 +88,20 @@ class ErrorValue(ArithmeticBase):
             raise ValueError(
                 'ErrorValue class can hold only Python numbers or numpy ndarrays, got %s!' % type(val))
 
-    def copy(self):
+    def copy(self: EVType) -> EVType:
         return type(self)(self.val, self.err)
 
-    def __neg__(self):
+    def __neg__(self: EVType) -> EVType:
         return type(self)(-self.val, self.err)
 
-    def __reciprocal__(self):
+    def __reciprocal__(self: EVType) -> EVType:
         """Calculate the reciprocal of this instance"""
         return type(self)(1.0 / self.val, self.err / (self.val * self.val))
 
-    def __getitem__(self, key):
+    def __getitem__(self: EVType, key):
         return type(self)(self.val[key], self.err[key])
 
-    def __iadd__(self, value):
+    def __iadd__(self: EVType, value) -> EVType:
         try:
             value = ErrorValue(value)
         except ValueError:
@@ -108,7 +110,7 @@ class ErrorValue(ArithmeticBase):
         self.err = np.sqrt(self.err ** 2 + value.err ** 2)
         return self
 
-    def __imul__(self, value):
+    def __imul__(self: EVType, value) -> EVType:
         try:
             value = ErrorValue(value)
         except ValueError:
@@ -118,10 +120,10 @@ class ErrorValue(ArithmeticBase):
         self.val = self.val * value.val
         return self
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.tostring(plusminus=' \xb1 ')
 
-    def __pow__(self, other, modulo=None):
+    def __pow__(self: EVType, other, modulo=None) -> EVType:
         if modulo is not None:
             return NotImplemented
         try:
@@ -133,22 +135,22 @@ class ErrorValue(ArithmeticBase):
         val = self.val ** other.val
         return type(self)(val, err)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return 'ErrorValue(' + repr(self.val) + ' \xb1 ' + repr(self.err) + ')'
 
-    def __float__(self):
+    def __float__(self) -> float:
         return float(self.val)
 
-    def __trunc__(self):
+    def __trunc__(self) -> int:
         return int(self.val)
 
-    def __array__(self, dt=None):
+    def __array__(self: EVType, dt=None) -> np.ndarray:
         if dt is None:
             return np.array(self.val)
         else:
             return np.array(self.val, dt)
 
-    def tostring(self, extra_digits=0, plusminus=' +/- ', fmt=None):
+    def tostring(self: EVType, extra_digits: int = 0, plusminus: str = ' +/- ', fmt: str = None) -> str:
         """Make a string representation of the value and its uncertainty.
 
         Inputs:
@@ -181,55 +183,55 @@ class ErrorValue(ArithmeticBase):
                 return str(round(self.val, Ndigits)) + plusminus + str(round(self.err, Ndigits))
         return str(self.val) + ' +/- ' + str(self.err)
 
-    def abs(self):
+    def abs(self: EVType) -> EVType:
         return type(self)(np.abs(self.val), self.err)
 
-    def sin(self):
+    def sin(self: EVType) -> EVType:
         return type(self)(np.sin(self.val), np.abs(np.cos(self.val) * self.err))
 
-    def cos(self):
+    def cos(self: EVType) -> EVType:
         return type(self)(np.cos(self.val), np.abs(np.sin(self.val) * self.err))
 
-    def tan(self):
+    def tan(self: EVType) -> EVType:
         return type(self)(np.tan(self.val), np.abs(1 + np.tan(self.val) ** 2) * self.err)
 
-    def sqrt(self):
+    def sqrt(self: EVType) -> EVType:
         return self ** 0.5
 
-    def sinh(self):
+    def sinh(self: EVType) -> EVType:
         return type(self)(np.sinh(self.val), np.abs(np.cosh(self.val) * self.err))
 
-    def cosh(self):
+    def cosh(self: EVType) -> EVType:
         return type(self)(np.cosh(self.val), np.abs(np.sinh(self.val) * self.err))
 
-    def tanh(self):
+    def tanh(self: EVType) -> EVType:
         return type(self)(np.tanh(self.val), np.abs(1 - np.tanh(self.val) ** 2) * self.err)
 
-    def arcsin(self):
+    def arcsin(self: EVType) -> EVType:
         return type(self)(np.arcsin(self.val), np.abs(self.err / np.sqrt(1 - self.val ** 2)))
 
-    def arccos(self):
+    def arccos(self: EVType) -> EVType:
         return type(self)(np.arccos(self.val), np.abs(self.err / np.sqrt(1 - self.val ** 2)))
 
-    def arcsinh(self):
+    def arcsinh(self: EVType) -> EVType:
         return type(self)(np.arcsinh(self.val), np.abs(self.err / np.sqrt(1 + self.val ** 2)))
 
-    def arccosh(self):
+    def arccosh(self: EVType) -> EVType:
         return type(self)(np.arccosh(self.val), np.abs(self.err / np.sqrt(self.val ** 2 - 1)))
 
-    def arctanh(self):
+    def arctanh(self: EVType) -> EVType:
         return type(self)(np.arctanh(self.val), np.abs(self.err / (1 - self.val ** 2)))
 
-    def arctan(self):
+    def arctan(self: EVType) -> EVType:
         return type(self)(np.arctan(self.val), np.abs(self.err / (1 + self.val ** 2)))
 
-    def log(self):
+    def log(self: EVType) -> EVType:
         return type(self)(np.log(self.val), np.abs(self.err / self.val))
 
-    def exp(self):
+    def exp(self: EVType) -> EVType:
         return type(self)(np.exp(self.val), np.abs(self.err * np.exp(self.val)))
 
-    def random(self):
+    def random(self: EVType) -> np.ndarray:
         """Sample a random number (array) of the distribution defined by
         mean=`self.val` and variance=`self.err`^2.
         """
@@ -300,7 +302,7 @@ class ErrorValue(ArithmeticBase):
                     raise
         return cls(meanvalue, stdcollector ** 0.5 / (kwargs['NMC'] - 1))
 
-    def is_zero(self):
+    def is_zero(self: EVType) -> bool:
         return np.abs(self.val) <= np.abs(self.err)
 
     @classmethod

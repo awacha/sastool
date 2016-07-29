@@ -1,7 +1,7 @@
 """This module defines the header class."""
 import abc
 import datetime
-from typing import Optional
+from typing import Optional, Dict
 
 from ..misc.errorvalue import ErrorValue
 
@@ -12,8 +12,11 @@ class Header(object, metaclass=abc.ABCMeta):
 
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, headerdict: Optional[Dict] = None):
+        if headerdict is None:
+            self._data = {}
+        else:
+            self._data = headerdict
 
     @abc.abstractproperty
     def title(self) -> str:

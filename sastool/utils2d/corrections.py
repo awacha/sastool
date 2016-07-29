@@ -22,19 +22,24 @@ def twotheta(matrix, bcx, bcy, pixsizeperdist):
     col, row = np.meshgrid(list(range(matrix.shape[1])), list(range(matrix.shape[0])))
     return np.arctan(np.sqrt((row - bcx) ** 2 + (col - bcy) ** 2) * pixsizeperdist)
 
-def solidangle(twotheta, sampletodetectordistance):
+
+def solidangle(twotheta, sampletodetectordistance, pixelsize=None):
     """Solid-angle correction for two-dimensional SAS images
 
     Inputs:
         twotheta: matrix of two-theta values
         sampletodetectordistance: sample-to-detector distance
+        pixelsize: the pixel size in mm
 
     The output matrix is of the same shape as twotheta. The scattering intensity
         matrix should be multiplied by it.
     """
-    return sampletodetectordistance ** 2 / np.cos(twotheta) ** 3
+    if pixelsize is None:
+        pixelsize = 1
+    return sampletodetectordistance ** 2 / np.cos(twotheta) ** 3 / pixelsize ** 2
 
-def solidangle_errorprop(twotheta, dtwotheta, sampletodetectordistance, dsampletodetectordistance):
+
+def solidangle_errorprop(twotheta, dtwotheta, sampletodetectordistance, dsampletodetectordistance, pixelsize=None):
     """Solid-angle correction for two-dimensional SAS images with error propagation
 
     Inputs:
@@ -47,11 +52,13 @@ def solidangle_errorprop(twotheta, dtwotheta, sampletodetectordistance, dsamplet
         matrix should be multiplied by the first one. The second one is the propagated
         error of the first one.
     """
-    SAC=solidangle(twotheta, sampletodetectordistance)
-    return (solidangle(twotheta, sampletodetectordistance),
+    SAC = solidangle(twotheta, sampletodetectordistance, pixelsize)
+    if pixelsize is None:
+        pixelsize = 1
+    return (SAC,
             (sampletodetectordistance * (4 * dsampletodetectordistance ** 2 * np.cos(twotheta) ** 2 +
                                         9 * dtwotheta ** 2 * sampletodetectordistance ** 2 * np.sin(twotheta) ** 2) ** 0.5
-            / np.cos(twotheta) ** 4))
+             / np.cos(twotheta) ** 4) / pixelsize ** 2)
 
 def angledependentabsorption(twotheta, transmission):
     """Correction for angle-dependent absorption of the sample
