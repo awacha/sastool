@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import abc
+from typing import Any
 
 __all__ = ['ArithmeticBase']
 
@@ -25,7 +26,7 @@ class ArithmeticBase(object, metaclass=abc.ABCMeta):
         given functions (assuming commutative addition and multiplication)
     """
 
-    def __add__(self, value):
+    def __add__(self, value: Any) -> 'ArithmeticBase':
         try:
             obj = self.copy()
         except AttributeError:
@@ -33,17 +34,17 @@ class ArithmeticBase(object, metaclass=abc.ABCMeta):
         obj.__iadd__(value)
         return obj
 
-    def __radd__(self, value):
+    def __radd__(self, value: Any) -> 'ArithmeticBase':
         retval = self + value
         if retval is NotImplemented:
             raise NotImplementedError(
                 'addition is not implemented between %s and %s types' % (type(self), type(value)))
         return retval
 
-    def __isub__(self, value):
+    def __isub__(self, value: Any) -> 'ArithmeticBase':
         return self.__iadd__(-value)
 
-    def __sub__(self, value):
+    def __sub__(self, value: Any) -> 'ArithmeticBase':
         try:
             obj = self.copy()
         except AttributeError:
@@ -51,14 +52,14 @@ class ArithmeticBase(object, metaclass=abc.ABCMeta):
         obj.__isub__(value)
         return obj
 
-    def __rsub__(self, value):
+    def __rsub__(self, value: Any) -> 'ArithmeticBase':
         retval = (-self) + value
         if retval is NotImplemented:
             raise NotImplementedError(
                 'subtraction is not implemented between %s and %s types' % (type(self), type(value)))
         return retval
 
-    def __mul__(self, value):
+    def __mul__(self, value: Any) -> 'ArithmeticBase':
         try:
             obj = self.copy()
         except AttributeError:
@@ -66,21 +67,21 @@ class ArithmeticBase(object, metaclass=abc.ABCMeta):
         obj = obj.__imul__(value)
         return obj
 
-    def __rmul__(self, value):
+    def __rmul__(self, value: Any) -> 'ArithmeticBase':
         retval = self * value
         if retval is NotImplemented:
             raise NotImplementedError(
                 'multiplication is not implemented between %s and %s types' % (type(self), type(value)))
         return retval
 
-    def __itruediv__(self, value):
+    def __itruediv__(self, value: Any) -> 'ArithmeticBase':
         try:
             value_recip = value.__reciprocal__()
         except AttributeError:
             value_recip = 1.0 / value
         return self.__imul__(value_recip)
 
-    def __truediv__(self, value):
+    def __truediv__(self, value: Any) -> 'ArithmeticBase':
         try:
             obj = self.copy()
         except AttributeError:
@@ -88,7 +89,7 @@ class ArithmeticBase(object, metaclass=abc.ABCMeta):
         obj.__itruediv__(value)
         return obj
 
-    def __rtruediv__(self, value):
+    def __rtruediv__(self, value: Any) -> 'ArithmeticBase':
         retval = self.__reciprocal__() * value
         if retval is NotImplemented:
             raise NotImplementedError(
@@ -113,4 +114,8 @@ class ArithmeticBase(object, metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def __reciprocal__(self):
+        pass
+
+    @abc.abstractmethod
+    def copy(self):
         pass

@@ -34,13 +34,11 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
             self.header = None
             self.mask = None
         self.intensity = intensity
-        if error is None:
+        if error is None and self.intensity is not None:              
             error = self.intensity ** 0.5
         self.error = error
-        if header is None:
-            header = Header()
         self.header = header
-        if mask is None:
+        if mask is None and self.intensity is not None:
             mask = np.ones_like(self.intensity, dtype=np.bool)
         self.mask = mask
 
