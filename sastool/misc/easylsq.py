@@ -9,12 +9,15 @@ scipy.optimize.curve_fit, except it allows for obtaining other parameters like
 Chi^2, covariance matrix, R^2 etc.
 """
 
-from scipy.optimize import leastsq
-import scipy.odr as odr
-import numpy as np
 import collections
-from .errorvalue import ErrorValue
 import time
+from typing import Callable, Sequence
+
+import numpy as np
+import scipy.odr as odr
+from scipy.optimize import leastsq
+
+from .errorvalue import ErrorValue
 
 __all__ = ['FixedParameter', 'nonlinear_leastsquares',
            'simultaneous_nonlinear_leastsquares', 'nlsq_fit',
@@ -27,12 +30,14 @@ class FixedParameter(float):
     def __repr__(self):
         return 'FixedParameter(' + float.__repr__(self) + ')'
 
-def hide_fixedparams(function, params):
+
+def hide_fixedparams(function: Callable, params: Sequence):
     def newfunc(x, *pars, **kwargs):
         return function(x, *resubstitute_fixedparams(pars, params), **kwargs)
     return newfunc, [p for p in params if not isinstance(p, FixedParameter)]
 
-def resubstitute_fixedparams(params, paramsorig, covariance=None):
+
+def resubstitute_fixedparams(params: Sequence, paramsorig: Sequence, covariance=None):
     if isinstance(paramsorig, tuple):
         paramsorig = list(paramsorig)
     elif isinstance(paramsorig, np.ndarray):
@@ -53,7 +58,9 @@ def resubstitute_fixedparams(params, paramsorig, covariance=None):
     else:
         return paramsorig
 
-def nonlinear_leastsquares(x, y, dy, func, params_init, verbose=False, **kwargs):
+
+def nonlinear_leastsquares(x: np.ndarray, y: np.ndarray, dy: np.ndarray, func: Callable, params_init: np.ndarray,
+                           verbose: bool = False, **kwargs):
     """Perform a non-linear least squares fit, return the results as
     ErrorValue() instances.
 

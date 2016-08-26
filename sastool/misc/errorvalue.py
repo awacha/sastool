@@ -8,7 +8,7 @@ import collections
 import math
 import numbers
 import re
-from typing import Union, Optional, SupportsFloat, Iterable, Sequence
+from typing import Union, Optional, SupportsFloat, Sequence
 
 import numpy as np
 
@@ -72,8 +72,8 @@ class ErrorValue(ArithmeticBase):
                 self.err = val.err
             else:
                 raise TypeError(
-                    "val argument is of type ErrorValue, but its .val attribute is of an unsupported type %s" % type(
-                        val.val))
+                        "val argument is of type ErrorValue, but its .val attribute is of an unsupported type %s" % type(
+                                val.val))
         elif isinstance(val, collections.Sequence):
             if all(isinstance(v, ErrorValue) for v in val):
                 self.val = np.array([v.val for v in val])
@@ -83,10 +83,10 @@ class ErrorValue(ArithmeticBase):
                 self.err = np.zeros_like(self.val)
             else:
                 raise ValueError(
-                    'If instantiated with a sequence, all elements of it must either be ErrorValues or numbers.')
+                        'If instantiated with a sequence, all elements of it must either be ErrorValues or numbers.')
         else:
             raise ValueError(
-                'ErrorValue class can hold only Python numbers or numpy ndarrays, got %s!' % type(val))
+                    'ErrorValue class can hold only Python numbers or numpy ndarrays, got %s!' % type(val))
 
     def copy(self: 'ErrorValue') -> 'ErrorValue':
         return type(self)(self.val, self.err)
@@ -172,7 +172,9 @@ class ErrorValue(ArithmeticBase):
             the string representation.
         """
         if isinstance(fmt, str) and fmt.lower().endswith('tex'):
-            return re.subn('(\d*)(\.(\d)*)?[eE]([+-]?\d+)', lambda m: (r'$%s%s\cdot 10^{%s}$' % (m.group(1), m.group(2), m.group(4))).replace('None', ''),
+            return re.subn('(\d*)(\.(\d)*)?[eE]([+-]?\d+)',
+                           lambda m: (r'$%s%s\cdot 10^{%s}$' % (m.group(1), m.group(2), m.group(4))).replace('None',
+                                                                                                             ''),
                            self.tostring(extra_digits=extra_digits, plusminus=plusminus, fmt=None))[0]
         if isinstance(self.val, numbers.Real):
             try:
@@ -272,11 +274,13 @@ class ErrorValue(ArithmeticBase):
             ``result``: an `ErrorValue` with the result. The error is estimated
                 via a Monte-Carlo approach to Gaussian error propagation.
         """
+
         def do_random(x):
             if isinstance(x, cls):
                 return x.random()
             else:
                 return x
+
         if 'NMC' not in kwargs:
             kwargs['NMC'] = 1000
         if 'exceptions_to_skip' not in kwargs:
@@ -309,6 +313,50 @@ class ErrorValue(ArithmeticBase):
     def average_independent(cls, lis):
         if not all([isinstance(x, cls) for x in lis]):
             raise ValueError(
-                'All elements of the list should be of the same type: ' + str(cls))
-        return cls(sum([x.val / x.err**2 for x in lis]) / sum([1 / x.err**2 for x in lis]),
-                   1 / sum([1 / x.err**2 for x in lis])**0.5)
+                    'All elements of the list should be of the same type: ' + str(cls))
+        return cls(sum([x.val / x.err ** 2 for x in lis]) / sum([1 / x.err ** 2 for x in lis]),
+                   1 / sum([1 / x.err ** 2 for x in lis]) ** 0.5)
+
+    def __eq__(self, other):
+        try:
+            other = ErrorValue(other)
+        except ValueError:
+            return NotImplemented
+        return (self.val == other.val) and (self.err == other.err)
+
+    def __lt__(self, other):
+        other = ErrorValue(other)
+        return (self.val < other.val)
+
+    def __gt__(self, other):
+        other = ErrorValue(other)
+        return (self.val > other.val)
+
+    def __le__(self, other):
+        other = ErrorValue(other)
+        return (self.val < other.val)
+
+    def __ge__(self, other):
+        other = ErrorValue(other)
+        return (self.val > other.val)
+
+    def equivalent(self, other: 'ErrorValue', k=1):
+        return abs(self.val - other.val) < k * (self.err ** 2 + other.err ** 2) ** 0.5
+
+    def __format__(self, format_spec=''):
+        """Formatting hook.
+
+        Format specification:
+        <float_formatspec>[:<pmstring>]
+
+        <pmstring> is a string to put between the value and the error part, including spaces.
+        """
+        try:
+            float_formatspec, pmstring = format_spec.split(':', 1)
+        except ValueError:
+            if format_spec:
+                float_formatspec = format_spec
+            else:
+                float_formatspec = ''
+            pmstring = ' \u00b1 '
+        return self.val.__format__(float_formatspec) + pmstring + self.err.__format__(float_formatspec)

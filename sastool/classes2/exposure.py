@@ -68,12 +68,15 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
                           (error ** 2).mean() ** 0.5)
 
     @property
-    def twotheta(self) -> np.ndarray:
+    def twotheta(self) -> ErrorValue:
         """Calculate the two-theta array"""
-        row, column = np.ogrid[0:self.shape[0], 0:self.shape[0]]
-        rho = (((row - self.header.beamcentery) * self.header.pixelsizey) ** 2 +
-               ((column - self.header.beamcenterx) * self.header.pixelsizex) ** 2) ** 0.5
-        return np.arctan(rho / self.header.distance.val)
+        row, column = np.ogrid[0:self.shape[0], 0:self.shape[1]]
+        rho = (((self.header.beamcentery - row) * self.header.pixelsizey) ** 2 +
+               ((self.header.beamcenterx - column) * self.header.pixelsizex) ** 2) ** 0.5
+        assert isinstance(self.header.pixelsizex, ErrorValue)
+        assert isinstance(self.header.pixelsizey, ErrorValue)
+        assert isinstance(rho, ErrorValue)
+        return (rho / self.header.distance).arctan()
 
     @property
     def shape(self) -> Tuple[int, int]:
@@ -251,7 +254,7 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
 
     def radial_average(self, qrange=None, pixel=False, returnmask=False,
                        errorpropagation=3, abscissa_errorpropagation=3,
-                       raw_result=True) -> Curve:
+                       raw_result=False) -> Curve:
         """Do a radial averaging
 
         Inputs:
