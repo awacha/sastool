@@ -45,6 +45,7 @@ class Loader(object, metaclass=abc.ABCMeta):
             else:
                 self._path.append(bd)
         self.processed = processed
+        self.basedir = basedir
 
     @abc.abstractmethod
     def loadheader(self, fsn: int) -> Header:
@@ -68,3 +69,10 @@ class Loader(object, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def loadcurve(self, fsn: int) -> Curve:
         """Load a radial scattering curve"""
+
+    def get_subpath(self, subpath: str):
+        """Search a file or directory relative to the base path"""
+        for d in self.basedir:
+            if os.path.exists(os.path.join(d, subpath)):
+                return os.path.join(d, subpath)
+        raise FileNotFoundError
