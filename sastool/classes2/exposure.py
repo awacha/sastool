@@ -172,7 +172,7 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
                 mf[self.mask != 0] = np.nan
                 kwargs['cmap'] = matplotlib.cm.gray_r
                 kwargs['alpha'] = mask_opacity
-                kwargs['norm'] = matplotlib.colors.NoNorm()
+                kwargs['norm'] = matplotlib.colors.Normalize()
                 axes.imshow(mf, **kwargs)
         if show_crosshair:
             ax = axes.axis()  # save zoom state
