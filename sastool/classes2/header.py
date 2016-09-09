@@ -89,3 +89,41 @@ class Header(object, metaclass=abc.ABCMeta):
     @abc.abstractproperty
     def thickness(self) -> ErrorValue:
         """Sample thickness in cm"""
+
+    @abc.abstractproperty
+    def distancedecrease(self) -> ErrorValue:
+        """Distance by which the sample is nearer to the detector than the
+        distance calibration sample"""
+
+    @abc.abstractproperty
+    def samplex(self) -> ErrorValue:
+        """Horizontal sample position"""
+
+    @abc.abstractproperty
+    def sampley(self) -> ErrorValue:
+        """Vertical sample position"""
+
+    @abc.abstractmethod
+    def motorposition(self, motorname: str) -> float:
+        """Position of the motor `motorname`."""
+
+    @abc.abstractproperty
+    def username(self) -> str:
+        """Name of the instrument operator"""
+
+    @abc.abstractproperty
+    def project(self) -> str:
+        """Project name"""
+
+    @abc.abstractproperty
+    def fsn_emptybeam(self) -> int:
+        """File sequence number of the empty beam measurement"""
+
+    @abc.abstractproperty
+    def fsn_absintref(self) -> int:
+        """File sequence number of the absolute intensity reference measurement
+        """
+
+    @abc.abstractproperty
+    def absintfactor(self) -> ErrorValue:
+        """Absolute intensity calibration factor"""

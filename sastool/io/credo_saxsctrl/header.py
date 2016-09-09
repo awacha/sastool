@@ -264,3 +264,93 @@ class Header(classes2.Header):
             value = ErrorValue(value, 0)
         self._data['Thickness'] = value.val
         self._data['ThicknessError'] = value.err
+
+    @property
+    def distancedecrease(self) -> ErrorValue:
+        """Distance by which the sample is nearer to the detector than the
+        distance calibration sample"""
+        return ErrorValue(self._data['DistMinus'], 0.0)
+
+    @distancedecrease.setter
+    def distancedecrease(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['DistMinus'] = value.val
+        self._data['DistMinusError'] = value.err
+
+    @property
+    def samplex(self) -> ErrorValue:
+        """Horizontal sample position"""
+        return ErrorValue(self._data['PosSampleX'], self._data['PosSampleXError'])
+
+    @samplex.setter
+    def samplex(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['PosSampleX'] = value.val
+        self._data['PosSampleXError'] = value.err
+
+    @property
+    def sampley(self) -> ErrorValue:
+        """Vertical sample position"""
+        return ErrorValue(self._data['PosSample'], self._data['PosSampleError'])
+
+    @sampley.setter
+    def sampley(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['PosSample'] = value.val
+        self._data['PosSampleError'] = value.err
+
+    def motorposition(self, motorname: str) -> float:
+        """Position of the motor `motorname`."""
+        return self._data[motorname]
+
+    @property
+    def username(self) -> str:
+        """Name of the instrument operator"""
+        return self._data['Owner']
+
+    @username.setter
+    def username(self, value: str):
+        self._data['Owner'] = value
+
+    @property
+    def project(self) -> str:
+        """Project name"""
+        return self._data['Project']
+
+    @project.setter
+    def project(self, value: str):
+        self._data['Project'] = value
+
+    @property
+    def fsn_emptybeam(self) -> int:
+        """File sequence number of the empty beam measurement"""
+        return self._data['Empty beam FSN']
+
+    @fsn_emptybeam.setter
+    def fsn_emptybeam(self, value: int):
+        self._data['Empty beam FSN'] = value
+
+    @property
+    def fsn_absintref(self) -> int:
+        """File sequence number of the absolute intensity reference measurement
+        """
+        return self._data['Glassy carbon FSN']
+
+    @fsn_absintref.setter
+    def fsn_absintref(self, value: int):
+        self._data['Glassy carbon FSN'] = value
+
+    @property
+    def absintfactor(self) -> ErrorValue:
+        """Absolute intensity calibration factor"""
+        return ErrorValue(self._data['NormFactor'], self._data['NormFactorError'])
+
+    @absintfactor.setter
+    def absintfactor(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['NormFactor'] = value.val
+        self._data['NormFactorError'] = value.err

@@ -43,6 +43,8 @@ class ErrorValue(ArithmeticBase):
         o List-like indexing and slicing if ``val`` and ``err`` are arrays. Only
             read access is supported.
     """
+    val = None
+    err = None
 
     def __init__(self: 'ErrorValue', val: Union[SupportsFloat, np.ndarray, 'ErrorValue', Sequence],
                  err: Optional[Union[SupportsFloat, np.ndarray, 'ErrorValue', Sequence]] = None):
@@ -87,6 +89,8 @@ class ErrorValue(ArithmeticBase):
         else:
             raise ValueError(
                     'ErrorValue class can hold only Python numbers or numpy ndarrays, got %s!' % type(val))
+        assert isinstance(self.val, (float, np.ndarray))
+        assert isinstance(self.err, (float, np.ndarray))
 
     def copy(self: 'ErrorValue') -> 'ErrorValue':
         return type(self)(self.val, self.err)

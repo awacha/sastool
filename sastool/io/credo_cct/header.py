@@ -170,7 +170,8 @@ class Header(classes2.Header):
     @property
     def transmission(self) -> ErrorValue:
         """Sample transmission."""
-        return ErrorValue(self._data['sample']['transmission.val'], self._data['sample']['transmission.err'])
+        return ErrorValue(self._data['sample']['transmission.val'],
+                          self._data['sample']['transmission.err'])
 
     @transmission.setter
     def transmission(self, value: Union[float, ErrorValue]):
@@ -213,6 +214,100 @@ class Header(classes2.Header):
             value = ErrorValue(value, 0)
         self._data['sample']['thickness.val'] = value.val
         self._data['sample']['thickness.err'] = value.err
+
+    @property
+    def distancedecrease(self) -> ErrorValue:
+        """Distance by which the sample is nearer to the detector than the
+        distance calibration sample"""
+        return ErrorValue(self._data['sample']['distminus.val'],
+                          self._data['sample']['distminus.err'])
+
+    @distancedecrease.setter
+    def distancedecrease(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['sample']['distminus.val'] = value.val
+        self._data['sample']['distminus.err'] = value.err
+
+    @property
+    def samplex(self) -> ErrorValue:
+        """Horizontal sample position"""
+        return ErrorValue(self._data['sample']['positionx.val'],
+                          self._data['sample']['positionx.err'])
+
+    @samplex.setter
+    def samplex(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['positionx.val'] = value.val
+        self._data['positionx.err'] = value.err
+
+    @property
+    def sampley(self) -> ErrorValue:
+        """Vertical sample position"""
+        return ErrorValue(self._data['sample']['positiony.val'],
+                          self._data['sample']['positiony.err'])
+
+    @sampley.setter
+    def sampley(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['positiony.val'] = value.val
+        self._data['positiony.err'] = value.err
+
+    def motorposition(self, motorname: str) -> float:
+        """Position of the motor `motorname`."""
+        return self._data['motors'][motorname]
+
+    @property
+    def username(self) -> str:
+        """Name of the instrument operator"""
+        return self._data['accounting']['operator']
+
+    @username.setter
+    def username(self, value: str):
+        self._data['accounting']['operator'] = value
+
+    @property
+    def project(self) -> str:
+        """Project name"""
+        return self._data['accounting']['projectid']
+
+    @project.setter
+    def project(self, value: str):
+        self._data['accounting']['projectid'] = value
+
+    @property
+    def fsn_emptybeam(self) -> int:
+        """File sequence number of the empty beam measurement"""
+        return self._data['datareduction']['emptybeamFSN']
+
+    @fsn_emptybeam.setter
+    def fsn_emptybeam(self, value: int):
+        self._data['datareduction']['emptybeamFSN'] = value
+
+    @property
+    def fsn_absintref(self) -> int:
+        """File sequence number of the absolute intensity reference measurement
+        """
+        return self._data['datareduction']['absintrefFSN']
+
+    @fsn_absintref.setter
+    def fsn_absintref(self, value: int):
+        self._data['datareduction']['absintrefFSN'] = value
+
+    @property
+    def absintfactor(self) -> ErrorValue:
+        """Absolute intensity calibration factor"""
+        return ErrorValue(self._data['datareduction']['absintfactor'],
+                          self._data['datareduction']['absintfactor.err'])
+
+    @absintfactor.setter
+    def absintfactor(self, value: Union[ErrorValue, float]):
+        if not isinstance(value, ErrorValue):
+            value = ErrorValue(value, 0)
+        self._data['datareduction']['absintfactor'] = value.val
+        self._data['datareduction']['absintfactor.err'] = value.err
 
     @property
     def param(self) -> Dict:
