@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 import matplotlib
 import matplotlib.axes
 import matplotlib.cm
+import matplotlib.colors
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -130,19 +131,17 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
 
         Returns: the image instance returned by imshow()
         """
-        if 'origin' not in kwargs:
-            kwargs['origin'] = None
-        if kwargs['origin'] is None:
-            kwargs['origin'] = matplotlib.rcParams['image.origin']
-
         if 'aspect' not in kwargs:
             kwargs['aspect'] = 'equal'
-
+        if 'interpolation' not in kwargs:
+            kwargs['interpolation'] = 'nearest'
+        if 'origin' not in kwargs:
+            kwargs['origin'] = 'upper'
         if show_qscale:
             ymin, xmin = self.pixel_to_q(0, 0)
             ymax, xmax = self.pixel_to_q(*self.shape)
             if kwargs['origin'].upper() == 'UPPER':
-                kwargs['extent'] = [xmin, xmax, ymax, ymin]
+                kwargs['extent'] = [xmin, xmax, -ymax, -ymin]
             else:
                 kwargs['extent'] = [xmin, xmax, ymin, ymax]
             bcx = 0
@@ -171,8 +170,10 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
                 # unmasked ones will be np.nan. They will thus be not rendered.
                 mf = np.ones(self.mask.shape, np.float)
                 mf[self.mask != 0] = np.nan
-                axes.imshow(mf, cmap=matplotlib.cm.gray_r, interpolation='nearest', alpha=mask_opacity,
-                            extent=kwargs['extent'], origin=kwargs['origin'], aspect=kwargs['aspect'])
+                kwargs['cmap'] = matplotlib.cm.gray_r
+                kwargs['alpha'] = mask_opacity
+                kwargs['norm'] = matplotlib.colors.NoNorm()
+                axes.imshow(mf, **kwargs)
         if show_crosshair:
             ax = axes.axis()  # save zoom state
             axes.plot([xmin, xmax], [bcy] * 2, 'w-')
