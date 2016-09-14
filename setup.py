@@ -22,7 +22,7 @@ for dir_, subdirs, files in os.walk('sastool'):
 
 ext_modules = [Extension(p.replace('/', '.')[:-4], [p], include_dirs=incdirs) for p in pyxfiles]
 
-setup(name='sastool', version='0.7.4', author='Andras Wacha',
+setup(name='sastool', author='Andras Wacha',
       author_email='awacha@gmail.com', url='http://github.com/awacha/sastool',
       description='Python macros for [A]SA(X|N)S data processing, fitting, plotting etc.',
       packages=find_packages(),
@@ -30,7 +30,8 @@ setup(name='sastool', version='0.7.4', author='Andras Wacha',
       ext_modules=cythonize(ext_modules),
       install_requires=['numpy>=1.0.0', 'scipy>=0.7.0', 'matplotlib',
                         'h5py>=2.0', 'xlrd', 'xlwt', 'Cython>=0.15'],
-      setup_requires=['Cython>=0.15'],
+      use_scm_version=True,
+      setup_requires=['Cython>=0.15', 'setuptools_scm'],
       #      entry_points={'gui_scripts':['sas2dutil = sastool:_sas2dgui_main_program'],
 #                    },
       keywords="saxs sans sas small-angle scattering x-ray neutron",

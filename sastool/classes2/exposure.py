@@ -326,3 +326,15 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
             'unmaskednegatives': (self.intensity[self.mask != 0] < 0).sum(),
             'masked'           : (self.mask == 0).sum(),
             }
+
+    def mask_negative(self):
+        """Extend the mask with the image elements where the intensity is negative."""
+        self.mask = np.logical_and(self.mask, ~(self.intensity < 0))
+
+    def mask_nan(self):
+        """Extend the mask with the image elements where the intensity is NaN."""
+        self.mask = np.logical_and(self.mask, ~(np.isnan(self.intensity)))
+
+    def mask_nonfinite(self):
+        """Extend the mask with the image elements where the intensity is NaN."""
+        self.mask = np.logical_and(self.mask, (np.isfinite(self.intensity)))
