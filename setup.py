@@ -1,6 +1,8 @@
 #!/usb/bin/env python
 
 import os
+import platform
+import sys
 from distutils.sysconfig import get_python_lib, get_python_inc
 
 from Cython.Build import cythonize
@@ -20,7 +22,17 @@ pyxfiles = []
 for dir_, subdirs, files in os.walk('sastool'):
     pyxfiles.extend([os.path.join(dir_, f) for f in files if f.endswith('.pyx')])
 
-ext_modules = [Extension(p.replace('/', '.')[:-4], [p], include_dirs=incdirs) for p in pyxfiles]
+if sys.platform.startswith('win'):
+    if platform.architecture()[0] == '64bit':
+        macros = [('MS_WIN64', None)]
+    elif platform.architecture()[0] == '32bit':
+        macros = [('MS_WIN32', None)]
+    else:
+        raise ValueError(platform.architecture()[0])
+else:
+    macros = []
+
+ext_modules = [Extension(p.replace('/', '.')[:-4], [p], include_dirs=incdirs, define_macros=macros) for p in pyxfiles]
 
 setup(name='sastool', author='Andras Wacha',
       author_email='awacha@gmail.com', url='http://github.com/awacha/sastool',
