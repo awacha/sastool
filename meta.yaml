@@ -1,0 +1,37 @@
+package:
+  name: sastool
+  version: {{ GIT_DESCRIBE_TAG }}
+
+source:
+  git_url: ./
+
+build:
+  number: {{ GIT_DESCRIBE_NUMBER }}
+
+requirements:
+  build:
+    - python
+    - setuptools
+    - setuptools_scm
+    - matplotlib
+    - numpy
+    - scipy
+    - h5py
+    - xlrd
+    - xlwt
+    - cython
+
+  run:
+    - python
+    - numpy
+    - scipy
+    - matplotlib
+
+about:
+  home: https://github.com/awacha/sastool
+  license: 3-clause BSD license
+  dev_url: https://github.com/awacha/sastool.git
+  license_family: BSD
+  license_file: LICENSE
+  summary: Utility library for small-angle scattering
+  description: Utilities for small-angle scattering data processing

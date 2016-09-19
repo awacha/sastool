@@ -16,3 +16,4 @@ tests/centering
 __pycache__
 _*.c
 .pydevproject
+/.eggs
