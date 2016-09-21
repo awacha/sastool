@@ -1,8 +1,6 @@
-from ._integrate import radint, azimint, bin2D, autoqscale, calculateDmatrix, \
-    polartransform, twodimfromonedim, radint_fullq, radint_nsector, groupsum, radint_errorprop, \
-    radint_fullq_errorprop, autoabscissa
-
 import numpy as np
+
+from .c_integrate import azimint, radint
 
 
 def radintpix(data, dataerr, bcx, bcy, mask=None, pix=None, returnavgpix=False,
@@ -47,7 +45,7 @@ def radintpix(data, dataerr, bcx, bcy, mask=None, pix=None, returnavgpix=False,
 
 
 def azimintpix(data, dataerr, bcx, bcy, mask=None, Ntheta=100, pixmin=0,
-               pixmax=np.inf, returnmask=False):
+               pixmax=np.inf, returnmask=False, errorpropagation=2):
     """Azimuthal integration (averaging) on the detector plane
 
     Inputs:

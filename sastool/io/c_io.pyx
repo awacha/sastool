@@ -1,7 +1,7 @@
 'CPU-intensive or speed-critical parts for io.py written in Cython '
 # pylint: disable-msg-cat=WCREFI
-import numpy as np
 cimport numpy as np
+import numpy as np
 
 def cbfdecompress(datain, Py_ssize_t dim1, Py_ssize_t dim2, bint for_nexus=False):
     cdef Py_ssize_t index_input

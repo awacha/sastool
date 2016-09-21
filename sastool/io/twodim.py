@@ -17,16 +17,20 @@ Matrices are usually represented as two-dimensional `numpy.ndarray`-s.
 
 '''
 from __future__ import absolute_import
-import os
-import numpy as np
-import scipy.misc
-import scipy.io
+
 import datetime
-import dateutil.parser
+import os
 import re
-from . import header
-from ._io import cbfdecompress  # IGNORE:E0611
 import sys
+
+import dateutil.parser
+import numpy as np
+import scipy.io
+import scipy.misc
+
+from . import header
+from .c_io import cbfdecompress  # IGNORE:E0611
+
 if sys.version_info[0] == 2:
     from io import open
 """Decompress algorithm for the byte-offset encoding found in CBF files.

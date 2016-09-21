@@ -1,15 +1,15 @@
 # pylint: disable-msg-cat=WCREFI
 #cython: boundscheck=False
 #cython: embedsignature=True
-import numpy as np
 cimport numpy as np
-from libc.stdlib cimport *
+import numpy as np
 from libc.math cimport *
+from libc.stdlib cimport *
 
-cdef extern from "math.h":
-    int isfinite(double)
-    double INFINITY
-    double fabs(double)
+#cdef extern from "math.h":
+#    int isfinite(double)
+#    double INFINITY
+#    double fabs(double)
 
 #-------------------- Auxiliary functions -------------------------------------
 #

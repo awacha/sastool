@@ -1,7 +1,8 @@
 """Small-angle scattering simulation subpackage for SASTOOL"""
 
-from ._sim import *
 import numpy as np
+
+from .c_sim import *
 
 __all__ = []
 

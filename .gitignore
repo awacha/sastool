@@ -6,6 +6,10 @@ sastool/__init__.py~
 sastool/_version.py~
 .settings
 sastool/fitting/_fitfunction.c
+sastool/fitting/fitfunctions/c_fitfunction.c
+sastool/utils2d/c_integrate.c
+sastool/io/c_io.c
+sastool/sim/c_sim.c
 tests/data_reduction
 tests/centering
 /.gitignore~
