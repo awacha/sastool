@@ -127,11 +127,36 @@ class Curve(ArithmeticBase):
             ax = plt.gca()
         return ax.errorbar(self.q, self.Intensity, self.Error, self.qError, *args, **kwargs)
 
+    @staticmethod
+    def compare_qranges(curve1, curve2, rel_tolerance=0.05, verbose=True):
+        if len(curve1.q) != len(curve2.q):
+            if verbose:
+                print('Length of curves differ: {:d} and {:d}'.format(len(curve1.q), len(curve2.q)))
+            return False
+        different_index = []
+        nonfinite_index = []
+        for i in range(len(curve1.q)):
+            if curve1.q[i] + curve2.q[i] == 0:
+                continue
+            if not np.isfinite(curve1.q[i]) or not np.isfinite(curve2.q[i]):
+                nonfinite_index.append(i)
+            elif abs(curve1.q[i] - curve2.q[i]) / (curve1.q[i] + curve2.q[i]) * 2 >= rel_tolerance:
+                different_index.append(i)
+                if not verbose:
+                    return False
+        if different_index:
+            if verbose:
+                print('Differring points (index, curve1.q, curve2.q):')
+                for d in different_index:
+                    print('   {:d}, {:f}, {:f}'.format(d, curve1.q[d], curve2.q[d]))
+            return False
+        else:
+            if verbose:
+                print('The two q-ranges are compatible within {:f} relative tolerance'.format(rel_tolerance))
+            return True
+
     def _check_q_compatible(self, other):
-        if len(self) != len(other):
-            raise ValueError('Curves have different lengths')
-        if not all([x < self._q_rel_tolerance for x in np.abs(self.q - other.q) / np.abs(self.q + other.q) * 2]):
-            raise ValueError('Some of the q values differ more than %.2f %%' % (self._q_rel_tolerance * 100))
+        return self.compare_qranges(self, other, self._q_rel_tolerance, False)
 
     def __iadd__(self, other):
         if isinstance(other, Curve):
