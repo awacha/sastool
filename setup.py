@@ -18,7 +18,7 @@ for dir_, subdirs, files in os.walk('sastool'):
     pyxfiles.extend([os.path.join(dir_, f) for f in files if f.endswith('.pyx')])
 
 ext_modules = [
-    Extension(p.replace('/', '.')[:-4], [p], include_dirs=incdirs) for p in pyxfiles
+    Extension(p.replace(os.path.sep, '.')[:-4], [p], include_dirs=incdirs) for p in pyxfiles
     ]
 
 setup(

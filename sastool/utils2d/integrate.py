@@ -1,4 +1,3 @@
-# noinspection PyUnresolvedReferences
 import numpy as np
 
 from .c_integrate import autoabscissa, autoqscale, azimint, bin2D, calculateDmatrix, groupsum, polartransform, radint, \
