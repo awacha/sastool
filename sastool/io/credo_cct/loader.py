@@ -1,4 +1,5 @@
 import os
+import weakref
 
 import numpy as np
 import scipy.io
@@ -38,11 +39,13 @@ class Loader(classes2.Loader):
         header = self.loadheader(fsn)
         mask = self.loadmask(header.maskname)
         if self.processed:
-            return Exposure.new_from_file(self.find_file(self._exposureclass + '_%05d.npz' % fsn),
-                                          header_data=header, mask_data=mask)
+            ex = Exposure.new_from_file(self.find_file(self._exposureclass + '_%05d.npz' % fsn),
+                                        header_data=header, mask_data=mask)
         else:
-            return Exposure.new_from_file(self.find_file(self._exposureclass + '_%05d.cbf' % fsn),
-                                          header_data=header, mask_data=mask)
+            ex = Exposure.new_from_file(self.find_file(self._exposureclass + '_%05d.cbf' % fsn),
+                                        header_data=header, mask_data=mask)
+        ex.loader = weakref.proxy(self)
+        return ex
 
     def loadmask(self, filename: str) -> np.ndarray:
         """Load a mask file."""

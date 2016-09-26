@@ -15,6 +15,11 @@ requirements:
     - setuptools_scm
     - numpy
     - cython >=0.15
+    - xlwt
+    - xlrd
+    - h5py
+    - matplotlib
+    - scipy
 
   run:
     - python
