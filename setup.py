@@ -28,7 +28,7 @@ setup(
     packages=find_packages(),
     ext_modules=cythonize(ext_modules, force=True),
     install_requires=['numpy>=1.0.0', 'scipy>=0.7.0', 'matplotlib',
-                      'h5py>=2.0', 'xlrd', 'xlwt', 'Cython>=0.15'],
+                      'h5py>=2.0', 'xlrd', 'xlwt'],
     use_scm_version=True,
     setup_requires=['Cython>=0.15', 'setuptools_scm'],
     keywords="saxs sans sas small-angle scattering x-ray neutron",

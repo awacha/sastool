@@ -13,19 +13,17 @@ requirements:
     - python
     - setuptools
     - setuptools_scm
-    - matplotlib
     - numpy
-    - scipy
-    - h5py
-    - xlrd
-    - xlwt
-    - cython
+    - cython >=0.15
 
   run:
     - python
     - numpy
     - scipy
     - matplotlib
+    - xlwt
+    - xlrd
+    - h5py
 
 about:
   home: https://github.com/awacha/sastool
