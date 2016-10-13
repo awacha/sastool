@@ -26,7 +26,7 @@ setup(
     author_email='awacha@gmail.com', url='http://github.com/awacha/sastool',
     description='Python macros for [A]SA(X|N)S data processing, fitting, plotting etc.',
     packages=find_packages(),
-    ext_modules=cythonize(ext_modules, force=True),
+    ext_modules=cythonize(ext_modules),
     install_requires=['numpy>=1.0.0', 'scipy>=0.7.0', 'matplotlib',
                       'h5py>=2.0', 'xlrd', 'xlwt'],
     use_scm_version=True,
