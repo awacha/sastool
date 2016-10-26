@@ -5,6 +5,7 @@ import numpy as np
 from scipy.linalg import svd
 from scipy.optimize import least_squares, OptimizeResult
 
+__all__ = ['Fitter']
 
 class Fitter:
     def __init__(self, function, parameters, x, y, dx=None, dy=None, lbounds=None, ubounds=None, ytransform=None,

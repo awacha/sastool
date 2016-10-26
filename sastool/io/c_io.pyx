@@ -3,6 +3,8 @@
 cimport numpy as np
 import numpy as np
 
+np.import_array()
+
 def cbfdecompress(datain, Py_ssize_t dim1, Py_ssize_t dim2, bint for_nexus=False):
     cdef Py_ssize_t index_input
     cdef Py_ssize_t index_output
