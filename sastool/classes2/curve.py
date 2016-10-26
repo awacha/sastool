@@ -7,8 +7,9 @@ import numpy as np
 
 from ..misc.arithmetic import ArithmeticBase
 from ..misc.basicfit import findpeak_single
-from ..misc.easylsq import nonlinear_leastsquares, nonlinear_odr
+from ..misc.easylsq import nonlinear_odr, FixedParameter
 from ..misc.errorvalue import ErrorValue
+from ..misc.fitter import Fitter
 
 
 def errtrapz(x, yerr):
@@ -60,9 +61,30 @@ class Curve(ArithmeticBase):
                           self.Error[idx], self.qError[idx])
 
     def fit(self, fitfunction, parinit, *args, **kwargs):
-        result = list(nonlinear_leastsquares(self.q, self.Intensity, self.Error, fitfunction, parinit, *args, **kwargs))
-        result.append(type(self)(self.q, result[-1]['func_value'], np.zeros_like(self.q), np.zeros_like(self.q)))
-        return result
+        """Perform a nonlinear least-squares fit, using sastool.misc.fitter.Fitter()
+
+        Other arguments and keyword arguments will be passed through to the
+        __init__ method of Fitter. For example, these are:
+        - lbounds
+        - ubounds
+        - ytransform
+        - loss
+        - method
+
+        Returns: the final parameters as ErrorValue instances, the stats
+            dictionary and the fitted curve instance of the same type as
+            this)
+        """
+        fitter = Fitter(fitfunction, parinit, self.q, self.Intensity, self.Error, self.qError, *args, **kwargs)
+        fittable = [not isinstance(p, FixedParameter) for p in parinit]
+        fixedvalues = [[parinit[i], None][fittable[i]] for i in range(len(fittable))]
+        fitter.fixparameters(fixedvalues)
+        fitter.fit()
+        pars = fitter.parameters()
+        uncs = fitter.uncertainties()
+        stats = fitter.stats()
+        results = [ErrorValue(p, u) for p, u in zip(pars, uncs)] + [stats, type(self)(self.q, stats['func_value'])]
+        return results
 
     def odr(self, fitfunction, parinit, *args, **kwargs):
         result = list(
