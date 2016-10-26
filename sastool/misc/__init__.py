@@ -5,6 +5,7 @@ from . import basicfit
 from . import easylsq
 from . import errorvalue
 from . import fitter
+from . import fitter
 from . import matplotlib_scales
 from . import numerictests
 from . import pathutils
@@ -16,6 +17,7 @@ from .arithmetic import *
 from .basicfit import *
 from .easylsq import *
 from .errorvalue import *
+from .fitter import *
 from .numerictests import *
 from .pathutils import *
 from .pauser import *
