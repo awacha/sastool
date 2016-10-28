@@ -1,0 +1,18 @@
+import numpy as np
+
+from .schilling import longest_edge, cormap_pval
+
+
+def cormap(*intensities):
+    """Calculate the correlation map of several 1D arrays"""
+    I = np.vstack(intensities)
+    Imean = I.mean(axis=0)
+    Ired = I - Imean[np.newaxis, :]
+    sigma = ((Ired ** 2).sum(axis=0) / (Ired.shape[0] - 1)) ** 0.5
+    return np.dot(Ired.T, Ired) / (Ired.shape[0] - 1) / np.outer(sigma, sigma)
+
+
+def cormaptest(*intensities):
+    cm = cormap(*intensities)
+    le = longest_edge(cm[:, 0])
+    return cormap_pval(cm.shape[0], le), le, cm

@@ -5,6 +5,8 @@ import numpy as np
 from scipy.linalg import svd
 from scipy.optimize import least_squares, OptimizeResult
 
+from .cormap import cormaptest
+
 __all__ = ['Fitter']
 
 class Fitter:
@@ -122,6 +124,9 @@ class Fitter:
         else:
             for key in ['SStot', 'SSres', 'R2', 'R2_adj']:
                 self._stats[key + '_weighted'] = self._stats[key]
+        self._stats['CorMapTest_p'], self._stats['CorMapTest_C'], self._stats['CorMapTest_CorMap'] = cormaptest(
+            self.y(), self._stats['func_value'])
+        self._stats['CorMapTest_n'] = len(self.y())
         return self
 
     def success(self):
