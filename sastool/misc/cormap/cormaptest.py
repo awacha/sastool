@@ -9,7 +9,12 @@ def cormap(*intensities):
     Imean = I.mean(axis=0)
     Ired = I - Imean[np.newaxis, :]
     sigma = ((Ired ** 2).sum(axis=0) / (Ired.shape[0] - 1)) ** 0.5
-    return np.dot(Ired.T, Ired) / (Ired.shape[0] - 1) / np.outer(sigma, sigma)
+    correl = np.dot(Ired.T, Ired) / (Ired.shape[0] - 1)
+    # do something about sigma==0 cases
+    assert (correl == 0) == (sigma == 0)
+    sigma2 = np.outer(sigma, sigma)
+    sigma2[sigma2 == 0] = 1
+    return correl / sigma2
 
 
 def cormaptest(*intensities):
