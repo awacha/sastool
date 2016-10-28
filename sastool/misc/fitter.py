@@ -69,9 +69,13 @@ class Fitter:
 
     def fit(self, loss=None, method=None):
         starttime = time.monotonic()
+        kwargs = {}
         if not self.checkBounds():
             return self
-        kwargs = {'loss': self._loss, 'method': self._method}
+        if loss is None:
+            loss = self._loss
+        if method is None:
+            method = self._method
         if loss is not None:
             kwargs['loss'] = loss
         if method is not None:
