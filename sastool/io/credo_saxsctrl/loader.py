@@ -15,6 +15,7 @@ class Loader(classes2.Loader):
             datasubdirs = ['eval2d', 'eval1d']
         else:
             datasubdirs = ['param_override', 'param', 'images']
+        basedir = os.path.expanduser(basedir)
         basepath = [basedir]
         for d in datasubdirs:
             d = os.path.join(basedir, d)
