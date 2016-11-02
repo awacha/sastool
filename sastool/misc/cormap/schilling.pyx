@@ -128,13 +128,15 @@ def longest_edge(np.ndarray[np.double_t, ndim=1] diag):
         Py_ssize_t l = 1, i = 0, lmax = 0
         double sgn = diag[0]
     for i in range(1, len(diag)):
-        if sgn * diag[i] >= 0:
+        if sgn * diag[i] > 0:  # same sign
             l += 1
-        else:
+        elif (sgn == 0) or (sgn * diag[i] < 0):  # opposite sign
             if l > lmax:
                 lmax = l
             l = 1
             sgn = diag[i]
+        else:  # diag[i] == 0, disregard this.
+            pass
     if l > lmax:
         lmax = l
     return lmax
