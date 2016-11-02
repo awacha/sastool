@@ -1,22 +1,14 @@
-# pylint: disable-msg-cat=WCREFI
 #cython: boundscheck=False
 #cython: embedsignature=True
 #cython: cdivision=True
+from math import inf
+
 cimport numpy as np
 import numpy as np
-from libc.math cimport *
-from libc.stdlib cimport *
+from libc.math cimport sqrt, M_PI, exp, cos, sin, atan, ceil, isfinite, HUGE_VAL, fabs, fmod, atan2, floor
+from libc.stdlib cimport malloc, free
 
 np.import_array()
-
-#cdef extern from "math.h":
-#    int isfinite(double)
-#    double INFINITY
-#    double floor(double)
-#    double ceil(double)
-#    double fmod(double, double)
-#    double fabs(double)
-
 
 cdef inline double gaussian(double x0, double sigma, double x):
     return 1 / sqrt(2 * M_PI * sigma * sigma) * exp(-(x - x0) ** 2 / (2 * sigma ** 2))
@@ -50,12 +42,12 @@ def polartransform(np.ndarray[np.double_t, ndim=2] data not None,
     lenr = len(r)
     pdata = np.zeros((lenphi, lenr))
 
-    for i from 0 <= i < lenphi:
-        for j from 0 <= j < lenr:
-            x = origx + r[j] * cos(phi[i]);
-            y = origy + r[j] * sin(phi[i]);
+    for i in range(lenphi):
+        for j in range(lenr):
+            x = origx + r[j] * cos(phi[i])
+            y = origy + r[j] * sin(phi[i])
             if (x >= 0) and (y >= 0) and (x < Nrows) and (y < Ncols):
-                pdata[i, j] = data[x, y];
+                pdata[i, j] = data[x, y]
     return pdata
 
 def autoqscale(double wavelength, double distance, double xres, double yres,
@@ -82,12 +74,12 @@ def autoqscale(double wavelength, double distance, double xres, double yres,
     cdef bint flagq
 
     flagq = (wavelength > 0 and distance > 0 and xres > 0 and yres > 0)
-    M = mask.shape[0];
-    N = mask.shape[1];
-    qmin = 1e20;
+    M = mask.shape[0]
+    N = mask.shape[1]
+    qmin = HUGE_VAL
     qmax = -10
-    for ix from 0 <= ix < M:
-        for iy from 0 <= iy < N:
+    for ix in range(M):
+        for iy in range(N):
             if mask[ix, iy]:
                 continue
             x = ((ix - bcxa) * xres)
@@ -95,10 +87,10 @@ def autoqscale(double wavelength, double distance, double xres, double yres,
             if flagq:
                 q1 = 4 * M_PI * sin(0.5 * atan(sqrt(x * x + y * y) / distance)) / wavelength
             else:
-                q1 = ceil(sqrt(x * x + y * y));
-            if (q1 > qmax):
+                q1 = ceil(sqrt(x * x + y * y))
+            if q1 > qmax:
                 qmax = q1
-            if (q1 < qmin):
+            if q1 < qmin:
                 qmin = q1
     if flagq:
         if linspacing:
@@ -106,35 +98,35 @@ def autoqscale(double wavelength, double distance, double xres, double yres,
         else:
             return np.logspace(np.log10(qmin), np.log10(qmax), sqrt(M * M + N * N) / 2)
     else:
-        return np.arange(qmin, qmax);
+        return np.arange(qmin, qmax)
 
 def radint_testarrays(np.ndarray[np.double_t, ndim=2] data,
                       np.ndarray[np.double_t, ndim=2] dataerr,
                       np.ndarray[np.uint8_t, ndim=2] mask):
     cdef Py_ssize_t M, N
-    if (data is None):
-        return (0, 0);
-    M = data.shape[0];
-    N = data.shape[1];
+    if data is None:
+        return 0, 0
+    M = data.shape[0]
+    N = data.shape[1]
     if (dataerr is not None) and \
-            (dataerr.shape[0] != (M) or dataerr.shape[1] != (N)):
-        return (0, 0);
-    if (mask is not None) and (mask.shape[0] != (M) or mask.shape[1] != (N)):
-        return (0, 0);
-    return (M, N)
+            (dataerr.shape[0] != M or dataerr.shape[1] != N):
+        return 0, 0
+    if (mask is not None) and (mask.shape[0] != M or mask.shape[1] != N):
+        return 0, 0
+    return M, N
 
 def radint_getres(res):
     #resolution
     cdef double xr, yr
-    xr = -10;
+    xr = -10
     try:
-        xr = res[0];  #exception may be raised here if res is not indexable.
-        yr = res[1];  #or here if res has only one element.
-    except:
+        xr = res[0]  #exception may be raised here if res is not indexable.
+        yr = res[1]  #or here if res has only one element.
+    except (IndexError, TypeError):
         if xr < 0:  #first kind of exception occurred
-            xr = res;
-        yr = xr;
-    return (xr, yr)
+            xr = res
+        yr = xr
+    return xr, yr
 
 def radint(np.ndarray[np.double_t, ndim=2] data not None,
            np.ndarray[np.double_t, ndim=2] dataerr,
@@ -229,32 +221,32 @@ def radint(np.ndarray[np.double_t, ndim=2] data not None,
     M, N = radint_testarrays(data, dataerr, mask)
     if (M <= 0) or (N <= 0):
         raise ValueError('data, dataerr and mask should be of the same shape')
-    flagerror = (dataerr is not None);
-    flagmask = (mask is not None);
+    flagerror = (dataerr is not None)
+    flagmask = (mask is not None)
     #if any of wavelength, distance, res is nonpositive, pixel-based integration.
-    flagq = ((wavelength > 0) and (distance > 0) and (xres > 0) and (yres > 0));
+    flagq = ((wavelength > 0) and (distance > 0) and (xres > 0) and (yres > 0))
 
-    phi0a = phi0;
-    dphia = dphi;
+    phi0a = phi0
+    dphia = dphi
     # the equation of the line of the slice is x*sin(phi0)-y*cos(phi0)==0.
     # this is the normalized equation, ie. sin(phi0)**2+(-cos(phi0))**2=1,
     # therefore the signed distance of the point x,y from this line is
     # simply x*sin(phi0)-y*cos(phi0). We will use this to determine if a
     # point falls into this slice or not.
-    sinphi0 = sin(phi0a);
-    cosphi0 = cos(phi0a);
+    sinphi0 = sin(phi0a)
+    cosphi0 = cos(phi0a)
     if symmetric_sector:
         symmetric_sector_periodicity = 1
     else:
         symmetric_sector_periodicity = 2
 
     if returnmask:
-        maskout = np.ones((data.shape[0], data.shape[1]), dtype=np.uint8)
+        maskout = np.ones_like(data, dtype=np.uint8)
     # if the q-scale was not supplied, create one.
     if q is None:
         if not flagmask:
-            mask = np.zeros((data.shape[0], data.shape[1]), dtype=np.uint8)
-        q = autoqscale(wavelength, distance, xres, yres, bcx, bcy, mask, autoqrange_linear);
+            mask = np.zeros_like(data, dtype=np.uint8)
+        q = autoqscale(wavelength, distance, xres, yres, bcx, bcy, mask, autoqrange_linear)
         if not flagmask:
             mask = None
     Numq = len(q)
@@ -267,7 +259,7 @@ def radint(np.ndarray[np.double_t, ndim=2] data not None,
     # set the upper bounds of the q-bins in qmax
     qmax = <double *> malloc(Numq * sizeof(double))
     weight = <double *> malloc(Numq * sizeof(double))
-    for l from 0 <= l < Numq:
+    for l in range(Numq):
         #initialize the weight and the qmax array.
         weight[l] = 0
         if l == Numq - 1:
@@ -275,8 +267,8 @@ def radint(np.ndarray[np.double_t, ndim=2] data not None,
         else:
             qmax[l] = 0.5 * (q[l] + q[l + 1])
     #loop through pixels
-    for ix from 0 <= ix < M:  #rows
-        for iy from 0 <= iy < N:  #columns
+    for ix in range(M):  #rows
+        for iy in range(N):  #columns
             if flagmask and (mask[ix, iy]):  #if the pixel is masked, disregard it.
                 continue
             if not isfinite(data[ix, iy]):
@@ -300,7 +292,7 @@ def radint(np.ndarray[np.double_t, ndim=2] data not None,
                 rho = sqrt(x * x + y * y) / distance
                 q1 = 4 * M_PI * sin(0.5 * atan(rho)) / wavelength
             else:
-                q1 = sqrt(x * x / xres / xres + y * y / yres / yres);
+                q1 = sqrt(x * x / xres / xres + y * y / yres / yres)
             if q1 < q[0]:  #q underflow
                 continue
             if q1 > q[Numq - 1]:  #q overflow
@@ -311,9 +303,9 @@ def radint(np.ndarray[np.double_t, ndim=2] data not None,
                 w = (2 * M_PI / wavelength / distance) ** 2 * (2 + rho ** 2 + 2 * sqrt(1 + rho ** 2)) / (
                     (1 + rho ** 2 + sqrt(1 + rho ** 2)) ** 2 * sqrt(1 + rho ** 2))
             else:
-                w = 1;
-            for l from 0 <= l < Numq:  # Find the q-bin
-                if (q1 > qmax[l]):
+                w = 1
+            for l in range(Numq):  # Find the q-bin
+                if q1 > qmax[l]:
                     #not there yet
                     continue
                 #we reach this point only if q1 is in the l-th bin. Calculate
@@ -336,7 +328,7 @@ def radint(np.ndarray[np.double_t, ndim=2] data not None,
                     pixelout[l] += sqrt((ix - bcx) ** 2 + (iy - bcy) ** 2) * w
                 break  #avoid counting this pixel into higher q-bins.
     #normalize the results
-    for l from 0 <= l < Numq:
+    for l in range(Numq):
         if (weight[l] > 0) and (Area[l] > 0):
             qout[l] /= weight[l]
             Intensity[l] /= weight[l]
@@ -462,13 +454,13 @@ def radint_nsector(np.ndarray[np.double_t, ndim=2] data not None,
     M, N = radint_testarrays(data, dataerr, mask)
     if (M <= 0) or (N <= 0):
         raise ValueError('data, dataerr and mask should be of the same shape')
-    flagerror = (dataerr is not None);
-    flagmask = (mask is not None);
+    flagerror = (dataerr is not None)
+    flagmask = (mask is not None)
     #if any of wavelength, distance, res is nonpositive, pixel-based integration.
-    flagq = ((wavelength > 0) and (distance > 0) and (xres > 0) and (yres > 0));
+    flagq = ((wavelength > 0) and (distance > 0) and (xres > 0) and (yres > 0))
 
-    phi0a = phi0;
-    dphia = dphi;
+    phi0a = phi0
+    dphia = dphi
     # the equation of the line of the slice is x*sin(phi0)-y*cos(phi0)==0.
     # this is the normalized equation, ie. sin(phi0)**2+(-cos(phi0))**2=1,
     # therefore the signed distance of the point x,y from this line is
@@ -476,17 +468,17 @@ def radint_nsector(np.ndarray[np.double_t, ndim=2] data not None,
     # point falls into this slice or not.
     sinphi0 = <double*> malloc(Nsector * sizeof(double))
     cosphi0 = <double*> malloc(Nsector * sizeof(double))
-    for l from 0 <= l < Nsector:
+    for l in range(Nsector):
         sinphi0[l] = sin(phi0a + 2 * M_PI / Nsector * l)
         cosphi0[l] = cos(phi0a + 2 * M_PI / Nsector * l)
 
     if returnmask:
-        maskout = np.ones((data.shape[0], data.shape[1]), dtype=np.uint8)
+        maskout = np.ones_like(data, dtype=np.uint8)
     # if the q-scale was not supplied, create one.
     if q is None:
         if not flagmask:
-            mask = np.zeros((data.shape[0], data.shape[1]), dtype=np.uint8)
-        q = autoqscale(wavelength, distance, xres, yres, bcx, bcy, mask, autoqrange_linear);
+            mask = np.zeros_like(data, dtype=np.uint8)
+        q = autoqscale(wavelength, distance, xres, yres, bcx, bcy, mask, autoqrange_linear)
         if not flagmask:
             mask = None
     Numq = len(q)
@@ -499,17 +491,17 @@ def radint_nsector(np.ndarray[np.double_t, ndim=2] data not None,
     # set the upper bounds of the q-bins in qmax
     qmax = <double *> malloc(Numq * sizeof(double))
     weight = <double *> malloc(Numq * Nsector * sizeof(double))
-    for l from 0 <= l < Numq:
+    for l in range(Numq):
         #initialize the weight and the qmax array.
         weight[l] = 0
         if l == Numq - 1:
             qmax[l] = q[Numq - 1]
         else:
             qmax[l] = 0.5 * (q[l] + q[l + 1])
-    sector_idx = 0;
+    sector_idx = 0
     #loop through pixels
-    for ix from 0 <= ix < M:  #rows
-        for iy from 0 <= iy < N:  #columns
+    for ix in range(M):  #rows
+        for iy in range(N):  #columns
             if flagmask and (mask[ix, iy]):  #if the pixel is masked, disregard it.
                 continue
             if not isfinite(data[ix, iy]):
@@ -526,7 +518,7 @@ def radint_nsector(np.ndarray[np.double_t, ndim=2] data not None,
             #find the sector this point falls into. Trick: start the iteration
             # with the last found sector. Maybe this reduces the number of
             # iterations needed for finding the appropriate sector index.
-            for l from sector_idx <= l < (sector_idx + Nsector):
+            for l in range(sector_idx, sector_idx + Nsector):
                 if doslice and fabs(sinphi0[l % Nsector] * x / xres - cosphi0[l % Nsector] * y / yres) > dphia:
                     break
                 if (not doslice) and fmod(atan2(y, x) - phi0a - 2 * M_PI / Nsector * (
@@ -542,7 +534,7 @@ def radint_nsector(np.ndarray[np.double_t, ndim=2] data not None,
                 rho = sqrt(x * x + y * y) / distance
                 q1 = 4 * M_PI * sin(0.5 * atan(rho)) / wavelength
             else:
-                q1 = sqrt(x * x / xres / xres + y * y / yres / yres);
+                q1 = sqrt(x * x / xres / xres + y * y / yres / yres)
             if q1 < q[0]:  #q underflow
                 continue
             if q1 > q[Numq - 1]:  #q overflow
@@ -553,9 +545,9 @@ def radint_nsector(np.ndarray[np.double_t, ndim=2] data not None,
                 w = (2 * M_PI / wavelength / distance) ** 2 * (2 + rho ** 2 + 2 * sqrt(1 + rho ** 2)) / (
                     (1 + rho ** 2 + sqrt(1 + rho ** 2)) ** 2 * sqrt(1 + rho ** 2))
             else:
-                w = 1;
-            for l from 0 <= l < Numq:  # Find the q-bin
-                if (q1 > qmax[l]):
+                w = 1
+            for l in range(Numq):  # Find the q-bin
+                if q1 > qmax[l]:
                     #not there yet
                     continue
                 #we reach this point only if q1 is in the l-th bin. Calculate
@@ -580,8 +572,8 @@ def radint_nsector(np.ndarray[np.double_t, ndim=2] data not None,
                     pixelout[l, sector_idx] += sqrt((ix - bcx) ** 2 + (iy - bcy) ** 2) * w
                 break  #avoid counting this pixel into higher q-bins.
     #normalize the results
-    for sector_idx from 0 <= sector_idx < Nsector:
-        for l from 0 <= l < Numq:
+    for sector_idx in range(Nsector):
+        for l in range(Numq):
             if (weight[l * Nsector + sector_idx] > 0) and (Area[l * Nsector + sector_idx] > 0):
                 qout[l, sector_idx] /= weight[l * Nsector + sector_idx]
                 Intensity[l, sector_idx] /= weight[l * Nsector + sector_idx]
@@ -603,7 +595,7 @@ def radint_nsector(np.ndarray[np.double_t, ndim=2] data not None,
     free(cosphi0)
     #prepare return values
     if not returnavgq:
-        for l from 0 <= l < Nsector:
+        for l in range(Nsector):
             qout[:, l] = q
     output = [qout, Intensity]
     if flagerror:
@@ -687,16 +679,16 @@ def radint_fullq(np.ndarray[np.double_t, ndim=2] data not None,
     M, N = radint_testarrays(data, dataerr, mask)
     if (M <= 0) or (N <= 0):
         raise ValueError('data, dataerr and mask should be of the same shape')
-    flagerror = (dataerr is not None);
-    flagmask = (mask is not None);
+    flagerror = (dataerr is not None)
+    flagmask = (mask is not None)
 
     if returnmask:
-        maskout = np.ones((data.shape[0], data.shape[1]), dtype=np.uint8)
+        maskout = np.ones_like(data, dtype=np.uint8)
     # if the q-scale was not supplied, create one.
     if q is None:
         if not flagmask:
-            mask = np.zeros((data.shape[0], data.shape[1]), dtype=np.uint8)
-        q = autoqscale(wavelength, distance, xres, yres, bcx, bcy, mask, autoqrange_linear);
+            mask = np.zeros_like(data, dtype=np.uint8)
+        q = autoqscale(wavelength, distance, xres, yres, bcx, bcy, mask, autoqrange_linear)
         if not flagmask:
             mask = None
     Numq = len(q)
@@ -708,7 +700,7 @@ def radint_fullq(np.ndarray[np.double_t, ndim=2] data not None,
     # set the upper bounds of the q-bins in qmax
     qmax = <double *> malloc(Numq * sizeof(double))
     weight = <double *> malloc(Numq * sizeof(double))
-    for l from 0 <= l < Numq:
+    for l in range(Numq):
         #initialize the weight and the qmax array.
         weight[l] = 0
         if l == Numq - 1:
@@ -716,8 +708,8 @@ def radint_fullq(np.ndarray[np.double_t, ndim=2] data not None,
         else:
             qmax[l] = 0.5 * (q[l] + q[l + 1])
     #loop through pixels
-    for ix from 0 <= ix < M:  #rows
-        for iy from 0 <= iy < N:  #columns
+    for ix in range(M):  #rows
+        for iy in range(N):  #columns
             if flagmask and (mask[ix, iy]):  #if the pixel is masked, disregard it.
                 continue
             if not isfinite(data[ix, iy]):
@@ -742,8 +734,8 @@ def radint_fullq(np.ndarray[np.double_t, ndim=2] data not None,
             # not on the detector plane)
             w = (2 * M_PI / wavelength / distance) ** 2 * (2 + rho ** 2 + 2 * sqrt(1 + rho ** 2)) / (
                 (1 + rho ** 2 + sqrt(1 + rho ** 2)) ** 2 * sqrt(1 + rho ** 2))
-            for l from 0 <= l < Numq:  # Find the q-bin
-                if (q1 > qmax[l]):
+            for l in range(Numq):  # Find the q-bin
+                if q1 > qmax[l]:
                     #not there yet
                     continue
                 #we reach this point only if q1 is in the l-th bin. Calculate
@@ -764,7 +756,7 @@ def radint_fullq(np.ndarray[np.double_t, ndim=2] data not None,
                     maskout[ix, iy] = 0
                 break  #avoid counting this pixel into higher q-bins.
     #normalize the results
-    for l from 0 <= l < Numq:
+    for l in range(Numq):
         if (weight[l] > 0) and (Area[l] > 0):
             qout[l] /= weight[l]
             Intensity[l] /= weight[l]
@@ -795,7 +787,7 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
             np.ndarray[np.double_t, ndim=2] dataerr,  # error can be None
             double wavelength, double distance, res, double bcx, double bcy,
             np.ndarray[np.uint8_t, ndim=2] mask, Ntheta=100,
-            double qmin=0, double qmax=INFINITY, bint returnmask=False,
+            double qmin=0, double qmax=inf, bint returnmask=False,
             int errorpropagation =2):
     """Perform azimuthal integration of image, with respect to q values
 
@@ -836,7 +828,7 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
     cdef np.ndarray[np.uint8_t, ndim=2] maskout
     cdef bint flagerror, flagmask
 
-    (resx, resy) = radint_getres(res);
+    (resx, resy) = radint_getres(res)
 
     (M, N) = radint_testarrays(data, dataerr, mask)
     if (M <= 0) or (N <= 0):
@@ -849,13 +841,13 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
     E = np.zeros(Ntheta1, dtype=np.double)
     weight = np.zeros(Ntheta1, dtype=np.double)
     if returnmask:
-        maskout = np.ones([data.shape[0], data.shape[1]], dtype=np.uint8)
+        maskout = np.ones_like(data, dtype=np.uint8)
 
     flagerror = (dataerr is not None)
     flagmask = (mask is not None)
-    flagq = (distance > 0 and wavelength > 0 and resx > 0 and resy > 0);
-    for ix from 0 <= ix < M:
-        for iy from 0 <= iy < N:
+    flagq = (distance > 0 and wavelength > 0 and resx > 0 and resy > 0)
+    for ix in range(M):
+        for iy in range(N):
             if flagmask and mask[ix, iy]:
                 continue
             if flagerror and not isfinite(dataerr[ix, iy]):
@@ -869,7 +861,7 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
             if flagq:
                 q = 4 * M_PI * sin(0.5 * atan2(d, distance)) / wavelength
             else:
-                q = sqrt(x * x / resx / resx + y * y / resy / resy);
+                q = sqrt(x * x / resx / resx + y * y / resy / resy)
             if (q < qmin) or (q > qmax):
                 continue
             phi = atan2(y, x)
@@ -890,7 +882,7 @@ def azimint(np.ndarray[np.double_t, ndim=2] data not None,
             if returnmask:
                 maskout[ix, iy] = 0
     #print "Escaped: ",escaped
-    for index from 0 <= index < Ntheta1:
+    for index in range(Ntheta1):
         if A[index] > 0:
             I[index] /= weight[index]
             if flagerror:
@@ -934,10 +926,10 @@ def bin2D(np.ndarray[np.double_t, ndim=2] M, Py_ssize_t xlen, Py_ssize_t ylen):
     Ny = M.shape[1] / ylen
 
     N = np.zeros((Nx, Ny), np.double)
-    for i from 0 <= i < Nx:
-        for i1 from 0 <= i1 < xlen:
-            for j from 0 <= j < Ny:
-                for j1 from 0 <= j1 < ylen:
+    for i in range(Nx):
+        for i1 in range(xlen):
+            for j in range(Ny):
+                for j1 in range(ylen):
                     N[i, j] += M[i * xlen + i1, j * ylen + j1]
     return N / (xlen * ylen)
 
@@ -965,18 +957,18 @@ def calculateDmatrix(np.ndarray[np.uint8_t, ndim=2] mask, res, double bcx,
     cdef Py_ssize_t M
 
     if type(res) != type([]) and type(res) != type(tuple()):
-        res0 = res;
-        res1 = res;
+        res0 = res
+        res1 = res
     elif len(res) != 2:
-        raise ValueError, 'Argument <res> should either be a number, or a list of two.'
+        raise ValueError('Argument <res> should either be a number, or a list of two.')
     else:
         res0 = res[0]
         res1 = res[1]
     M = mask.shape[0]
     N = mask.shape[1]
-    D = np.zeros((mask.shape[0], mask.shape[1]))
-    for i from 0 <= i < M:
-        for j from 0 <= j < N:
+    D = np.zeros_like(mask, dtype=np.double)
+    for i in range(M):
+        for j in range(N):
             D[i, j] = sqrt((res0 * (i - bcx)) ** 2 + (res1 * (j - bcy)) ** 2)
     return D
 
@@ -1007,13 +999,13 @@ def twodimfromonedim(Py_ssize_t Nrows, Py_ssize_t Ncols, double pixelsize,
     cdef double h, x, y
     out = np.zeros((Nrows, Ncols), np.double)
     h = pixelsize / Nsubdiv
-    for i from 0 <= i < Nrows:
+    for i in range(Nrows):
         x = (i - bcx) * pixelsize
-        for j from 0 <= j < Ncols:
+        for j in range(Ncols):
             tmp = 0
             y = (j - bcy) * pixelsize
-            for k from 0 <= k < Nsubdiv:
-                for l from 0 <= l < Nsubdiv:
+            for k in range(Nsubdiv):
+                for l in range(Nsubdiv):
                     r = sqrt((x + (k + 0.5) * h) ** 2 + (y + (l + 0.5) * h) ** 2)
                     tmp += curvefunc(r)
             out[i, j] = tmp
@@ -1022,7 +1014,7 @@ def twodimfromonedim(Py_ssize_t Nrows, Py_ssize_t Ncols, double pixelsize,
 def groupsum(np.ndarray[np.long_t, ndim=1] groupidx not None, np.ndarray[np.double_t, ndim=2] tosum not None):
     indices = np.unique(groupidx)
     outputdata = np.zeros((tosum.shape[1], len(indices)), dtype=np.double)
-    for i from 0 <= i < tosum.shape[0]:
+    for i in range(tosum.shape[0]):
         outputdata[:, groupidx[i]] += tosum[i, :]
     return outputdata
 
@@ -1055,12 +1047,12 @@ def autoabscissa(double wavelength, double distance, double xres, double yres,
     cdef Py_ssize_t ix, iy, M, N
     cdef bint flagq
 
-    M = mask.shape[0];
-    N = mask.shape[1];
-    qmin = 1e20;
+    M = mask.shape[0]
+    N = mask.shape[1]
+    qmin = HUGE_VAL
     qmax = -10
-    for ix from 0 <= ix < M:
-        for iy from 0 <= iy < N:
+    for ix in range(M):
+        for iy in range(N):
             if mask[ix, iy]:
                 continue
             x = ((ix - bcxa) * xres)
@@ -1070,12 +1062,12 @@ def autoabscissa(double wavelength, double distance, double xres, double yres,
             elif abscissa_kind == 1:
                 q1 = atan(sqrt(x * x + y * y) / distance)
             elif abscissa_kind == 2:
-                q1 = (sqrt(x * x + y * y));
+                q1 = (sqrt(x * x + y * y))
             elif abscissa_kind == 3:
                 q1 = (sqrt((ix - bcxa) * (ix - bcxa) + (iy - bcya) * (iy - bcya)))
-            if (q1 > qmax):
+            if q1 > qmax:
                 qmax = q1
-            if (q1 < qmin):
+            if q1 < qmin:
                 qmin = q1
     if linspacing:
         return np.linspace(qmin, qmax, sqrt(M * M + N * N) / 2)
@@ -1192,32 +1184,32 @@ def radint_errorprop(np.ndarray[np.double_t, ndim=2] data not None,
     M, N = radint_testarrays(data, dataerr, mask)
     if (M <= 0) or (N <= 0):
         raise ValueError('data, dataerr and mask should be of the same shape')
-    flagerror = (dataerr is not None);
-    flagmask = (mask is not None);
+    flagerror = (dataerr is not None)
+    flagmask = (mask is not None)
     #if any of wavelength, distance, res is nonpositive, pixel-based integration.
 
-    phi0a = phi0;
-    dphia = dphi;
+    phi0a = phi0
+    dphia = dphi
     # the equation of the line of the slice is x*sin(phi0)-y*cos(phi0)==0.
     # this is the normalized equation, ie. sin(phi0)**2+(-cos(phi0))**2=1,
     # therefore the signed distance of the point x,y from this line is
     # simply x*sin(phi0)-y*cos(phi0). We will use this to determine if a
     # point falls into this slice or not.
-    sinphi0 = sin(phi0a);
-    cosphi0 = cos(phi0a);
+    sinphi0 = sin(phi0a)
+    cosphi0 = cos(phi0a)
     if symmetric_sector:
         symmetric_sector_periodicity = 1
     else:
         symmetric_sector_periodicity = 2
 
     if returnmask:
-        maskout = np.ones((data.shape[0], data.shape[1]), dtype=np.uint8)
+        maskout = np.ones_like(data, dtype=np.uint8)
     # if the q-scale was not supplied, create one.
     if q is None:
         if not flagmask:
-            mask = np.zeros((data.shape[0], data.shape[1]), dtype=np.uint8)
+            mask = np.zeros_like(data, dtype=np.uint8)
         q = autoabscissa(wavelength, distance, pixelsizex, pixelsizey, bcx, bcy, mask, autoqrange_linear,
-                         abscissa_kind);
+                         abscissa_kind)
         if not flagmask:
             mask = None
     Numq = len(q)
@@ -1232,7 +1224,7 @@ def radint_errorprop(np.ndarray[np.double_t, ndim=2] data not None,
     qmax = <double *> malloc(Numq * sizeof(double))
     Intensity_squared = <double *> malloc(Numq * sizeof(double))
     q2 = <double *> malloc(Numq * sizeof(double))
-    for l from 0 <= l < Numq:
+    for l in range(Numq):
         #initialize the weight and the qmax array.
         if l == Numq - 1:
             qmax[l] = q[Numq - 1]
@@ -1240,8 +1232,8 @@ def radint_errorprop(np.ndarray[np.double_t, ndim=2] data not None,
             qmax[l] = 0.5 * (q[l] + q[l + 1])
         Intensity_squared[l] = q2[l] = 0
     #loop through pixels
-    for ix from 0 <= ix < M:  #rows
-        for iy from 0 <= iy < N:  #columns
+    for ix in range(M):  #rows
+        for iy in range(N):  #columns
             if flagmask and (mask[ix, iy]):  #if the pixel is masked, disregard it.
                 continue
             if not isfinite(data[ix, iy]):
@@ -1295,8 +1287,8 @@ def radint_errorprop(np.ndarray[np.double_t, ndim=2] data not None,
                 continue
             if q1 > q[Numq - 1]:  #q overflow
                 continue
-            for l from 0 <= l < Numq:  # Find the q-bin
-                if (q1 > qmax[l]):
+            for l in range(Numq):  # Find the q-bin
+                if q1 > qmax[l]:
                     #not there yet
                     continue
                 #we reach this point only if q1 is in the l-th bin. Calculate
@@ -1335,8 +1327,8 @@ def radint_errorprop(np.ndarray[np.double_t, ndim=2] data not None,
                     pixelout[l] += sqrt((ix - bcx) * (ix - bcx) + (iy - bcy) * (iy - bcy))
                 break  #avoid counting this pixel into higher q-bins.
     #normalize the results
-    for l from 0 <= l < Numq:
-        if (Area[l] > 0):
+    for l in range(Numq):
+        if Area[l] > 0:
             if abscissa_errorpropagation == 3:
                 if Area[l] > 1:
                     rho = sqrt((q2[l] - qout[l] * qout[l] / Area[l]) / (Area[l] - 1)) / sqrt(Area[l])
@@ -1382,7 +1374,7 @@ def radint_errorprop(np.ndarray[np.double_t, ndim=2] data not None,
                     Error[l] = sqrt(Error[l]) / Area[l]
                     Intensity[l] /= Area[l]
                 elif errorpropagation == 1:
-                    Error[l] = Error[l] / Area[l] ** 2
+                    Error[l] /= Area[l] ** 2
                     Intensity[l] /= Area[l]
                 else:
                     Intensity[l] /= Error[l]
@@ -1498,18 +1490,18 @@ def radint_fullq_errorprop(np.ndarray[np.double_t, ndim=2] data not None,
     M, N = radint_testarrays(data, dataerr, mask)
     if (M <= 0) or (N <= 0):
         raise ValueError('data, dataerr and mask should be of the same shape')
-    flagerror = (dataerr is not None);
-    flagmask = (mask is not None);
+    flagerror = (dataerr is not None)
+    flagmask = (mask is not None)
     #if any of wavelength, distance, res is nonpositive, pixel-based integration.
 
     if returnmask:
-        maskout = np.ones((data.shape[0], data.shape[1]), dtype=np.uint8)
+        maskout = np.ones_like(data, dtype=np.uint8)
     # if the q-scale was not supplied, create one.
     if q is None:
         if not flagmask:
-            mask = np.zeros((data.shape[0], data.shape[1]), dtype=np.uint8)
+            mask = np.zeros_like(data, dtype=np.uint8)
         q = autoabscissa(wavelength, distance, pixelsizex, pixelsizey, bcx, bcy, mask, autoqrange_linear,
-                         abscissa_kind);
+                         abscissa_kind)
         if not flagmask:
             mask = None
     Numq = len(q)
@@ -1524,7 +1516,7 @@ def radint_fullq_errorprop(np.ndarray[np.double_t, ndim=2] data not None,
     qmax = <double *> malloc(Numq * sizeof(double))
     Intensity_squared = <double *> malloc(Numq * sizeof(double))
     q2 = <double *> malloc(Numq * sizeof(double))
-    for l from 0 <= l < Numq:
+    for l in range(Numq):
         #initialize the weight and the qmax array.
         if l == Numq - 1:
             qmax[l] = q[Numq - 1]
@@ -1532,8 +1524,8 @@ def radint_fullq_errorprop(np.ndarray[np.double_t, ndim=2] data not None,
             qmax[l] = 0.5 * (q[l] + q[l + 1])
         Intensity_squared[l] = q2[l] = 0
     #loop through pixels
-    for ix from 0 <= ix < M:  #rows
-        for iy from 0 <= iy < N:  #columns
+    for ix in range(M):  #rows
+        for iy in range(N):  #columns
             if flagmask and (mask[ix, iy]):  #if the pixel is masked, disregard it.
                 continue
             if not isfinite(data[ix, iy]):
@@ -1582,8 +1574,8 @@ def radint_fullq_errorprop(np.ndarray[np.double_t, ndim=2] data not None,
                 continue
             if q1 > q[Numq - 1]:  #q overflow
                 continue
-            for l from 0 <= l < Numq:  # Find the q-bin
-                if (q1 > qmax[l]):
+            for l in range(Numq):  # Find the q-bin
+                if q1 > qmax[l]:
                     #not there yet
                     continue
                 #we reach this point only if q1 is in the l-th bin. Calculate
@@ -1622,8 +1614,8 @@ def radint_fullq_errorprop(np.ndarray[np.double_t, ndim=2] data not None,
                     pixelout[l] += sqrt((ix - bcx) * (ix - bcx) + (iy - bcy) * (iy - bcy))
                 break  #avoid counting this pixel into higher q-bins.
     #normalize the results
-    for l from 0 <= l < Numq:
-        if (Area[l] > 0):
+    for l in range(Numq):
+        if Area[l] > 0:
             if abscissa_errorpropagation == 3:
                 if Area[l] > 1:
                     rho = sqrt((q2[l] - qout[l] * qout[l] / Area[l]) / (Area[l] - 1)) / sqrt(Area[l])
@@ -1669,7 +1661,7 @@ def radint_fullq_errorprop(np.ndarray[np.double_t, ndim=2] data not None,
                     Error[l] = sqrt(Error[l]) / Area[l]
                     Intensity[l] /= Area[l]
                 elif errorpropagation == 1:
-                    Error[l] = Error[l] / Area[l] ** 2
+                    Error[l] /= Area[l] ** 2
                     Intensity[l] /= Area[l]
                 else:
                     Intensity[l] /= Error[l]

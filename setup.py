@@ -1,9 +1,9 @@
 #!/usb/bin/env python
 
 import os
+import warnings
 
 import numpy as np
-from Cython.Build import cythonize
 from setuptools import find_packages, setup
 from setuptools.extension import Extension
 
@@ -13,24 +13,33 @@ incdirs = [np.get_include()]
 
 # Extension modules written in Cython
 
-pyxfiles = []
-for dir_, subdirs, files in os.walk('sastool'):
-    pyxfiles.extend([os.path.join(dir_, f) for f in files if f.endswith('.pyx')])
+try:
+    from Cython.Build import cythonize
 
-ext_modules = [
-    Extension(p.replace(os.path.sep, '.')[:-4], [p], include_dirs=incdirs) for p in pyxfiles
-    ]
+    pyxfiles = []
+    for dir_, subdirs, files in os.walk('sastool'):
+        pyxfiles.extend([os.path.join(dir_, f) for f in files if f.endswith('.pyx')])
+
+    ext_modules = cythonize([
+                                Extension(p.replace(os.path.sep, '.')[:-4], [p], include_dirs=incdirs) for p in pyxfiles
+                                ])
+except ImportError:
+    warnings.warn('Cannot import Cython, using packaged C files instead')
+    cfiles = []
+    for dir_, subdirs, files in os.walk('sastool'):
+        cfiles.extend([os.path.join(dir_, f) for f in files if f.endswith('.c')])
+    ext_modules = [Extension(p.replace(os.path.sep, '.')[:-2], [p], include_dirs=incdirs) for p in cfiles]
 
 setup(
     name='sastool', author='Andras Wacha',
     author_email='awacha@gmail.com', url='http://github.com/awacha/sastool',
     description='Python macros for [A]SA(X|N)S data processing, fitting, plotting etc.',
     packages=find_packages(),
-    ext_modules=cythonize(ext_modules),
+    ext_modules=ext_modules,
     install_requires=['numpy>=1.0.0', 'scipy>=0.7.0', 'matplotlib',
                       'h5py>=2.0', 'xlrd', 'xlwt'],
     use_scm_version=True,
-    setup_requires=['Cython>=0.15', 'setuptools_scm'],
+    setup_requires=['setuptools_scm'],
     keywords="saxs sans sas small-angle scattering x-ray neutron",
     license="BSD 3-clause",
     zip_safe=False,

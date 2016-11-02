@@ -4,7 +4,12 @@ from .schilling import longest_edge, cormap_pval
 
 
 def cormap(*intensities):
-    """Calculate the correlation map of several 1D arrays"""
+    """Calculate the correlation map of several 1D arrays.
+
+    Idea from Franke et. al.: Correlation Map, a goodness-of-fit test for
+    one-dimensional X-ray scattering spectra. Nature Methods 2015, 12(5),
+    pp.419-422 (DOI: 10.1038/nmeth.3358)
+    """
     I = np.vstack(intensities)
     Imean = I.mean(axis=0)
     Ired = I - Imean[np.newaxis, :]
@@ -18,6 +23,18 @@ def cormap(*intensities):
 
 
 def cormaptest(*intensities):
+    """Carry out the cormap test on several one-dimensional
+    numpy ndarrays supplied as positional arguments.
+
+    Outputs:
+        p-value: probability that the ndarrays are equivalent
+        le: longest edge length
+        cm: the correlation map matrix.
+
+    Idea from Franke et. al.: Correlation Map, a goodness-of-fit test for
+    one-dimensional X-ray scattering spectra. Nature Methods 2015, 12(5),
+    pp.419-422 (DOI: 10.1038/nmeth.3358)
+    """
     cm = cormap(*intensities)
-    le = longest_edge(cm[:, 0])
+    le = longest_edge(cm.diagonal())
     return cormap_pval(cm.shape[0], le), le, cm
