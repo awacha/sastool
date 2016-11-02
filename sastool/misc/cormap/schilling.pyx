@@ -120,22 +120,27 @@ def cormap_pval(Py_ssize_t n, Py_ssize_t x):
         free(P)
         return result
 
-def longest_edge(np.ndarray[np.double_t, ndim=1] diag):
-    """Calculate the longest edge length in a correlation map, based
-    on the diagonal of the cormap matrix, supplied in `diag`.
+def longest_edge(np.ndarray[np.double_t, ndim=2] cormap):
+    """Calculate the longest edge length in a correlation map.
     """
     cdef:
-        Py_ssize_t l = 1, i = 0, lmax = 0
-        double sgn = diag[0]
-    for i in range(1, len(diag)):
-        if sgn * diag[i] > 0:  # same sign
+        Py_ssize_t l = 1, i = 0, lmax = 0, rowindex = 0, N = cormap.shape[0]
+        double sgn = 0
+    # find the first row index where the diagonal is nonzero
+    while rowindex < N and cormap[rowindex, rowindex] == 0:
+        rowindex += 1
+    if rowindex >= N:
+        return N
+    sgn = cormap[rowindex, 0]
+    for i in range(1, N):
+        if sgn * cormap[rowindex, i] > 0:  # same sign
             l += 1
-        elif (sgn == 0) or (sgn * diag[i] < 0):  # opposite sign
+        elif (sgn == 0) or (sgn * cormap[rowindex, i] < 0):  # opposite sign
             if l > lmax:
                 lmax = l
             l = 1
-            sgn = diag[i]
-        else:  # diag[i] == 0, disregard this.
+            sgn = cormap[rowindex, i]
+        else:  # cormap[rowindex, i] == 0, disregard this.
             pass
     if l > lmax:
         lmax = l

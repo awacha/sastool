@@ -36,5 +36,5 @@ def cormaptest(*intensities):
     pp.419-422 (DOI: 10.1038/nmeth.3358)
     """
     cm = cormap(*intensities)
-    le = longest_edge(cm.diagonal())
+    le = longest_edge(cm)
     return cormap_pval(cm.shape[0], le), le, cm

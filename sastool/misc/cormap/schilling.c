@@ -1132,7 +1132,6 @@ static CYTHON_INLINE void __Pyx_ErrFetchInState(PyThreadState *tstate, PyObject 
 static CYTHON_INLINE int __Pyx_ArgTypeTest(PyObject *obj, PyTypeObject *type, int none_allowed,
     const char *name, int exact);
 
-#define __Pyx_BufPtrStrided1d(type, buf, i0, s0) (type)((char*)buf + i0 * s0)
 /* RaiseException.proto */
 static void __Pyx_Raise(PyObject *type, PyObject *value, PyObject *tb, PyObject *cause);
 
@@ -1442,7 +1441,6 @@ static const char __pyx_k_i_x[] = "i_x";
 static const char __pyx_k_sgn[] = "sgn";
 static const char __pyx_k_sum[] = "sum";
 static const char __pyx_k_val[] = "val";
-static const char __pyx_k_diag[] = "diag";
 static const char __pyx_k_lmax[] = "lmax";
 static const char __pyx_k_main[] = "__main__";
 static const char __pyx_k_test[] = "__test__";
@@ -1451,6 +1449,7 @@ static const char __pyx_k_im1_x[] = "im1_x";
 static const char __pyx_k_numpy[] = "numpy";
 static const char __pyx_k_range[] = "range";
 static const char __pyx_k_zeros[] = "zeros";
+static const char __pyx_k_cormap[] = "cormap";
 static const char __pyx_k_double[] = "double";
 static const char __pyx_k_import[] = "__import__";
 static const char __pyx_k_result[] = "result";
@@ -1458,6 +1457,7 @@ static const char __pyx_k_uint64[] = "uint64";
 static const char __pyx_k_Amatrix[] = "Amatrix";
 static const char __pyx_k_amatrix[] = "amatrix";
 static const char __pyx_k_pmatrix[] = "pmatrix";
+static const char __pyx_k_rowindex[] = "rowindex";
 static const char __pyx_k_ValueError[] = "ValueError";
 static const char __pyx_k_half_pow_x[] = "half_pow_x";
 static const char __pyx_k_ImportError[] = "ImportError";
@@ -1486,8 +1486,8 @@ static PyObject *__pyx_n_s_P;
 static PyObject *__pyx_n_s_RuntimeError;
 static PyObject *__pyx_n_s_ValueError;
 static PyObject *__pyx_n_s_amatrix;
+static PyObject *__pyx_n_s_cormap;
 static PyObject *__pyx_n_s_cormap_pval;
-static PyObject *__pyx_n_s_diag;
 static PyObject *__pyx_n_s_double;
 static PyObject *__pyx_n_s_empty;
 static PyObject *__pyx_n_s_half_pow_x;
@@ -1511,6 +1511,7 @@ static PyObject *__pyx_kp_s_numpy_core_umath_failed_to_impor;
 static PyObject *__pyx_n_s_pmatrix;
 static PyObject *__pyx_n_s_range;
 static PyObject *__pyx_n_s_result;
+static PyObject *__pyx_n_s_rowindex;
 static PyObject *__pyx_n_s_sastool_misc_cormap_schilling;
 static PyObject *__pyx_n_s_sgn;
 static PyObject *__pyx_n_s_sum;
@@ -1525,7 +1526,7 @@ static PyObject *__pyx_pf_7sastool_4misc_6cormap_9schilling_2Amatrix(CYTHON_UNUS
 static PyObject *__pyx_pf_7sastool_4misc_6cormap_9schilling_4amatrix(CYTHON_UNUSED PyObject *__pyx_self, Py_ssize_t __pyx_v_N); /* proto */
 static PyObject *__pyx_pf_7sastool_4misc_6cormap_9schilling_6pmatrix(CYTHON_UNUSED PyObject *__pyx_self, Py_ssize_t __pyx_v_N); /* proto */
 static PyObject *__pyx_pf_7sastool_4misc_6cormap_9schilling_8cormap_pval(CYTHON_UNUSED PyObject *__pyx_self, Py_ssize_t __pyx_v_n, Py_ssize_t __pyx_v_x); /* proto */
-static PyObject *__pyx_pf_7sastool_4misc_6cormap_9schilling_10longest_edge(CYTHON_UNUSED PyObject *__pyx_self, PyArrayObject *__pyx_v_diag); /* proto */
+static PyObject *__pyx_pf_7sastool_4misc_6cormap_9schilling_10longest_edge(CYTHON_UNUSED PyObject *__pyx_self, PyArrayObject *__pyx_v_cormap); /* proto */
 static int __pyx_pf_5numpy_7ndarray___getbuffer__(PyArrayObject *__pyx_v_self, Py_buffer *__pyx_v_info, int __pyx_v_flags); /* proto */
 static void __pyx_pf_5numpy_7ndarray_2__releasebuffer__(PyArrayObject *__pyx_v_self, Py_buffer *__pyx_v_info); /* proto */
 static PyObject *__pyx_float_0_0;
@@ -3078,7 +3079,7 @@ static PyObject *__pyx_pf_7sastool_4misc_6cormap_9schilling_8cormap_pval(CYTHON_
  *         free(P)
  *         return result             # <<<<<<<<<<<<<<
  * 
- * def longest_edge(np.ndarray[np.double_t, ndim=1] diag):
+ * def longest_edge(np.ndarray[np.double_t, ndim=2] cormap):
  */
     __Pyx_XDECREF(__pyx_r);
     __pyx_t_4 = PyFloat_FromDouble(__pyx_v_result); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 121, __pyx_L1_error)
@@ -3110,21 +3111,21 @@ static PyObject *__pyx_pf_7sastool_4misc_6cormap_9schilling_8cormap_pval(CYTHON_
 /* "sastool/misc/cormap/schilling.pyx":123
  *         return result
  * 
- * def longest_edge(np.ndarray[np.double_t, ndim=1] diag):             # <<<<<<<<<<<<<<
- *     """Calculate the longest edge length in a correlation map, based
- *     on the diagonal of the cormap matrix, supplied in `diag`.
+ * def longest_edge(np.ndarray[np.double_t, ndim=2] cormap):             # <<<<<<<<<<<<<<
+ *     """Calculate the longest edge length in a correlation map.
+ *     """
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_7sastool_4misc_6cormap_9schilling_11longest_edge(PyObject *__pyx_self, PyObject *__pyx_v_diag); /*proto*/
-static char __pyx_doc_7sastool_4misc_6cormap_9schilling_10longest_edge[] = "longest_edge(ndarray diag)\nCalculate the longest edge length in a correlation map, based\n    on the diagonal of the cormap matrix, supplied in `diag`.\n    ";
+static PyObject *__pyx_pw_7sastool_4misc_6cormap_9schilling_11longest_edge(PyObject *__pyx_self, PyObject *__pyx_v_cormap); /*proto*/
+static char __pyx_doc_7sastool_4misc_6cormap_9schilling_10longest_edge[] = "longest_edge(ndarray cormap)\nCalculate the longest edge length in a correlation map.\n    ";
 static PyMethodDef __pyx_mdef_7sastool_4misc_6cormap_9schilling_11longest_edge = {"longest_edge", (PyCFunction)__pyx_pw_7sastool_4misc_6cormap_9schilling_11longest_edge, METH_O, __pyx_doc_7sastool_4misc_6cormap_9schilling_10longest_edge};
-static PyObject *__pyx_pw_7sastool_4misc_6cormap_9schilling_11longest_edge(PyObject *__pyx_self, PyObject *__pyx_v_diag) {
+static PyObject *__pyx_pw_7sastool_4misc_6cormap_9schilling_11longest_edge(PyObject *__pyx_self, PyObject *__pyx_v_cormap) {
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("longest_edge (wrapper)", 0);
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_diag), __pyx_ptype_5numpy_ndarray, 1, "diag", 0))) __PYX_ERR(0, 123, __pyx_L1_error)
-  __pyx_r = __pyx_pf_7sastool_4misc_6cormap_9schilling_10longest_edge(__pyx_self, ((PyArrayObject *)__pyx_v_diag));
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_cormap), __pyx_ptype_5numpy_ndarray, 1, "cormap", 0))) __PYX_ERR(0, 123, __pyx_L1_error)
+  __pyx_r = __pyx_pf_7sastool_4misc_6cormap_9schilling_10longest_edge(__pyx_self, ((PyArrayObject *)__pyx_v_cormap));
 
   /* function exit code */
   goto __pyx_L0;
@@ -3135,210 +3136,343 @@ static PyObject *__pyx_pw_7sastool_4misc_6cormap_9schilling_11longest_edge(PyObj
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_7sastool_4misc_6cormap_9schilling_10longest_edge(CYTHON_UNUSED PyObject *__pyx_self, PyArrayObject *__pyx_v_diag) {
+static PyObject *__pyx_pf_7sastool_4misc_6cormap_9schilling_10longest_edge(CYTHON_UNUSED PyObject *__pyx_self, PyArrayObject *__pyx_v_cormap) {
   Py_ssize_t __pyx_v_l;
   Py_ssize_t __pyx_v_i;
   Py_ssize_t __pyx_v_lmax;
+  Py_ssize_t __pyx_v_rowindex;
+  Py_ssize_t __pyx_v_N;
   double __pyx_v_sgn;
-  __Pyx_LocalBuf_ND __pyx_pybuffernd_diag;
-  __Pyx_Buffer __pyx_pybuffer_diag;
+  __Pyx_LocalBuf_ND __pyx_pybuffernd_cormap;
+  __Pyx_Buffer __pyx_pybuffer_cormap;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
-  Py_ssize_t __pyx_t_1;
-  Py_ssize_t __pyx_t_2;
+  int __pyx_t_1;
+  int __pyx_t_2;
   Py_ssize_t __pyx_t_3;
   Py_ssize_t __pyx_t_4;
-  int __pyx_t_5;
+  PyObject *__pyx_t_5 = NULL;
   Py_ssize_t __pyx_t_6;
-  PyObject *__pyx_t_7 = NULL;
+  Py_ssize_t __pyx_t_7;
+  Py_ssize_t __pyx_t_8;
+  Py_ssize_t __pyx_t_9;
+  Py_ssize_t __pyx_t_10;
+  Py_ssize_t __pyx_t_11;
+  Py_ssize_t __pyx_t_12;
+  Py_ssize_t __pyx_t_13;
+  Py_ssize_t __pyx_t_14;
+  Py_ssize_t __pyx_t_15;
   __Pyx_RefNannySetupContext("longest_edge", 0);
-  __pyx_pybuffer_diag.pybuffer.buf = NULL;
-  __pyx_pybuffer_diag.refcount = 0;
-  __pyx_pybuffernd_diag.data = NULL;
-  __pyx_pybuffernd_diag.rcbuffer = &__pyx_pybuffer_diag;
+  __pyx_pybuffer_cormap.pybuffer.buf = NULL;
+  __pyx_pybuffer_cormap.refcount = 0;
+  __pyx_pybuffernd_cormap.data = NULL;
+  __pyx_pybuffernd_cormap.rcbuffer = &__pyx_pybuffer_cormap;
   {
     __Pyx_BufFmt_StackElem __pyx_stack[1];
-    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_diag.rcbuffer->pybuffer, (PyObject*)__pyx_v_diag, &__Pyx_TypeInfo_nn___pyx_t_5numpy_double_t, PyBUF_FORMAT| PyBUF_STRIDES, 1, 0, __pyx_stack) == -1)) __PYX_ERR(0, 123, __pyx_L1_error)
+    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_cormap.rcbuffer->pybuffer, (PyObject*)__pyx_v_cormap, &__Pyx_TypeInfo_nn___pyx_t_5numpy_double_t, PyBUF_FORMAT| PyBUF_STRIDES, 2, 0, __pyx_stack) == -1)) __PYX_ERR(0, 123, __pyx_L1_error)
   }
-  __pyx_pybuffernd_diag.diminfo[0].strides = __pyx_pybuffernd_diag.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_diag.diminfo[0].shape = __pyx_pybuffernd_diag.rcbuffer->pybuffer.shape[0];
+  __pyx_pybuffernd_cormap.diminfo[0].strides = __pyx_pybuffernd_cormap.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_cormap.diminfo[0].shape = __pyx_pybuffernd_cormap.rcbuffer->pybuffer.shape[0]; __pyx_pybuffernd_cormap.diminfo[1].strides = __pyx_pybuffernd_cormap.rcbuffer->pybuffer.strides[1]; __pyx_pybuffernd_cormap.diminfo[1].shape = __pyx_pybuffernd_cormap.rcbuffer->pybuffer.shape[1];
 
-  /* "sastool/misc/cormap/schilling.pyx":128
+  /* "sastool/misc/cormap/schilling.pyx":127
  *     """
  *     cdef:
- *         Py_ssize_t l = 1, i = 0, lmax = 0             # <<<<<<<<<<<<<<
- *         double sgn = diag[0]
- *     for i in range(1, len(diag)):
+ *         Py_ssize_t l = 1, i = 0, lmax = 0, rowindex = 0, N = cormap.shape[0]             # <<<<<<<<<<<<<<
+ *         double sgn = 0
+ *     # find the first row index where the diagonal is nonzero
  */
   __pyx_v_l = 1;
   __pyx_v_i = 0;
   __pyx_v_lmax = 0;
+  __pyx_v_rowindex = 0;
+  __pyx_v_N = (__pyx_v_cormap->dimensions[0]);
 
-  /* "sastool/misc/cormap/schilling.pyx":129
+  /* "sastool/misc/cormap/schilling.pyx":128
  *     cdef:
- *         Py_ssize_t l = 1, i = 0, lmax = 0
- *         double sgn = diag[0]             # <<<<<<<<<<<<<<
- *     for i in range(1, len(diag)):
- *         if sgn * diag[i] >= 0:
+ *         Py_ssize_t l = 1, i = 0, lmax = 0, rowindex = 0, N = cormap.shape[0]
+ *         double sgn = 0             # <<<<<<<<<<<<<<
+ *     # find the first row index where the diagonal is nonzero
+ *     while rowindex < N and cormap[rowindex, rowindex] == 0:
  */
-  __pyx_t_1 = 0;
-  if (__pyx_t_1 < 0) __pyx_t_1 += __pyx_pybuffernd_diag.diminfo[0].shape;
-  __pyx_v_sgn = (*__Pyx_BufPtrStrided1d(__pyx_t_5numpy_double_t *, __pyx_pybuffernd_diag.rcbuffer->pybuffer.buf, __pyx_t_1, __pyx_pybuffernd_diag.diminfo[0].strides));
+  __pyx_v_sgn = 0.0;
 
   /* "sastool/misc/cormap/schilling.pyx":130
- *         Py_ssize_t l = 1, i = 0, lmax = 0
- *         double sgn = diag[0]
- *     for i in range(1, len(diag)):             # <<<<<<<<<<<<<<
- *         if sgn * diag[i] >= 0:
- *             l += 1
+ *         double sgn = 0
+ *     # find the first row index where the diagonal is nonzero
+ *     while rowindex < N and cormap[rowindex, rowindex] == 0:             # <<<<<<<<<<<<<<
+ *         rowindex += 1
+ *     if rowindex >= N:
  */
-  __pyx_t_2 = PyObject_Length(((PyObject *)__pyx_v_diag)); if (unlikely(__pyx_t_2 == -1)) __PYX_ERR(0, 130, __pyx_L1_error)
-  for (__pyx_t_3 = 1; __pyx_t_3 < __pyx_t_2; __pyx_t_3+=1) {
-    __pyx_v_i = __pyx_t_3;
+  while (1) {
+    __pyx_t_2 = ((__pyx_v_rowindex < __pyx_v_N) != 0);
+    if (__pyx_t_2) {
+    } else {
+      __pyx_t_1 = __pyx_t_2;
+      goto __pyx_L5_bool_binop_done;
+    }
+    __pyx_t_3 = __pyx_v_rowindex;
+    __pyx_t_4 = __pyx_v_rowindex;
+    if (__pyx_t_3 < 0) __pyx_t_3 += __pyx_pybuffernd_cormap.diminfo[0].shape;
+    if (__pyx_t_4 < 0) __pyx_t_4 += __pyx_pybuffernd_cormap.diminfo[1].shape;
+    __pyx_t_2 = (((*__Pyx_BufPtrStrided2d(__pyx_t_5numpy_double_t *, __pyx_pybuffernd_cormap.rcbuffer->pybuffer.buf, __pyx_t_3, __pyx_pybuffernd_cormap.diminfo[0].strides, __pyx_t_4, __pyx_pybuffernd_cormap.diminfo[1].strides)) == 0.0) != 0);
+    __pyx_t_1 = __pyx_t_2;
+    __pyx_L5_bool_binop_done:;
+    if (!__pyx_t_1) break;
 
     /* "sastool/misc/cormap/schilling.pyx":131
- *         double sgn = diag[0]
- *     for i in range(1, len(diag)):
- *         if sgn * diag[i] >= 0:             # <<<<<<<<<<<<<<
- *             l += 1
- *         else:
+ *     # find the first row index where the diagonal is nonzero
+ *     while rowindex < N and cormap[rowindex, rowindex] == 0:
+ *         rowindex += 1             # <<<<<<<<<<<<<<
+ *     if rowindex >= N:
+ *         return N
  */
-    __pyx_t_4 = __pyx_v_i;
-    if (__pyx_t_4 < 0) __pyx_t_4 += __pyx_pybuffernd_diag.diminfo[0].shape;
-    __pyx_t_5 = (((__pyx_v_sgn * (*__Pyx_BufPtrStrided1d(__pyx_t_5numpy_double_t *, __pyx_pybuffernd_diag.rcbuffer->pybuffer.buf, __pyx_t_4, __pyx_pybuffernd_diag.diminfo[0].strides))) >= 0.0) != 0);
-    if (__pyx_t_5) {
+    __pyx_v_rowindex = (__pyx_v_rowindex + 1);
+  }
 
-      /* "sastool/misc/cormap/schilling.pyx":132
- *     for i in range(1, len(diag)):
- *         if sgn * diag[i] >= 0:
+  /* "sastool/misc/cormap/schilling.pyx":132
+ *     while rowindex < N and cormap[rowindex, rowindex] == 0:
+ *         rowindex += 1
+ *     if rowindex >= N:             # <<<<<<<<<<<<<<
+ *         return N
+ *     sgn = cormap[rowindex, 0]
+ */
+  __pyx_t_1 = ((__pyx_v_rowindex >= __pyx_v_N) != 0);
+  if (__pyx_t_1) {
+
+    /* "sastool/misc/cormap/schilling.pyx":133
+ *         rowindex += 1
+ *     if rowindex >= N:
+ *         return N             # <<<<<<<<<<<<<<
+ *     sgn = cormap[rowindex, 0]
+ *     for i in range(1, N):
+ */
+    __Pyx_XDECREF(__pyx_r);
+    __pyx_t_5 = PyInt_FromSsize_t(__pyx_v_N); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 133, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_5);
+    __pyx_r = __pyx_t_5;
+    __pyx_t_5 = 0;
+    goto __pyx_L0;
+
+    /* "sastool/misc/cormap/schilling.pyx":132
+ *     while rowindex < N and cormap[rowindex, rowindex] == 0:
+ *         rowindex += 1
+ *     if rowindex >= N:             # <<<<<<<<<<<<<<
+ *         return N
+ *     sgn = cormap[rowindex, 0]
+ */
+  }
+
+  /* "sastool/misc/cormap/schilling.pyx":134
+ *     if rowindex >= N:
+ *         return N
+ *     sgn = cormap[rowindex, 0]             # <<<<<<<<<<<<<<
+ *     for i in range(1, N):
+ *         if sgn * cormap[rowindex, i] > 0:  # same sign
+ */
+  __pyx_t_6 = __pyx_v_rowindex;
+  __pyx_t_7 = 0;
+  if (__pyx_t_6 < 0) __pyx_t_6 += __pyx_pybuffernd_cormap.diminfo[0].shape;
+  if (__pyx_t_7 < 0) __pyx_t_7 += __pyx_pybuffernd_cormap.diminfo[1].shape;
+  __pyx_v_sgn = (*__Pyx_BufPtrStrided2d(__pyx_t_5numpy_double_t *, __pyx_pybuffernd_cormap.rcbuffer->pybuffer.buf, __pyx_t_6, __pyx_pybuffernd_cormap.diminfo[0].strides, __pyx_t_7, __pyx_pybuffernd_cormap.diminfo[1].strides));
+
+  /* "sastool/misc/cormap/schilling.pyx":135
+ *         return N
+ *     sgn = cormap[rowindex, 0]
+ *     for i in range(1, N):             # <<<<<<<<<<<<<<
+ *         if sgn * cormap[rowindex, i] > 0:  # same sign
+ *             l += 1
+ */
+  __pyx_t_8 = __pyx_v_N;
+  for (__pyx_t_9 = 1; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
+    __pyx_v_i = __pyx_t_9;
+
+    /* "sastool/misc/cormap/schilling.pyx":136
+ *     sgn = cormap[rowindex, 0]
+ *     for i in range(1, N):
+ *         if sgn * cormap[rowindex, i] > 0:  # same sign             # <<<<<<<<<<<<<<
+ *             l += 1
+ *         elif (sgn == 0) or (sgn * cormap[rowindex, i] < 0):  # opposite sign
+ */
+    __pyx_t_10 = __pyx_v_rowindex;
+    __pyx_t_11 = __pyx_v_i;
+    if (__pyx_t_10 < 0) __pyx_t_10 += __pyx_pybuffernd_cormap.diminfo[0].shape;
+    if (__pyx_t_11 < 0) __pyx_t_11 += __pyx_pybuffernd_cormap.diminfo[1].shape;
+    __pyx_t_1 = (((__pyx_v_sgn * (*__Pyx_BufPtrStrided2d(__pyx_t_5numpy_double_t *, __pyx_pybuffernd_cormap.rcbuffer->pybuffer.buf, __pyx_t_10, __pyx_pybuffernd_cormap.diminfo[0].strides, __pyx_t_11, __pyx_pybuffernd_cormap.diminfo[1].strides))) > 0.0) != 0);
+    if (__pyx_t_1) {
+
+      /* "sastool/misc/cormap/schilling.pyx":137
+ *     for i in range(1, N):
+ *         if sgn * cormap[rowindex, i] > 0:  # same sign
  *             l += 1             # <<<<<<<<<<<<<<
- *         else:
+ *         elif (sgn == 0) or (sgn * cormap[rowindex, i] < 0):  # opposite sign
  *             if l > lmax:
  */
       __pyx_v_l = (__pyx_v_l + 1);
 
-      /* "sastool/misc/cormap/schilling.pyx":131
- *         double sgn = diag[0]
- *     for i in range(1, len(diag)):
- *         if sgn * diag[i] >= 0:             # <<<<<<<<<<<<<<
+      /* "sastool/misc/cormap/schilling.pyx":136
+ *     sgn = cormap[rowindex, 0]
+ *     for i in range(1, N):
+ *         if sgn * cormap[rowindex, i] > 0:  # same sign             # <<<<<<<<<<<<<<
  *             l += 1
- *         else:
+ *         elif (sgn == 0) or (sgn * cormap[rowindex, i] < 0):  # opposite sign
  */
-      goto __pyx_L5;
+      goto __pyx_L10;
     }
 
-    /* "sastool/misc/cormap/schilling.pyx":134
+    /* "sastool/misc/cormap/schilling.pyx":138
+ *         if sgn * cormap[rowindex, i] > 0:  # same sign
  *             l += 1
- *         else:
+ *         elif (sgn == 0) or (sgn * cormap[rowindex, i] < 0):  # opposite sign             # <<<<<<<<<<<<<<
+ *             if l > lmax:
+ *                 lmax = l
+ */
+    __pyx_t_2 = ((__pyx_v_sgn == 0.0) != 0);
+    if (!__pyx_t_2) {
+    } else {
+      __pyx_t_1 = __pyx_t_2;
+      goto __pyx_L11_bool_binop_done;
+    }
+    __pyx_t_12 = __pyx_v_rowindex;
+    __pyx_t_13 = __pyx_v_i;
+    if (__pyx_t_12 < 0) __pyx_t_12 += __pyx_pybuffernd_cormap.diminfo[0].shape;
+    if (__pyx_t_13 < 0) __pyx_t_13 += __pyx_pybuffernd_cormap.diminfo[1].shape;
+    __pyx_t_2 = (((__pyx_v_sgn * (*__Pyx_BufPtrStrided2d(__pyx_t_5numpy_double_t *, __pyx_pybuffernd_cormap.rcbuffer->pybuffer.buf, __pyx_t_12, __pyx_pybuffernd_cormap.diminfo[0].strides, __pyx_t_13, __pyx_pybuffernd_cormap.diminfo[1].strides))) < 0.0) != 0);
+    __pyx_t_1 = __pyx_t_2;
+    __pyx_L11_bool_binop_done:;
+    if (__pyx_t_1) {
+
+      /* "sastool/misc/cormap/schilling.pyx":139
+ *             l += 1
+ *         elif (sgn == 0) or (sgn * cormap[rowindex, i] < 0):  # opposite sign
  *             if l > lmax:             # <<<<<<<<<<<<<<
  *                 lmax = l
  *             l = 1
  */
-    /*else*/ {
-      __pyx_t_5 = ((__pyx_v_l > __pyx_v_lmax) != 0);
-      if (__pyx_t_5) {
+      __pyx_t_1 = ((__pyx_v_l > __pyx_v_lmax) != 0);
+      if (__pyx_t_1) {
 
-        /* "sastool/misc/cormap/schilling.pyx":135
- *         else:
+        /* "sastool/misc/cormap/schilling.pyx":140
+ *         elif (sgn == 0) or (sgn * cormap[rowindex, i] < 0):  # opposite sign
  *             if l > lmax:
  *                 lmax = l             # <<<<<<<<<<<<<<
  *             l = 1
- *             sgn = diag[i]
+ *             sgn = cormap[rowindex, i]
  */
         __pyx_v_lmax = __pyx_v_l;
 
-        /* "sastool/misc/cormap/schilling.pyx":134
+        /* "sastool/misc/cormap/schilling.pyx":139
  *             l += 1
- *         else:
+ *         elif (sgn == 0) or (sgn * cormap[rowindex, i] < 0):  # opposite sign
  *             if l > lmax:             # <<<<<<<<<<<<<<
  *                 lmax = l
  *             l = 1
  */
       }
 
-      /* "sastool/misc/cormap/schilling.pyx":136
+      /* "sastool/misc/cormap/schilling.pyx":141
  *             if l > lmax:
  *                 lmax = l
  *             l = 1             # <<<<<<<<<<<<<<
- *             sgn = diag[i]
- *     if l > lmax:
+ *             sgn = cormap[rowindex, i]
+ *         else:  # cormap[rowindex, i] == 0, disregard this.
  */
       __pyx_v_l = 1;
 
-      /* "sastool/misc/cormap/schilling.pyx":137
+      /* "sastool/misc/cormap/schilling.pyx":142
  *                 lmax = l
  *             l = 1
- *             sgn = diag[i]             # <<<<<<<<<<<<<<
+ *             sgn = cormap[rowindex, i]             # <<<<<<<<<<<<<<
+ *         else:  # cormap[rowindex, i] == 0, disregard this.
+ *             pass
+ */
+      __pyx_t_14 = __pyx_v_rowindex;
+      __pyx_t_15 = __pyx_v_i;
+      if (__pyx_t_14 < 0) __pyx_t_14 += __pyx_pybuffernd_cormap.diminfo[0].shape;
+      if (__pyx_t_15 < 0) __pyx_t_15 += __pyx_pybuffernd_cormap.diminfo[1].shape;
+      __pyx_v_sgn = (*__Pyx_BufPtrStrided2d(__pyx_t_5numpy_double_t *, __pyx_pybuffernd_cormap.rcbuffer->pybuffer.buf, __pyx_t_14, __pyx_pybuffernd_cormap.diminfo[0].strides, __pyx_t_15, __pyx_pybuffernd_cormap.diminfo[1].strides));
+
+      /* "sastool/misc/cormap/schilling.pyx":138
+ *         if sgn * cormap[rowindex, i] > 0:  # same sign
+ *             l += 1
+ *         elif (sgn == 0) or (sgn * cormap[rowindex, i] < 0):  # opposite sign             # <<<<<<<<<<<<<<
+ *             if l > lmax:
+ *                 lmax = l
+ */
+      goto __pyx_L10;
+    }
+
+    /* "sastool/misc/cormap/schilling.pyx":144
+ *             sgn = cormap[rowindex, i]
+ *         else:  # cormap[rowindex, i] == 0, disregard this.
+ *             pass             # <<<<<<<<<<<<<<
  *     if l > lmax:
  *         lmax = l
  */
-      __pyx_t_6 = __pyx_v_i;
-      if (__pyx_t_6 < 0) __pyx_t_6 += __pyx_pybuffernd_diag.diminfo[0].shape;
-      __pyx_v_sgn = (*__Pyx_BufPtrStrided1d(__pyx_t_5numpy_double_t *, __pyx_pybuffernd_diag.rcbuffer->pybuffer.buf, __pyx_t_6, __pyx_pybuffernd_diag.diminfo[0].strides));
+    /*else*/ {
     }
-    __pyx_L5:;
+    __pyx_L10:;
   }
 
-  /* "sastool/misc/cormap/schilling.pyx":138
- *             l = 1
- *             sgn = diag[i]
+  /* "sastool/misc/cormap/schilling.pyx":145
+ *         else:  # cormap[rowindex, i] == 0, disregard this.
+ *             pass
  *     if l > lmax:             # <<<<<<<<<<<<<<
  *         lmax = l
  *     return lmax
  */
-  __pyx_t_5 = ((__pyx_v_l > __pyx_v_lmax) != 0);
-  if (__pyx_t_5) {
+  __pyx_t_1 = ((__pyx_v_l > __pyx_v_lmax) != 0);
+  if (__pyx_t_1) {
 
-    /* "sastool/misc/cormap/schilling.pyx":139
- *             sgn = diag[i]
+    /* "sastool/misc/cormap/schilling.pyx":146
+ *             pass
  *     if l > lmax:
  *         lmax = l             # <<<<<<<<<<<<<<
  *     return lmax
  */
     __pyx_v_lmax = __pyx_v_l;
 
-    /* "sastool/misc/cormap/schilling.pyx":138
- *             l = 1
- *             sgn = diag[i]
+    /* "sastool/misc/cormap/schilling.pyx":145
+ *         else:  # cormap[rowindex, i] == 0, disregard this.
+ *             pass
  *     if l > lmax:             # <<<<<<<<<<<<<<
  *         lmax = l
  *     return lmax
  */
   }
 
-  /* "sastool/misc/cormap/schilling.pyx":140
+  /* "sastool/misc/cormap/schilling.pyx":147
  *     if l > lmax:
  *         lmax = l
  *     return lmax             # <<<<<<<<<<<<<<
  */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_7 = PyInt_FromSsize_t(__pyx_v_lmax); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 140, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_7);
-  __pyx_r = __pyx_t_7;
-  __pyx_t_7 = 0;
+  __pyx_t_5 = PyInt_FromSsize_t(__pyx_v_lmax); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 147, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_5);
+  __pyx_r = __pyx_t_5;
+  __pyx_t_5 = 0;
   goto __pyx_L0;
 
   /* "sastool/misc/cormap/schilling.pyx":123
  *         return result
  * 
- * def longest_edge(np.ndarray[np.double_t, ndim=1] diag):             # <<<<<<<<<<<<<<
- *     """Calculate the longest edge length in a correlation map, based
- *     on the diagonal of the cormap matrix, supplied in `diag`.
+ * def longest_edge(np.ndarray[np.double_t, ndim=2] cormap):             # <<<<<<<<<<<<<<
+ *     """Calculate the longest edge length in a correlation map.
+ *     """
  */
 
   /* function exit code */
   __pyx_L1_error:;
-  __Pyx_XDECREF(__pyx_t_7);
+  __Pyx_XDECREF(__pyx_t_5);
   { PyObject *__pyx_type, *__pyx_value, *__pyx_tb;
     __Pyx_PyThreadState_declare
     __Pyx_PyThreadState_assign
     __Pyx_ErrFetch(&__pyx_type, &__pyx_value, &__pyx_tb);
-    __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_diag.rcbuffer->pybuffer);
+    __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_cormap.rcbuffer->pybuffer);
   __Pyx_ErrRestore(__pyx_type, __pyx_value, __pyx_tb);}
   __Pyx_AddTraceback("sastool.misc.cormap.schilling.longest_edge", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   goto __pyx_L2;
   __pyx_L0:;
-  __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_diag.rcbuffer->pybuffer);
+  __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_cormap.rcbuffer->pybuffer);
   __pyx_L2:;
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
@@ -5893,8 +6027,8 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_RuntimeError, __pyx_k_RuntimeError, sizeof(__pyx_k_RuntimeError), 0, 0, 1, 1},
   {&__pyx_n_s_ValueError, __pyx_k_ValueError, sizeof(__pyx_k_ValueError), 0, 0, 1, 1},
   {&__pyx_n_s_amatrix, __pyx_k_amatrix, sizeof(__pyx_k_amatrix), 0, 0, 1, 1},
+  {&__pyx_n_s_cormap, __pyx_k_cormap, sizeof(__pyx_k_cormap), 0, 0, 1, 1},
   {&__pyx_n_s_cormap_pval, __pyx_k_cormap_pval, sizeof(__pyx_k_cormap_pval), 0, 0, 1, 1},
-  {&__pyx_n_s_diag, __pyx_k_diag, sizeof(__pyx_k_diag), 0, 0, 1, 1},
   {&__pyx_n_s_double, __pyx_k_double, sizeof(__pyx_k_double), 0, 0, 1, 1},
   {&__pyx_n_s_empty, __pyx_k_empty, sizeof(__pyx_k_empty), 0, 0, 1, 1},
   {&__pyx_n_s_half_pow_x, __pyx_k_half_pow_x, sizeof(__pyx_k_half_pow_x), 0, 0, 1, 1},
@@ -5918,6 +6052,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_pmatrix, __pyx_k_pmatrix, sizeof(__pyx_k_pmatrix), 0, 0, 1, 1},
   {&__pyx_n_s_range, __pyx_k_range, sizeof(__pyx_k_range), 0, 0, 1, 1},
   {&__pyx_n_s_result, __pyx_k_result, sizeof(__pyx_k_result), 0, 0, 1, 1},
+  {&__pyx_n_s_rowindex, __pyx_k_rowindex, sizeof(__pyx_k_rowindex), 0, 0, 1, 1},
   {&__pyx_n_s_sastool_misc_cormap_schilling, __pyx_k_sastool_misc_cormap_schilling, sizeof(__pyx_k_sastool_misc_cormap_schilling), 0, 0, 1, 1},
   {&__pyx_n_s_sgn, __pyx_k_sgn, sizeof(__pyx_k_sgn), 0, 0, 1, 1},
   {&__pyx_n_s_sum, __pyx_k_sum, sizeof(__pyx_k_sum), 0, 0, 1, 1},
@@ -6117,14 +6252,14 @@ static int __Pyx_InitCachedConstants(void) {
   /* "sastool/misc/cormap/schilling.pyx":123
  *         return result
  * 
- * def longest_edge(np.ndarray[np.double_t, ndim=1] diag):             # <<<<<<<<<<<<<<
- *     """Calculate the longest edge length in a correlation map, based
- *     on the diagonal of the cormap matrix, supplied in `diag`.
+ * def longest_edge(np.ndarray[np.double_t, ndim=2] cormap):             # <<<<<<<<<<<<<<
+ *     """Calculate the longest edge length in a correlation map.
+ *     """
  */
-  __pyx_tuple__22 = PyTuple_Pack(5, __pyx_n_s_diag, __pyx_n_s_l, __pyx_n_s_i, __pyx_n_s_lmax, __pyx_n_s_sgn); if (unlikely(!__pyx_tuple__22)) __PYX_ERR(0, 123, __pyx_L1_error)
+  __pyx_tuple__22 = PyTuple_Pack(7, __pyx_n_s_cormap, __pyx_n_s_l, __pyx_n_s_i, __pyx_n_s_lmax, __pyx_n_s_rowindex, __pyx_n_s_N, __pyx_n_s_sgn); if (unlikely(!__pyx_tuple__22)) __PYX_ERR(0, 123, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__22);
   __Pyx_GIVEREF(__pyx_tuple__22);
-  __pyx_codeobj__23 = (PyObject*)__Pyx_PyCode_New(1, 0, 5, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__22, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_home_wachaandras_PycharmProject, __pyx_n_s_longest_edge, 123, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__23)) __PYX_ERR(0, 123, __pyx_L1_error)
+  __pyx_codeobj__23 = (PyObject*)__Pyx_PyCode_New(1, 0, 7, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__22, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_home_wachaandras_PycharmProject, __pyx_n_s_longest_edge, 123, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__23)) __PYX_ERR(0, 123, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;
@@ -6332,9 +6467,9 @@ PyMODINIT_FUNC PyInit_schilling(void)
   /* "sastool/misc/cormap/schilling.pyx":123
  *         return result
  * 
- * def longest_edge(np.ndarray[np.double_t, ndim=1] diag):             # <<<<<<<<<<<<<<
- *     """Calculate the longest edge length in a correlation map, based
- *     on the diagonal of the cormap matrix, supplied in `diag`.
+ * def longest_edge(np.ndarray[np.double_t, ndim=2] cormap):             # <<<<<<<<<<<<<<
+ *     """Calculate the longest edge length in a correlation map.
+ *     """
  */
   __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_7sastool_4misc_6cormap_9schilling_11longest_edge, NULL, __pyx_n_s_sastool_misc_cormap_schilling); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 123, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
