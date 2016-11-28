@@ -57,10 +57,12 @@ class Loader(object, metaclass=abc.ABCMeta):
 
     def find_file(self, filename: str) -> str:
         """Find file in the path"""
+        tried = []
         for d in self._path:
             if os.path.exists(os.path.join(d, filename)):
+                tried.append(os.path.join(d, filename))
                 return os.path.join(d, filename)
-        raise FileNotFoundError(filename)
+        raise FileNotFoundError('Not found: {}. Tried: {}'.format(filename, ', '.join(tried)))
 
     @abc.abstractmethod
     def loadmask(self, name: str) -> np.ndarray:
