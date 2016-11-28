@@ -55,9 +55,11 @@ class Loader(object, metaclass=abc.ABCMeta):
     def loadexposure(self, fsn: int) -> Exposure:
         """Load the exposure for the given file sequence number."""
 
-    def find_file(self, filename: str) -> str:
+    def find_file(self, filename: str, strip_path: bool = True) -> str:
         """Find file in the path"""
         tried = []
+        if strip_path:
+            filename = os.path.split(filename)[-1]
         for d in self._path:
             if os.path.exists(os.path.join(d, filename)):
                 tried.append(os.path.join(d, filename))
