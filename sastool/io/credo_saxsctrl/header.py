@@ -202,7 +202,7 @@ class Header(classes2.Header):
     def maskname(self) -> Optional[str]:
         """Name of the mask matrix file."""
         try:
-            maskid = self._data['maskid'] + '.mat'
+            maskid = self._data['maskid']
             if not maskid.endswith('.mat'):
                 maskid = maskid + '.mat'
             return maskid
