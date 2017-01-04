@@ -28,7 +28,11 @@ class Loader(classes2.Loader):
         self._exposureclass = exposureclass
 
     def loadheader(self, fsn: int) -> Header:
-        return Header.new_from_file(self.find_file(self._exposureclass + '_%05d.param' % fsn, what='header'))
+        try:
+            filename = self.find_file(self._exposureclass + '_%05d.param' % fsn, what='header')
+        except FileNotFoundError:
+            filename = self.find_file(self._exposureclass + '_%05d.param.gz' % fsn, what='header')
+        return Header.new_from_file(filename)
 
     def loadexposure(self, fsn: int) -> Exposure:
         header = self.loadheader(fsn)

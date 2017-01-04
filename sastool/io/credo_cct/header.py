@@ -1,4 +1,5 @@
 import datetime
+import gzip
 import os
 import pickle
 from typing import Optional, Union, Dict
@@ -16,8 +17,14 @@ class Header(classes2.Header):
     @classmethod
     def new_from_file(cls, filename):
         self = cls()
-        with open(filename, 'rb') as f:
+        try:
+            if filename.endswith('.gz'):
+                f = gzip.open(filename, 'rb')
+            else:
+                f = open(filename, 'rb')
             self._data = pickle.load(f)
+        finally:
+            f.close()
         return self
 
     @property

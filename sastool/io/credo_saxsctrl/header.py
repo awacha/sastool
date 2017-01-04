@@ -1,4 +1,5 @@
 import datetime
+import gzip
 from typing import Optional, Union
 
 import dateutil.parser
@@ -14,7 +15,11 @@ class Header(classes2.Header):
     @classmethod
     def new_from_file(cls, filename):
         self = cls()
-        with open(filename, 'rt', encoding='utf-8') as f:
+        try:
+            if filename.endswith('.gz'):
+                f = gzip.open(filename, 'rt', encoding='utf-8')
+            else:
+                f = open(filename, 'rt', encoding='utf-8')
             for l in f:
                 if ':' not in l:
                     continue
@@ -45,6 +50,8 @@ class Header(classes2.Header):
                             continue
                     if left not in self._data:
                         raise ValueError("Cannot interpret line: %s" % l)
+        finally:
+            f.close()
         return self
 
     @property
