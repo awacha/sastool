@@ -57,8 +57,6 @@ class Loader(object, metaclass=abc.ABCMeta):
         if maskpath is None:
             maskpath = self._path
         self._maskpath = maskpath
-        print('Loader initialized. Headerpath: {}, Path: {}, Maskpath: {}'.format(self._headerpath, self._path,
-                                                                                  self._maskpath))
 
     @abc.abstractmethod
     def loadheader(self, fsn: int) -> Header:
