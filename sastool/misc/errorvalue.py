@@ -135,7 +135,7 @@ class ErrorValue(ArithmeticBase):
         except ValueError:
             return NotImplemented
         err = ((self.val ** (other.val - 1) * other.val * self.err) ** 2 +
-               (np.log(self.val) * self.val ** other.val * other.err) ** 2) ** 0.5
+               (np.log(np.abs(self.val)) * self.val ** other.val * other.err) ** 2) ** 0.5
         val = self.val ** other.val
         return type(self)(val, err)
 
