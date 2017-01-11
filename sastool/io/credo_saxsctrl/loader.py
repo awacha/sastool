@@ -14,14 +14,19 @@ class Loader(classes2.Loader):
                  maxfsn: int =200000):
         if processed:
             datasubdirs = ['eval2d', 'eval1d'] + [
-                os.path.join('eval2d', exposureclass+'_{:d}'.format(idx)) for idx in range(maxfsn//10000)]
+                os.path.join('eval2d', exposureclass + '_{:d}'.format(idx)) for idx in range(maxfsn // 10000)] + \
+                          [os.path.join('eval2d', exposureclass)]
             headersubdirs = datasubdirs
         else:
-            datasubdirs = [os.path.join('images', exposureclass+'_{:d}'.format(idx)) for idx in range(maxfsn//10000)] + ['images']
+            datasubdirs = [os.path.join('images', exposureclass + '_{:d}'.format(idx))
+                           for idx in range(maxfsn // 10000)] + [
+                              os.path.join('images', exposureclass), 'images']
             headersubdirs = [os.path.join('param_override', exposureclass+'_{:d}'.format(idx))
-                             for idx in range(maxfsn/10000)] + ['param_override'] + \
+                             for idx in range(maxfsn / 10000)] + [
+                                os.path.join('param_override', exposureclass), 'param_override'] + \
                             [os.path.join('param', exposureclass+'_{:d}'.format(idx))
-                             for idx in range(maxfsn//10000)]  + ['param']
+                             for idx in range(maxfsn // 10000)] + [
+                                os.path.join('param', exposureclass), 'param']
         basedir = os.path.expanduser(basedir)
         basepath = [os.path.join(basedir, sd) for sd in datasubdirs]
         headerpath = [os.path.join(basedir, sd) for sd in headersubdirs]
