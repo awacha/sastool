@@ -51,7 +51,10 @@ class Header(classes2.Header):
                     if left not in self._data:
                         raise ValueError("Cannot interpret line: %s" % l)
         finally:
-            f.close()
+            try:
+                f.close()
+            except UnboundLocalError:
+                pass
         return self
 
     @property

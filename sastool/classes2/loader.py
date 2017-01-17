@@ -74,6 +74,8 @@ class Loader(object, metaclass=abc.ABCMeta):
             path = self._headerpath
         elif what == 'mask':
             path = self._maskpath
+        else:
+            path = self._path
         tried = []
         if strip_path:
             filename = os.path.split(filename)[-1]
@@ -93,7 +95,7 @@ class Loader(object, metaclass=abc.ABCMeta):
 
     def get_subpath(self, subpath: str):
         """Search a file or directory relative to the base path"""
-        for d in self.basedir:
+        for d in self._path:
             if os.path.exists(os.path.join(d, subpath)):
                 return os.path.join(d, subpath)
         raise FileNotFoundError

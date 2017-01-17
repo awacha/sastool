@@ -24,7 +24,10 @@ class Header(classes2.Header):
                 f = open(filename, 'rb')
             self._data = pickle.load(f)
         finally:
-            f.close()
+            try:
+                f.close()
+            except UnboundLocalError:
+                pass
         return self
 
     @property
