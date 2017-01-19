@@ -27,7 +27,7 @@ class Loader(classes2.Loader):
                              for idx in range(maxfsn // 10000)] + [
                                 os.path.join('param', exposureclass), 'param']
         basedir = os.path.expanduser(basedir)
-        basepath = [os.path.join(basedir, sd) for sd in datasubdirs]
+        basepath = [basedir] + [os.path.join(basedir, sd) for sd in datasubdirs]
         headerpath = [os.path.join(basedir, sd) for sd in headersubdirs]
         maskpath = []
         for d, sds, fs in os.walk(os.path.join(basedir, 'mask'), followlinks=True):
