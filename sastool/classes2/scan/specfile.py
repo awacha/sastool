@@ -90,7 +90,7 @@ class SpecFile(object):
                 if l.startswith('#F '):
                     self.original_filename = l.split(None, 1)[1]
                 elif l.startswith('#E '):
-                    self.epoch = int(l.split(None, 1)[1])
+                    self.epoch = float(l.split(None, 1)[1])
                 elif l.startswith('#D '):
                     self.datecreated = dateutil.parser.parse(l.split(None, 1)[1])
                 elif l.startswith('#C '):
