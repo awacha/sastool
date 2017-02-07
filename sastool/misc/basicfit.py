@@ -4,10 +4,12 @@ Created on Jul 25, 2012
 @author: andris
 '''
 
+import warnings
+
 import numpy as np
+
 from .easylsq import nlsq_fit
 from .errorvalue import ErrorValue
-import warnings
 
 __all__ = ['findpeak', 'findpeak_single', 'findpeak_multi']
 
@@ -33,7 +35,9 @@ def findpeak(x, y, dy=None, position=None, hwhm=None, baseline=None, amplitude=N
     pos, hwhm, baseline, ampl = findpeak_single(x, y, dy, position, hwhm, baseline, amplitude, curve)
     return pos.val, pos.err, hwhm.val, hwhm.err, baseline.val, baseline.err, ampl.val, ampl.err
 
-def findpeak_single(x, y, dy=None, position=None, hwhm=None, baseline=None, amplitude=None, curve='Lorentz', return_stat=False, signs=(-1,1)):
+
+def findpeak_single(x, y, dy=None, position=None, hwhm=None, baseline=None, amplitude=None, curve='Lorentz',
+                    return_stat=False, signs=(-1, 1), return_x=None):
     """Find a (positive or negative) peak in the dataset.
 
     Inputs:
@@ -42,10 +46,15 @@ def findpeak_single(x, y, dy=None, position=None, hwhm=None, baseline=None, ampl
         curve: 'Gauss' or 'Lorentz' (default)
         return_stat: return fitting statistics from easylsq.nlsq_fit()
         signs: a tuple, can be (1,), (-1,), (1,-1). Will try these signs for the peak amplitude
-        
+        return_x: abscissa on which the fitted function form has to be evaluated
+
     Outputs:
-        peak position, hwhm, baseline, amplitude as ErrorValue instances and the statistics 
-        dictionary if requested.
+        peak position, hwhm, baseline, amplitude[, stat][, peakfunction]
+
+        where:
+            peak position, hwhm, baseline, amplitude are ErrorValue instances.
+            stat is the statistics dictionary, returned only if return_stat is True
+            peakfunction is the fitted peak evaluated at return_x if it is not None.
 
     Notes:
         A Gauss or a Lorentz curve is fitted, depending on the value of 'curve'. The abscissa
@@ -74,12 +83,14 @@ def findpeak_single(x, y, dy=None, position=None, hwhm=None, baseline=None, ampl
                                                    init_params['baseline']))+(sign,))
     max_R2=max([r[2]['R2'] for r in results])
     p,dp,stat,sign=[r for r in results if r[2]['R2']==max_R2][0]
+    retval = [ErrorValue(p[1], dp[1]), ErrorValue(abs(p[2]), dp[2]), sign * ErrorValue(p[3], dp[3]),
+              sign * ErrorValue(p[0], dp[0])]
     if return_stat:
         stat['func_value'] = stat['func_value'] * sign
-        return ErrorValue(p[1], dp[1]), ErrorValue(abs(p[2]), dp[2]), sign * ErrorValue(p[3], dp[3]), sign * ErrorValue(p[0], dp[0]), stat
-    else:
-        return ErrorValue(p[1], dp[1]), ErrorValue(abs(p[2]), dp[2]), sign * ErrorValue(p[3], dp[3]), sign * ErrorValue(p[0], dp[0])
-
+        retval.append(stat)
+    if return_x is not None:
+        retval.append(sign * fitfunc(return_x, p[0], p[1], p[2], p[3]))
+    return tuple(retval)
 
 def findpeak_multi(x, y, dy, N, Ntolerance, Nfit=None, curve='Lorentz', return_xfit=False, return_stat=False):
     """Find multiple peaks in the dataset given by vectors x and y.
