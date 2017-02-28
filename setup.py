@@ -43,4 +43,16 @@ setup(
     keywords="saxs sans sas small-angle scattering x-ray neutron",
     license="BSD 3-clause",
     zip_safe=False,
+    classifiers = [
+    'Development Status :: 4 - Beta',
+    'Environment :: Console',
+    'Intended Audience :: Science/Research',
+    'License :: OSI Approved :: BSD License',
+    'Natural Language :: English', 
+    'Operating System :: POSIX',
+    'Operating System :: Microsoft :: Windows',
+    'Operating System :: POSIX :: Linux',
+    'Operating System :: MacOS',
+    'Programming Language :: Python :: 3',
+    ]
 )
