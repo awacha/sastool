@@ -1,9 +1,9 @@
 import sys
 import warnings
-from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
+from typing import Optional
 
 from ..misc.arithmetic import ArithmeticBase
 from ..misc.basicfit import findpeak_single
@@ -60,7 +60,7 @@ class Curve(ArithmeticBase):
         return type(self)(self.q[idx], self.Intensity[idx],
                           self.Error[idx], self.qError[idx])
 
-    def fit(self, fitfunction, parinit, *args, **kwargs):
+    def fit(self, fitfunction, parinit, unfittableparameters=(), *args, **kwargs):
         """Perform a nonlinear least-squares fit, using sastool.misc.fitter.Fitter()
 
         Other arguments and keyword arguments will be passed through to the
@@ -79,7 +79,7 @@ class Curve(ArithmeticBase):
         fittable = [not isinstance(p, FixedParameter) for p in parinit]
         fixedvalues = [[parinit[i], None][fittable[i]] for i in range(len(fittable))]
         fitter.fixparameters(fixedvalues)
-        fitter.fit()
+        fitter.fit(otherargs=unfittableparameters)
         pars = fitter.parameters()
         uncs = fitter.uncertainties()
         stats = fitter.stats()

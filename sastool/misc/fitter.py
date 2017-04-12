@@ -12,7 +12,7 @@ __all__ = ['Fitter']
 class Fitter:
     def __init__(self, function, parameters, x, y, dx=None, dy=None, lbounds=None, ubounds=None, ytransform=None,
                  loss=None,
-                 method=None):
+                 method=None, otherparameters=None):
         """Class representing a nonlinear least-squares fitting of a dataset
 
         Inputs:
@@ -36,6 +36,8 @@ class Fitter:
                 before starting the fit.
             loss: The loss function, see scipy.optimize.least_squares
             method: fit method, see scipy.optimize.least_squares
+            otherparameters: other parameters for the fit function, appended at
+                the end of the fittable parameters in `parameters`
 
         In order to carry out the fitting, call the fit() method.
         """
@@ -67,7 +69,7 @@ class Fitter:
     def checkBounds(self):
         return all([lb <= p <= ub for p, lb, ub in zip(self.freeParameters(), self.freeLbounds(), self.freeUbounds())])
 
-    def fit(self, loss=None, method=None):
+    def fit(self, loss=None, method=None, otherargs=(), otherkwargs={}):
         starttime = time.monotonic()
         kwargs = {}
         if not self.checkBounds():
@@ -82,7 +84,7 @@ class Fitter:
             kwargs['method'] = method
         result = least_squares(
             self._fitfunction(), self.freeParameters(),
-            bounds=(self.freeLbounds(), self.freeUbounds()), **kwargs)
+            bounds=(self.freeLbounds(), self.freeUbounds()), args=otherargs, kwargs=otherkwargs, **kwargs)
         assert isinstance(result, OptimizeResult)
         self._stats = {'success': result.success, 'result': result, 'message': result.message, 'status': result.status,
                        'time': time.monotonic() - starttime, 'nfev': result.nfev, 'njev': result.njev,
@@ -243,18 +245,24 @@ class Fitter:
             y = np.log(y[idx])
             x = x[idx]
             if dy is None:
-                def func(args):
-                    return y - np.log(self._function(x, *self._substitute_fixed_parameters(args.tolist())))
+                def func(args, *otherargs, **otherkwargs):
+                    return y - np.log(
+                        self._function(x, *(self._substitute_fixed_parameters(args.tolist())) + otherargs),
+                        **otherkwargs)
             else:
-                def func(args):
-                    return (y - np.log(self._function(x, *self._substitute_fixed_parameters(args.tolist())))) / dy
+                def func(args, *otherargs, **otherkwargs):
+                    return (y - np.log(
+                        self._function(x, *(self._substitute_fixed_parameters(args.tolist()) + otherargs),
+                                       **otherkwargs))) / dy
         else:
             if dy is None:
-                def func(args):
-                    return y - self._function(x, *self._substitute_fixed_parameters(args.tolist()))
+                def func(args, *otherargs, **otherkwargs):
+                    return y - self._function(x, *(self._substitute_fixed_parameters(args.tolist()) + otherargs),
+                                              **otherkwargs)
             else:
-                def func(args):
-                    return (y - self._function(x, *self._substitute_fixed_parameters(args.tolist()))) / dy
+                def func(args, *otherargs, **otherkwargs):
+                    return (y - self._function(x, *(self._substitute_fixed_parameters(args.tolist()) + otherargs),
+                                               **otherkwargs)) / dy
         return func
 
     def evaluateFunction(self):
