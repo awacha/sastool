@@ -1,5 +1,4 @@
 import abc
-from typing import Optional, Tuple
 
 import matplotlib
 import matplotlib.axes
@@ -7,6 +6,7 @@ import matplotlib.cm
 import matplotlib.colors
 import numpy as np
 from matplotlib import pyplot as plt
+from typing import Optional, Tuple
 
 from .curve import Curve
 from .header import Header
@@ -179,7 +179,7 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
             axes.plot([xmin, xmax], [bcy] * 2, 'w-')
             axes.plot([bcx] * 2, [ymin, ymax], 'w-')
             axes.axis(ax)  # restore zoom state
-        axes.set_axis_bgcolor(invalid_color)
+        axes.set_facecolor(invalid_color)
         if show_colorbar:
             if isinstance(show_colorbar, matplotlib.axes.Axes):
                 axes.figure.colorbar(
