@@ -43,6 +43,7 @@ class Fitter:
         """
         self.ytransform = ytransform
         self._function = function
+        self._unfittable_parameters = otherparameters
         self._parameters = parameters
         self._fixed_parameters = [None] * len(parameters)
         self._covariance = np.zeros((len(parameters), len(parameters)))
@@ -69,7 +70,7 @@ class Fitter:
     def checkBounds(self):
         return all([lb <= p <= ub for p, lb, ub in zip(self.freeParameters(), self.freeLbounds(), self.freeUbounds())])
 
-    def fit(self, loss=None, method=None, otherargs=(), otherkwargs={}):
+    def fit(self, loss=None, method=None):
         starttime = time.monotonic()
         kwargs = {}
         if not self.checkBounds():
@@ -84,7 +85,7 @@ class Fitter:
             kwargs['method'] = method
         result = least_squares(
             self._fitfunction(), self.freeParameters(),
-            bounds=(self.freeLbounds(), self.freeUbounds()), args=otherargs, kwargs=otherkwargs, **kwargs)
+            bounds=(self.freeLbounds(), self.freeUbounds()), args=self._unfittable_parameters, **kwargs)
         assert isinstance(result, OptimizeResult)
         self._stats = {'success': result.success, 'result': result, 'message': result.message, 'status': result.status,
                        'time': time.monotonic() - starttime, 'nfev': result.nfev, 'njev': result.njev,
@@ -266,7 +267,7 @@ class Fitter:
         return func
 
     def evaluateFunction(self):
-        return self._function(self.x(), *self._parameters)
+        return self._function(self.x(), *(list(self._parameters) + list(self._unfittable_parameters)))
 
     def covarianceMatrix(self):
         return self._covariance

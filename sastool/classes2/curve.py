@@ -75,11 +75,12 @@ class Curve(ArithmeticBase):
             dictionary and the fitted curve instance of the same type as
             this)
         """
+        kwargs['otherparameters'] = unfittableparameters
         fitter = Fitter(fitfunction, parinit, self.q, self.Intensity, self.qError, self.Error, *args, **kwargs)
         fittable = [not isinstance(p, FixedParameter) for p in parinit]
         fixedvalues = [[parinit[i], None][fittable[i]] for i in range(len(fittable))]
         fitter.fixparameters(fixedvalues)
-        fitter.fit(otherargs=unfittableparameters)
+        fitter.fit()
         pars = fitter.parameters()
         uncs = fitter.uncertainties()
         stats = fitter.stats()
