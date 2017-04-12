@@ -247,21 +247,21 @@ class Fitter:
             if dy is None:
                 def func(args, *otherargs, **otherkwargs):
                     return y - np.log(
-                        self._function(x, *(self._substitute_fixed_parameters(args.tolist())) + otherargs),
+                        self._function(x, *(self._substitute_fixed_parameters(args.tolist())) + list(otherargs)),
                         **otherkwargs)
             else:
                 def func(args, *otherargs, **otherkwargs):
                     return (y - np.log(
-                        self._function(x, *(self._substitute_fixed_parameters(args.tolist()) + otherargs),
+                        self._function(x, *(self._substitute_fixed_parameters(args.tolist()) + list(otherargs)),
                                        **otherkwargs))) / dy
         else:
             if dy is None:
                 def func(args, *otherargs, **otherkwargs):
-                    return y - self._function(x, *(self._substitute_fixed_parameters(args.tolist()) + otherargs),
+                    return y - self._function(x, *(self._substitute_fixed_parameters(args.tolist()) + list(otherargs)),
                                               **otherkwargs)
             else:
                 def func(args, *otherargs, **otherkwargs):
-                    return (y - self._function(x, *(self._substitute_fixed_parameters(args.tolist()) + otherargs),
+                    return (y - self._function(x, *(self._substitute_fixed_parameters(args.tolist()) + list(otherargs)),
                                                **otherkwargs)) / dy
         return func
 
