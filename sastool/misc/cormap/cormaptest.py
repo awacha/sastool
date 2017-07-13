@@ -17,7 +17,7 @@ def cormap(*intensities):
     correl = np.dot(Ired.T, Ired) / (Ired.shape[0] - 1)
     # do something about sigma==0 cases
     sigma2 = np.outer(sigma, sigma)
-    assert np.abs((correl == 0) - (sigma2 == 0)).sum() == 0
+    # assert np.abs((correl == 0) - (sigma2 == 0)).sum() == 0
     sigma2[sigma2 == 0] = 1
     return correl / sigma2
 
