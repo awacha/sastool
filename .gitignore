@@ -10,3 +10,9 @@ tests/centering
 __pycache__
 .pydevproject
 /.eggs
+/conda_build.sh
+/sastool/fitting/fitfunctions/c_fitfunction.c
+/sastool/io/c_io.c
+/sastool/misc/cormap/schilling.c
+/sastool/sim/c_sim.c
+/sastool/utils2d/c_integrate.c
