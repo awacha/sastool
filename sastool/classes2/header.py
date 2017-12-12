@@ -18,55 +18,68 @@ class Header(object, metaclass=abc.ABCMeta):
         else:
             self._data = headerdict
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def title(self) -> str:
         """Sample name"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def fsn(self) -> int:
         """File sequence number """
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def energy(self) -> ErrorValue:
         """X-ray energy"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def wavelength(self) -> ErrorValue:
         """X-ray wavelength"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def distance(self) -> ErrorValue:
         """Sample-to-detector distance"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def temperature(self) -> Optional[ErrorValue]:
         """Sample temperature"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def beamcenterx(self) -> ErrorValue:
         """X (column) coordinate of the beam center, pixel units, 0-based."""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def beamcentery(self) -> ErrorValue:
         """Y (row) coordinate of the beam center, pixel units, 0-based."""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def pixelsizex(self) -> ErrorValue:
         """X (column) size of a pixel, in mm units"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def pixelsizey(self) -> ErrorValue:
         """Y (row) size of a pixel, in mm units"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def exposuretime(self) -> ErrorValue:
         """Exposure time in seconds"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def date(self) -> datetime.datetime:
         """Date of the experiment (start of exposure)"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def maskname(self) -> Optional[str]:
         """Name of the mask matrix file."""
 
@@ -74,32 +87,39 @@ class Header(object, metaclass=abc.ABCMeta):
     def new_from_file(self, filename):
         """Load a header from a file."""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def transmission(self) -> ErrorValue:
         """Sample transmission."""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def vacuum(self) -> ErrorValue:
         """Vacuum pressure around the sample"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def flux(self) -> ErrorValue:
         """X-ray flux in photons/sec."""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def thickness(self) -> ErrorValue:
         """Sample thickness in cm"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def distancedecrease(self) -> ErrorValue:
         """Distance by which the sample is nearer to the detector than the
         distance calibration sample"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def samplex(self) -> ErrorValue:
         """Horizontal sample position"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def sampley(self) -> ErrorValue:
         """Vertical sample position"""
 
@@ -107,23 +127,28 @@ class Header(object, metaclass=abc.ABCMeta):
     def motorposition(self, motorname: str) -> float:
         """Position of the motor `motorname`."""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def username(self) -> str:
         """Name of the instrument operator"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def project(self) -> str:
         """Project name"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def fsn_emptybeam(self) -> int:
         """File sequence number of the empty beam measurement"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def fsn_absintref(self) -> int:
         """File sequence number of the absolute intensity reference measurement
         """
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def absintfactor(self) -> ErrorValue:
         """Absolute intensity calibration factor"""

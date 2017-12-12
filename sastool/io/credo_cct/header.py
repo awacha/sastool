@@ -104,7 +104,13 @@ class Header(classes2.Header):
     @property
     def beamcenterx(self) -> ErrorValue:
         """X (column) coordinate of the beam center, pixel units, 0-based."""
-        return ErrorValue(self._data['geometry']['beamposy'], 0)
+        try:
+            return ErrorValue(self._data['geometry']['beamposy'],
+                              self._data['geometry']['beamposy.err'])
+        except KeyError:
+            return ErrorValue(self._data['geometry']['beamposy'],
+                              0.0)
+
 
     @beamcenterx.setter
     def beamcenterx(self, value: Union[float, ErrorValue]):
@@ -116,7 +122,12 @@ class Header(classes2.Header):
     @property
     def beamcentery(self) -> ErrorValue:
         """Y (row) coordinate of the beam center, pixel units, 0-based."""
-        return ErrorValue(self._data['geometry']['beamposx'], 0)
+        try:
+            return ErrorValue(self._data['geometry']['beamposx'],
+                              self._data['geometry']['beamposx.err'])
+        except KeyError:
+            return ErrorValue(self._data['geometry']['beamposx'],
+                              0.0)
 
     @beamcentery.setter
     def beamcentery(self, value: Union[float, ErrorValue]):

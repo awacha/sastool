@@ -1,7 +1,11 @@
 import numpy as np
-from .integrate import radintpix, azimintpix, radint_nsector
 import scipy.optimize
+
+from .c_fastpixelint import pixelintegrate
+from .integrate import radintpix, azimintpix, radint_nsector
 from .. import misc
+from ..misc.basicfit import findpeak_asymmetric
+from ..misc.errorvalue import ErrorValue
 
 
 def findbeam_gravity(data, mask):
@@ -384,7 +388,7 @@ def findbeam_powerlaw(data, orig_initial, mask, rmin, rmax, maxiter=100,
             pix, I, E, lambda q, A, alpha: A * q ** alpha, [1.0, -3.0])
         if callback is not None:
             callback()
-        print(orig, orig_orig, orig + orig_orig, stat[drive_by])
+        #        print(orig, orig_orig, orig + orig_orig, stat[drive_by])
         if drive_by == 'R2':
             return 1 - stat['R2']
         elif drive_by.startswith('Chi2'):
@@ -394,3 +398,20 @@ def findbeam_powerlaw(data, orig_initial, mask, rmin, rmax, maxiter=100,
                                     data, mask, orig_initial - extent, callback),
                                 maxiter=maxiter, disp=0)
     return np.array(orig_initial) - extent + orig1
+
+
+def findbeam_radialpeakheight(matrix, orig_initial, mask, rmin, rmax):
+    beamrow, beamcol = orig_initial
+
+    def targetfunc(pos, matrix, mask, rmin, rmax, posorig):
+        I = pixelintegrate(matrix, mask, posorig[0] + pos[0], posorig[1] + pos[1], rmin, rmax)
+        x0, sigma1, sigma2, C, A = findpeak_asymmetric(np.arange(rmin, rmax + 1), I)
+        return -(A + C)
+
+    res = scipy.optimize.minimize(
+        targetfunc, [0, 0], args=(matrix, mask, float(rmin), float(rmax), [float(beamrow), float(beamcol)]),
+        method='bfgs',
+        options={'eps': 0.1})
+    res.x = (res.x[0] + beamrow, res.x[1] + beamcol)
+    return ErrorValue(res.x[0] + beamrow, res.hess_inv[0, 0] ** 0.5), ErrorValue(res.x[1] + beamcol,
+                                                                                 res.hess_inv[1, 1] ** 0.5)

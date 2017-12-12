@@ -1,4 +1,5 @@
 import abc
+from typing import Optional, Tuple
 
 import matplotlib
 import matplotlib.axes
@@ -6,7 +7,6 @@ import matplotlib.cm
 import matplotlib.colors
 import numpy as np
 from matplotlib import pyplot as plt
-from typing import Optional, Tuple
 
 from .curve import Curve
 from .header import Header
@@ -95,10 +95,11 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
 
         Coordinates are 0-based and calculated from the top left corner.
         """
-        qrow = 4 * np.pi * np.sin(0.5 * np.arctan(float(
+        qrow = 4 * np.pi * np.sin(
+            0.5 * np.arctan(
                 (row - float(self.header.beamcentery)) *
                 float(self.header.pixelsizey) /
-                float(self.header.distance)))) / float(self.header.wavelength)
+                float(self.header.distance))) / float(self.header.wavelength)
         qcol = 4 * np.pi * np.sin(0.5 * np.arctan(
                 (column - float(self.header.beamcenterx)) *
                 float(self.header.pixelsizex) /

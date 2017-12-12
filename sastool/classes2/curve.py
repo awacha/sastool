@@ -1,9 +1,9 @@
 import sys
 import warnings
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
-from typing import Optional
 
 from ..misc.arithmetic import ArithmeticBase
 from ..misc.basicfit import findpeak_single
@@ -77,8 +77,7 @@ class Curve(ArithmeticBase):
         """
         kwargs['otherparameters'] = unfittableparameters
         fitter = Fitter(fitfunction, parinit, self.q, self.Intensity, self.qError, self.Error, *args, **kwargs)
-        fittable = [not isinstance(p, FixedParameter) for p in parinit]
-        fixedvalues = [[parinit[i], None][fittable[i]] for i in range(len(fittable))]
+        fixedvalues = [[None, p][isinstance(p, FixedParameter)] for p in parinit]
         fitter.fixparameters(fixedvalues)
         fitter.fit()
         pars = fitter.parameters()
