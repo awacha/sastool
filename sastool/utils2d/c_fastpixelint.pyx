@@ -4,13 +4,9 @@ import numpy as np
 cimport numpy as np
 from libc.math cimport round
 from cython.parallel import prange
-cimport
-numpy as np
-import numpy as np
-from cython.parallel import prange
-from libc.math cimport
-
-round
+cimport numpy as np
+from libc.math cimport round
+from libc.stdlib cimport calloc, free
 
 cdef double* _pixelintegrate(double[:,:] matrix,
                   unsigned char[:,:] mask, Py_ssize_t Nrow, Py_ssize_t Ncol,
