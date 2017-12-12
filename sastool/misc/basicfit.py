@@ -7,6 +7,8 @@ Created on Jul 25, 2012
 import warnings
 
 import numpy as np
+import scipy.optimize
+from scipy.linalg import svd
 
 from .easylsq import nlsq_fit
 from .errorvalue import ErrorValue
@@ -172,3 +174,75 @@ def findpeak_multi(x, y, dy, N, Ntolerance, Nfit=None, curve='Lorentz', return_x
     if return_stat:
         results.append(stat)
     return tuple(results)
+
+
+def findpeak_asymmetric(x, y, dy=None, curve='Lorentz', return_x=None):
+    """Find an asymmetric Lorentzian peak.
+
+    Inputs:
+        x: numpy array of the abscissa
+        y: numpy array of the ordinate
+        dy: numpy array of the errors in y (or None if not present)
+        curve: string (case insensitive): if starts with "Lorentz",
+            a Lorentzian curve will be fitted. If starts with "Gauss",
+            a Gaussian will be fitted. Otherwise error.
+        return_x: numpy array of the x values at which the best
+            fitting peak function should be evaluated and returned
+
+    Results: amplitude, center, hwhm_left, hwhm_right, baseline [, y_fitted]
+        The fitted parameters are returned as floats if dy was None or
+        ErrorValue instances if dy was not None.
+        y_fitted is only returned if return_x was not None
+
+    Note:
+        1) The dataset must contain only the peak.
+        2) A positive peak will be fitted
+        3) The peak center must be in the given range
+    """
+    if curve.lower().startswith('loren'):
+        lorentzian = True
+    elif curve.lower().startswith('gauss'):
+        lorentzian = False
+    else:
+        raise ValueError('Unknown peak type {}'.format(curve))
+
+    def peakfunc(pars, x, lorentzian=True):
+        x0, sigma1, sigma2, C, A = pars
+        result = np.empty_like(x)
+        if lorentzian:
+            result[x < x0] = A * sigma1 ** 2 / (sigma1 ** 2 + (x0 - x[x < x0]) ** 2) + C
+            result[x >= x0] = A * sigma2 ** 2 / (sigma2 ** 2 + (x0 - x[x >= x0]) ** 2) + C
+        else:
+            result[x < x0] = A * np.exp(-(x[x < x0] - x0) ** 2 / (2 * sigma1 ** 2))
+            result[x >= x0] = A * np.exp(-(x[x >= x0] - x0) ** 2 / (2 * sigma1 ** 2))
+        return result
+
+    def fitfunc(pars, x, y, dy, lorentzian=True):
+        yfit = peakfunc(pars, x, lorentzian)
+        if dy is None:
+            return yfit - y
+        else:
+            return (yfit - y) / dy
+
+    baseline = min(y[0], y[-1])
+    amplitude = y.max() - baseline
+    hwhm = (x[1] - x[0]) * 0.5
+    pos = x[np.argmax(y)]
+    result = scipy.optimize.least_squares(fitfunc, [pos, hwhm, hwhm, baseline, amplitude],
+                                          args=(x, y, dy, lorentzian),
+                                          bounds=([x.min(), 0, 0, -np.inf, 0],
+                                                  [x.max(), np.inf, np.inf, np.inf, np.inf]))
+    if not result.success:
+        raise RuntimeError('Error while peak fitting: {}'.format(result.message))
+    if dy is None:
+        ret = (result.x[0], result.x[1], result.x[2], result.x[3], result.x[4])
+    else:
+        _, s, VT = svd(result.jac, full_matrices=False)
+        threshold = np.finfo(float).eps * max(result.jac.shape) * s[0]
+        s = s[s > threshold]
+        VT = VT[:s.size]
+        pcov = np.dot(VT.T / s ** 2, VT)
+        ret = tuple([ErrorValue(result.x[i], pcov[i, i] ** 0.5) for i in range(5)])
+    if return_x is not None:
+        ret = ret + (peakfunc([float(x) for x in ret], return_x, lorentzian),)
+    return ret
