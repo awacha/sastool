@@ -16,3 +16,5 @@ __pycache__
 /sastool/misc/cormap/schilling.c
 /sastool/sim/c_sim.c
 /sastool/utils2d/c_integrate.c
+/sastool/utils2d/c_fastpixelint.c
+
