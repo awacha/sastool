@@ -11,7 +11,7 @@ import warnings
 import matplotlib.colors
 import matplotlib.pyplot as plt
 import numpy as np
-from mpl_toolkits.axes_grid import make_axes_locatable
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from .common import SASExposureException
 from .curve import SASCurve, SASAzimuthalCurve, SASPixelCurve
