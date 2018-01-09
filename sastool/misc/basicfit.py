@@ -4,10 +4,9 @@ Created on Jul 25, 2012
 @author: andris
 '''
 
-import warnings
-
 import numpy as np
 import scipy.optimize
+import warnings
 from scipy.linalg import svd
 
 from .easylsq import nlsq_fit
@@ -224,9 +223,9 @@ def findpeak_asymmetric(x, y, dy=None, curve='Lorentz', return_x=None):
         else:
             return (yfit - y) / dy
 
-    baseline = min(y[0], y[-1])
+    baseline = y.min()
     amplitude = y.max() - baseline
-    hwhm = (x[1] - x[0]) * 0.5
+    hwhm = (x.max() - x.min()) * 0.5
     pos = x[np.argmax(y)]
     result = scipy.optimize.least_squares(fitfunc, [pos, hwhm, hwhm, baseline, amplitude],
                                           args=(x, y, dy, lorentzian),

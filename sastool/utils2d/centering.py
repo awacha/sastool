@@ -404,12 +404,13 @@ def findbeam_radialpeakheight(matrix, orig_initial, mask, rmin, rmax):
     beamrow, beamcol = orig_initial
 
     def targetfunc(pos, matrix, mask, rmin, rmax, posorig):
-        I = pixelintegrate(matrix, mask, posorig[0] + pos[0], posorig[1] + pos[1], rmin, rmax)
-        x0, sigma1, sigma2, C, A = findpeak_asymmetric(np.arange(rmin, rmax + 1), I)
+        I = pixelintegrate(matrix, mask, posorig[0] + pos[0], posorig[1] + pos[1], int(rmin), int(rmax))
+        x0, sigma1, sigma2, C, A = findpeak_asymmetric(np.arange(int(rmin), int(rmax) + 1), I)
         return -(A + C)
 
     res = scipy.optimize.minimize(
-        targetfunc, [0, 0], args=(matrix, mask, float(rmin), float(rmax), [float(beamrow), float(beamcol)]),
+        targetfunc, [0, 0],
+        args=(matrix, mask.astype(np.uint8), int(rmin), int(rmax), [float(beamrow), float(beamcol)]),
         method='bfgs',
         options={'eps': 0.1})
     res.x = (res.x[0] + beamrow, res.x[1] + beamcol)
