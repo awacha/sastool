@@ -403,14 +403,20 @@ def findbeam_powerlaw(data, orig_initial, mask, rmin, rmax, maxiter=100,
 def findbeam_radialpeakheight(matrix, orig_initial, mask, rmin, rmax):
     beamrow, beamcol = orig_initial
 
-    def targetfunc(pos, matrix, mask, rmin, rmax, posorig):
+    def targetfunc(pos, matrix, mask, rmin, rmax, posorig, state):
         I = pixelintegrate(matrix, mask, posorig[0] + pos[0], posorig[1] + pos[1], int(rmin), int(rmax))
-        x0, sigma1, sigma2, C, A = findpeak_asymmetric(np.arange(int(rmin), int(rmax) + 1), I)
-        return -(A + C)
+        if not state:
+            init_params = None
+        else:
+            init_params = state[0]
+        x0, sigma1, sigma2, C, A = findpeak_asymmetric(np.arange(int(rmin), int(rmax) + 1), I, init_parameters=init_params)
+        state[0]=[x0, sigma1, sigma2, C, A]
+        return -float(A + C)
 
+    state = []
     res = scipy.optimize.minimize(
-        targetfunc, [0, 0],
-        args=(matrix, mask.astype(np.uint8), int(rmin), int(rmax), [float(beamrow), float(beamcol)]),
+        targetfunc, np.array([0., 0.]),
+        args=(matrix, mask.astype(np.uint8), int(rmin), int(rmax), [float(beamrow), float(beamcol)], state),
         method='bfgs',
         options={'eps': 0.1})
     res.x = (res.x[0] + beamrow, res.x[1] + beamcol)

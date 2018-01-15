@@ -175,7 +175,7 @@ def findpeak_multi(x, y, dy, N, Ntolerance, Nfit=None, curve='Lorentz', return_x
     return tuple(results)
 
 
-def findpeak_asymmetric(x, y, dy=None, curve='Lorentz', return_x=None):
+def findpeak_asymmetric(x, y, dy=None, curve='Lorentz', return_x=None, init_parameters=None):
     """Find an asymmetric Lorentzian peak.
 
     Inputs:
@@ -187,8 +187,11 @@ def findpeak_asymmetric(x, y, dy=None, curve='Lorentz', return_x=None):
             a Gaussian will be fitted. Otherwise error.
         return_x: numpy array of the x values at which the best
             fitting peak function should be evaluated and returned
+        init_parameters: either None, or a list of [amplitude, center,
+            hwhm_left, hwhm_right, baseline]: initial parameters to
+            start fitting from.
 
-    Results: amplitude, center, hwhm_left, hwhm_right, baseline [, y_fitted]
+    Results: center, hwhm_left, hwhm_right, baseline, amplitude [, y_fitted]
         The fitted parameters are returned as floats if dy was None or
         ErrorValue instances if dy was not None.
         y_fitted is only returned if return_x was not None
@@ -198,6 +201,13 @@ def findpeak_asymmetric(x, y, dy=None, curve='Lorentz', return_x=None):
         2) A positive peak will be fitted
         3) The peak center must be in the given range
     """
+    idx = np.logical_and(np.isfinite(x), np.isfinite(y))
+    if dy is not None:
+        idx = np.logical_and(idx, np.isfinite(dy))
+    x=x[idx]
+    y=y[idx]
+    if dy is not None:
+        dy=dy[idx]
     if curve.lower().startswith('loren'):
         lorentzian = True
     elif curve.lower().startswith('gauss'):
@@ -222,15 +232,19 @@ def findpeak_asymmetric(x, y, dy=None, curve='Lorentz', return_x=None):
             return yfit - y
         else:
             return (yfit - y) / dy
-
-    baseline = y.min()
-    amplitude = y.max() - baseline
-    hwhm = (x.max() - x.min()) * 0.5
-    pos = x[np.argmax(y)]
-    result = scipy.optimize.least_squares(fitfunc, [pos, hwhm, hwhm, baseline, amplitude],
+    if init_parameters is not None:
+        pos, hwhmleft, hwhmright, baseline, amplitude = [float(x) for x in init_parameters]
+    else:
+        baseline = y.min()
+        amplitude = y.max() - baseline
+        hwhmleft = hwhmright = (x.max() - x.min()) * 0.5
+        pos = x[np.argmax(y)]
+    #print([pos,hwhm,hwhm,baseline,amplitude])
+    result = scipy.optimize.least_squares(fitfunc, [pos, hwhmleft, hwhmright, baseline, amplitude],
                                           args=(x, y, dy, lorentzian),
                                           bounds=([x.min(), 0, 0, -np.inf, 0],
                                                   [x.max(), np.inf, np.inf, np.inf, np.inf]))
+#    print(result.x[0], result.x[1], result.x[2], result.x[3], result.x[4], result.message, result.success)
     if not result.success:
         raise RuntimeError('Error while peak fitting: {}'.format(result.message))
     if dy is None:
