@@ -396,7 +396,7 @@ def findbeam_powerlaw(data, orig_initial, mask, rmin, rmax, maxiter=100,
     orig1 = scipy.optimize.fmin(targetfunc, np.array([extent, extent]),
                                 args=(
                                     data, mask, orig_initial - extent, callback),
-                                maxiter=maxiter, disp=0)
+                                maxiter=maxiter, disp=False)
     return np.array(orig_initial) - extent + orig1
 
 
