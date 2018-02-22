@@ -1,5 +1,5 @@
 import datetime
-import gzip
+import numpy as np
 from typing import Optional, Union, Dict
 import h5py
 
@@ -20,9 +20,12 @@ class Header(classes2.Header):
     @classmethod
     def new_from_group(cls, grp:h5py.Group):
         self = cls()
-        self._data = {}
+        self._data = {'fsn':0}
         for a in grp.attrs:
             self._data[a]=grp.attrs[a]
+        for a in list(self._data.keys()):
+            if isinstance(self._data[a], (float, np.number)) and (not a.endswith('.err')) and (a+'.err' not in self._data):
+                self._data[a+'.err'] = 0.0
         return self
 
     @property
