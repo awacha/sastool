@@ -202,11 +202,28 @@ class Header(classes2.Header):
     @property
     def date(self) -> datetime.datetime:
         """Date of the experiment (start of exposure)"""
-        return self._data['Date']
+        return self._data['Date'] - datetime.timedelta(0, self.exposuretime, 0)
 
     @date.setter
     def date(self, value: datetime.datetime):
+        self._data['Date'] = value + datetime.timedelta(0, self.exposuretime, 0)
+
+    @property
+    def startdate(self) -> datetime.datetime:
+        return self.date
+
+    @startdate.setter
+    def startdate(self, value:datetime.datetime):
+        self.date = value
+
+    @property
+    def enddate(self) -> datetime.datetime:
+        return self._data['Date']
+
+    @enddate.setter
+    def enddate(self, value:datetime.datetime):
         self._data['Date'] = value
+
 
     @property
     def maskname(self) -> Optional[str]:

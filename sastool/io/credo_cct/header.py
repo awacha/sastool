@@ -177,6 +177,22 @@ class Header(classes2.Header):
         self._data['exposure']['startdate'] = str(value)
 
     @property
+    def startdate(self) -> datetime.datetime:
+        return self.date
+
+    @startdate.setter
+    def startdate(self, value:datetime.datetime):
+        self.date = value
+
+    @property
+    def enddate(self) -> datetime.datetime:
+        return dateutil.parser.parse(self._data['exposure']['enddate'])
+
+    @enddate.setter
+    def enddate(self, value:datetime.datetime):
+        self._data['exposure']['enddate'] = str(value)
+
+    @property
     def maskname(self) -> Optional[str]:
         """Name of the mask matrix file."""
         mask = self._data['geometry']['mask']

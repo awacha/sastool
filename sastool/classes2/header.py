@@ -80,6 +80,17 @@ class Header(object, metaclass=abc.ABCMeta):
 
     @property
     @abc.abstractmethod
+    def startdate(self) -> datetime.datetime:
+        """Date of the experiment (start of exposure)"""
+
+    @property
+    @abc.abstractmethod
+    def enddate(self) -> datetime.datetime:
+        """Date of the experiment (end of exposure)"""
+
+
+    @property
+    @abc.abstractmethod
     def maskname(self) -> Optional[str]:
         """Name of the mask matrix file."""
 

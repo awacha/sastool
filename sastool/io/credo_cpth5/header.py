@@ -167,7 +167,23 @@ class Header(classes2.Header):
 
     @date.setter
     def date(self, value: datetime.datetime):
-        self._data = str(value)
+        self._data['date'] = str(value)
+
+    @property
+    def startdate(self) -> datetime.datetime:
+        return dateutil.parser.parse(self._data['startdate'])
+
+    @startdate.setter
+    def startdate(self, value:datetime.datetime):
+        self._data['startdate'] = str(value)
+
+    @property
+    def enddate(self) -> datetime.datetime:
+        return dateutil.parser.parse(self._data['enddate'])
+
+    @enddate.setter
+    def enddate(self, value:datetime.datetime):
+        self._data['enddate'] = str(value)
 
     @property
     def maskname(self) -> Optional[str]:
