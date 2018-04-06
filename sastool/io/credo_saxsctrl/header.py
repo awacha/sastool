@@ -39,6 +39,8 @@ class Header(classes2.Header):
                     self._data['PixelSize'] = float(right) * 1000  # there is a bug in the header files.
                 elif left.startswith('Measurement time'):
                     self._data['ExpTime'] = float(right)
+                elif left.startswith('Sample position'):
+                    self._data['PosSample'] = float(right)
                 elif left.startswith('Normalisation factor'):
                     self._data['NormFactor'] = float(right)
                 elif left.startswith('History'):
