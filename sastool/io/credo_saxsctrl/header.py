@@ -41,6 +41,8 @@ class Header(classes2.Header):
                     self._data['ExpTime'] = float(right)
                 elif left.startswith('Normalisation factor'):
                     self._data['NormFactor'] = float(right)
+                elif left.startswith('History'):
+                    self._data['History'] = [(float(x.split(':',1)[0]), x.split(':',1)[1].strip()) for x in right.split(';')]
                 else:
                     for t in [int, float, dateutil.parser.parse, str]:
                         try:
@@ -48,6 +50,9 @@ class Header(classes2.Header):
                             break
                         except ValueError:
                             continue
+                        except:
+                            print('ERROR while interpreting value "{}" for attribute "{}" as type "{}".'.format(right,left,t))
+                            raise
                     if left not in self._data:
                         raise ValueError("Cannot interpret line: %s" % l)
         finally:
@@ -93,7 +98,7 @@ class Header(classes2.Header):
     @property
     def wavelength(self) -> ErrorValue:
         """X-ray wavelength"""
-        return ErrorValue(self._data["Wavelength"], 0)
+        return ErrorValue(self._data["Wavelength"], self._data.setdefault('WavelengthError',0.0))
 
     @wavelength.setter
     def wavelength(self, value: Union[ErrorValue, float]):
@@ -114,7 +119,7 @@ class Header(classes2.Header):
         elif 'DistError' in self._data:
             disterr = self._data['DistError']
         else:
-            disterr = 0
+            disterr = 0.0
         return ErrorValue(dist, disterr)
 
     @distance.setter
@@ -128,7 +133,7 @@ class Header(classes2.Header):
     def temperature(self) -> Optional[ErrorValue]:
         """Sample temperature"""
         try:
-            return self._data['Temperature']
+            return ErrorValue(self._data['Temperature'], self._data.setdefault('TemperatureError', 0.0))
         except KeyError:
             return None
 
@@ -142,7 +147,7 @@ class Header(classes2.Header):
     @property
     def beamcenterx(self) -> ErrorValue:
         """X (column) coordinate of the beam center, pixel units, 0-based."""
-        return ErrorValue(self._data['BeamPosX'], 0)
+        return ErrorValue(self._data['BeamPosX'], self._data.setdefault('BeamPosXError',0.0))
 
     @beamcenterx.setter
     def beamcenterx(self, value: Union[ErrorValue, float]):
@@ -154,7 +159,7 @@ class Header(classes2.Header):
     @property
     def beamcentery(self) -> ErrorValue:
         """Y (row) coordinate of the beam center, pixel units, 0-based."""
-        return ErrorValue(self._data['BeamPosY'], 0)
+        return ErrorValue(self._data['BeamPosY'], self._data.setdefault('BeamPosYError',0.0))
 
     @beamcentery.setter
     def beamcentery(self, value: Union[ErrorValue, float]):
@@ -166,7 +171,7 @@ class Header(classes2.Header):
     @property
     def pixelsizex(self) -> ErrorValue:
         """X (column) size of a pixel, in mm units"""
-        return ErrorValue(self._data['XPixel'], 0)
+        return ErrorValue(self._data['XPixel'], self._data.setdefault('XPixelError',0.0))
 
     @pixelsizex.setter
     def pixelsizex(self, value: Union[ErrorValue, float]):
@@ -178,7 +183,7 @@ class Header(classes2.Header):
     @property
     def pixelsizey(self) -> ErrorValue:
         """Y (row) size of a pixel, in mm units"""
-        return ErrorValue(self._data['YPixel'], 0)
+        return ErrorValue(self._data['YPixel'], self._data.setdefault('YPixelError',0.0))
 
     @pixelsizey.setter
     def pixelsizey(self, value: Union[ErrorValue, float]):
@@ -190,7 +195,7 @@ class Header(classes2.Header):
     @property
     def exposuretime(self) -> ErrorValue:
         """Exposure time in seconds"""
-        return ErrorValue(self._data['ExpTime'], 0)
+        return ErrorValue(self._data['ExpTime'], self._data.setdefault('ExpTimeError',0.0))
 
     @exposuretime.setter
     def exposuretime(self, value: Union[ErrorValue, float]):
@@ -202,11 +207,11 @@ class Header(classes2.Header):
     @property
     def date(self) -> datetime.datetime:
         """Date of the experiment (start of exposure)"""
-        return self._data['Date'] - datetime.timedelta(0, self.exposuretime, 0)
+        return self._data['Date'] - datetime.timedelta(0, float(self.exposuretime), 0)
 
     @date.setter
     def date(self, value: datetime.datetime):
-        self._data['Date'] = value + datetime.timedelta(0, self.exposuretime, 0)
+        self._data['Date'] = value + datetime.timedelta(0, float(self.exposuretime), 0)
 
     @property
     def startdate(self) -> datetime.datetime:
@@ -243,7 +248,7 @@ class Header(classes2.Header):
     @property
     def transmission(self) -> ErrorValue:
         """Sample transmission."""
-        return ErrorValue(self._data['Transm'], self._data['TransmError'])
+        return ErrorValue(self._data['Transm'], self._data.setdefault('TransmError',0.0))
 
     @transmission.setter
     def transmission(self, value: Union[ErrorValue, float]):
@@ -255,7 +260,7 @@ class Header(classes2.Header):
     @property
     def vacuum(self) -> ErrorValue:
         """Vacuum pressure around the sample"""
-        return ErrorValue(self._data['Vacuum'], 0)
+        return ErrorValue(self._data['Vacuum'], self._data.setdefault('VacuumError',0.0))
 
     @vacuum.setter
     def vacuum(self, value: Union[ErrorValue, float]):
@@ -268,10 +273,10 @@ class Header(classes2.Header):
     def flux(self) -> ErrorValue:
         """X-ray flux in photons/sec."""
         try:
-            return ErrorValue(self._data['Flux'], self._data['FluxError'])
+            return ErrorValue(self._data['Flux'], self._data.setdefault('FluxError',0.0))
         except KeyError:
             return 1 / self.pixelsizex / self.pixelsizey / ErrorValue(self._data['NormFactor'],
-                                                                      self._data['NormFactorError'])
+                                                                      self._data.setdefault('NormFactorError',0.0))
 
     @flux.setter
     def flux(self, value: Union[ErrorValue, float]):
@@ -283,7 +288,7 @@ class Header(classes2.Header):
     @property
     def thickness(self) -> ErrorValue:
         """Sample thickness in cm"""
-        return ErrorValue(self._data['Thickness'], self._data['ThicknessError'])
+        return ErrorValue(self._data['Thickness'], self._data.setdefault('ThicknessError',0.0))
 
     @thickness.setter
     def thickness(self, value: Union[ErrorValue, float]):
@@ -296,7 +301,7 @@ class Header(classes2.Header):
     def distancedecrease(self) -> ErrorValue:
         """Distance by which the sample is nearer to the detector than the
         distance calibration sample"""
-        return ErrorValue(self._data['DistMinus'], 0.0)
+        return ErrorValue(self._data['DistMinus'], self._data.setdefault('DistMinusError', 0.0))
 
     @distancedecrease.setter
     def distancedecrease(self, value: Union[ErrorValue, float]):
@@ -308,7 +313,7 @@ class Header(classes2.Header):
     @property
     def samplex(self) -> ErrorValue:
         """Horizontal sample position"""
-        return ErrorValue(self._data['PosSampleX'], self._data['PosSampleXError'])
+        return ErrorValue(self._data['PosSampleX'], self._data.setdefault('PosSampleXError',0.0))
 
     @samplex.setter
     def samplex(self, value: Union[ErrorValue, float]):
@@ -320,7 +325,7 @@ class Header(classes2.Header):
     @property
     def sampley(self) -> ErrorValue:
         """Vertical sample position"""
-        return ErrorValue(self._data['PosSample'], self._data['PosSampleError'])
+        return ErrorValue(self._data['PosSample'], self._data.setdefault('PosSampleError',0.0))
 
     @sampley.setter
     def sampley(self, value: Union[ErrorValue, float]):
@@ -373,7 +378,7 @@ class Header(classes2.Header):
     @property
     def absintfactor(self) -> ErrorValue:
         """Absolute intensity calibration factor"""
-        return ErrorValue(self._data['NormFactor'], self._data['NormFactorError'])
+        return ErrorValue(self._data['NormFactor'], self._data.setdefault('NormFactorError',0.0))
 
     @absintfactor.setter
     def absintfactor(self, value: Union[ErrorValue, float]):
