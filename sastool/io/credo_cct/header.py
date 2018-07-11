@@ -349,3 +349,27 @@ class Header(classes2.Header):
     @property
     def param(self) -> Dict:
         return self._data
+
+    @property
+    def samplex_motor(self) -> Optional[float]:
+        """Sample X position, motor reading"""
+        try:
+            return self._data['motors']['Sample_X']
+        except KeyError:
+            return None
+
+    @samplex_motor.setter
+    def samplex_motor(self, value: float):
+        self._data['motors']['Sample_X']=value
+
+    @property
+    def sampley_motor(self) -> Optional[float]:
+        """Sample Y position, motor reading"""
+        try:
+            return self._data['motors']['Sample_Y']
+        except KeyError:
+            return None
+
+    @sampley_motor.setter
+    def sampley_motor(self, value: float):
+        self._data['motors']['Sample_Y']=value
