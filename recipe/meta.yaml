@@ -3,27 +3,30 @@ package:
   version: {{ GIT_DESCRIBE_TAG }}
 
 source:
-  git_url: ./
+  git_url: ../
 
 build:
   number: {{ GIT_DESCRIBE_NUMBER }}
 
 requirements:
-  build:
-    - python
+  build: &id1
+    - {{ compiler('c') }}
+    - python {{ python }}
     - setuptools
     - setuptools_scm
-    - numpy
+    - numpy {{ numpy }}.*
     - cython >=0.15
     - xlwt
     - xlrd
     - h5py
     - matplotlib
     - scipy
+  
+  host: *id1
 
   run:
-    - python
-    - numpy
+    - python {{ python }}
+    - numpy {{ numpy }}.*
     - scipy
     - matplotlib
     - xlwt
