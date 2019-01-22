@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.special import gamma, gammainc, sinc
+from scipy.special import gamma, gammainc
 
 __all__ = []
 

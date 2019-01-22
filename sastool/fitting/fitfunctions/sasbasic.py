@@ -1,6 +1,6 @@
 import numpy as np
+
 from .basic import Powerlaw
-from scipy.special import sinc, sici
 
 __all__ = ['Fsphere', 'Guinier', 'Guinier_thickness', 'Guinier_crosssection',
            'GuinierPorod', 'PorodGuinier', 'PorodGuinierPorod', 'GuinierPorodMulti', 'PorodGuinierMulti',
@@ -313,11 +313,9 @@ def _PGgen_GtoAfac(alpha,Rg, s):
 
 def _PGgen_A(alpha, Rg, s, G):
     return G * _PGgen_GtoAfac(alpha,Rg,s)
-    return G * Rg ** (alpha + s - 3) * (0.5 * (3 * s - s ** 2 - alpha * s)) ** (0.5 * (3 - alpha - s)) * np.exp(0.5 * (alpha + s - 3))
 
 def _PGgen_G(alpha, Rg, s, A):
     return A/_PGgen_GtoAfac(alpha,Rg,s)
-    return A * Rg ** (3 - alpha - s) * (0.5 * (3 * s - s ** 2 - alpha * s)) ** (0.5 * (alpha - 3 + s)) * np.exp(0.5 * (3 - alpha - s))
 
 def GuinierPorodMulti(q, G, *Rgsalphas):
     """Empirical multi-part Guinier-Porod scattering

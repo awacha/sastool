@@ -3,6 +3,9 @@ import numpy as np
 from .c_integrate import autoabscissa, autoqscale, azimint, bin2D, calculateDmatrix, groupsum, polartransform, radint, \
     radint_errorprop, radint_fullq, radint_fullq_errorprop, radint_nsector, twodimfromonedim
 
+__all__ = ['autoabscissa', 'autoqscale', 'azimint', 'bin2D', 'calculateDmatrix', 'groupsum', 'polartransform',
+           'radint', 'radint_errorprop', 'radint_fullq', 'radint_fullq_errorprop', 'radint_nsector',
+           'twodimfromonedim', 'radintpix', 'azimintpix']
 
 def radintpix(data, dataerr, bcx, bcy, mask=None, pix=None, returnavgpix=False,
               phi0=0, dphi=0, returnmask=False, symmetric_sector=False,

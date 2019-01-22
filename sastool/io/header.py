@@ -2,15 +2,18 @@
 Procedures for reading/writing header metadata of exposures.
 '''
 from __future__ import absolute_import
-import re
-import dateutil.parser
+
 import datetime
-import numpy as np
+import functools
 import gzip
 import math
-import functools
 import os
+import re
 import sys
+
+import dateutil.parser
+import numpy as np
+
 if sys.version_info[0] == 2:
     from io import open
 
@@ -40,6 +43,7 @@ def _linearize_list(l, pre_converter=lambda a: a, post_converter=lambda a: a):
     return post_converter(' '.join([str(pre_converter(x)) for x in l]))
 
 
+# noinspection PyArgumentList
 def _delinearize_list(l, pre_converter=lambda a: a, post_converter=list):
     return post_converter([misc.parse_number(x) for x in
                            pre_converter(l).replace(',', ' ').replace(';', ' ').split()])
@@ -73,7 +77,7 @@ def _delinearize_history(history_oneliner):
 #
 # formatter function: can be (1) a function accepting a single argument
 #     (the value of the field) or (2) a tuple of functions or (3) None. In
-#     the latter case and when omitted, lambda x:unicode(x).encode('utf-8')
+#     the latter case and when omitted, lambda x:str(x).encode('utf-8')
 #      will be used.
 #
 # reader function: can be (1) a function accepting a string and returning
@@ -255,9 +259,6 @@ of the same length as the field names in logfile_data.')
                 'Invalid syntax (programming error) in logfile_data in writeparamfile().')
         # try to get the values
         linetowrite = linebegin + ':\t' + formatted + '\n'
-        if sys.version_info[0] == 2:
-            if not isinstance(linetowrite, unicode):
-                linetowrite = linetowrite.decode('utf-8')
         f.write(linetowrite)
         if isinstance(fieldnames, tuple):
             for fn in fieldnames:  # remove the params treated.
@@ -269,9 +270,6 @@ of the same length as the field names in logfile_data.')
     # write untreated params
     for k in allkeys:
         linetowrite = k + ':\t' + str(data[k]) + '\n'
-        if sys.version_info[0] == 2:
-            if not isinstance(linetowrite, unicode):
-                linetowrite = linetowrite.decode('utf-8')
         f.write(linetowrite)
 
     f.close()
@@ -472,6 +470,7 @@ def readbhfv2(filename, load_data=False, bdfext='.bdf', bhfext='.bhf'):
     # now open the data if needed
     if load_data:
         f = open(dataname, 'rb')
+        s = ''
         try:
             s = f.read()
         except IOError as ioe:

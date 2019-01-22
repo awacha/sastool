@@ -45,15 +45,17 @@ def resubstitute_fixedparams(params: Sequence, paramsorig: Sequence, covariance=
     paramsorig = paramsorig[:]
     if covariance is not None:
         cov1 = np.zeros((len(paramsorig), len(paramsorig)))
+    else:
+        cov1 = None
     indices_nonfixed = [i for i in range(len(paramsorig)) if not isinstance(paramsorig[i], FixedParameter)]
     for i in range(len(params)):
         paramsorig[indices_nonfixed[i]] = params[i]
-        if covariance is not None:
+        if cov1 is not None:
             cov1[indices_nonfixed[i], indices_nonfixed[i]] = covariance[i, i]
             for j in range(i + 1, len(params)):
                 cov1[indices_nonfixed[i], indices_nonfixed[j]] = covariance[i, j]
                 cov1[indices_nonfixed[j], indices_nonfixed[i]] = covariance[j, i]
-    if covariance is not None:
+    if cov1 is not None:
         return paramsorig, cov1
     else:
         return paramsorig
@@ -251,8 +253,10 @@ def nlsq_fit(x, y, dy, func, params_init, verbose=False, **kwargs):
         for the actual fitting, scipy.optimize.leastsq() is used.
     """
     if verbose:
-        t0 = time.time()
+        t0 = time.monotonic()
         print("nlsq_fit starting.")
+    else:
+        t0 = 0
     func_orig = func
     params_init_orig = params_init
     func, params_init = hide_fixedparams(func_orig, params_init_orig)
@@ -270,13 +274,15 @@ def nlsq_fit(x, y, dy, func, params_init, verbose=False, **kwargs):
     # do the fitting
     if verbose:
         print("nlsq_fit: now doing the fitting...")
-        t1 = time.time()
+        t1 = time.monotonic()
+    else:
+        t1 = 0
     par, cov, infodict, mesg, ier = leastsq(objectivefunc,
                                             np.array(params_init),
                                             (x, y, dy), full_output=True,
                                             **kwargs)
     if verbose:
-        print("nlsq_fit: fitting done in %.2f seconds." % (time.time() - t1))
+        print("nlsq_fit: fitting done in %.2f seconds." % (time.monotonic() - t1))
         print("nlsq_fit: status from scipy.optimize.leastsq(): %d (%s)" % (ier, mesg))
         print("nlsq_fit: extracting statistics.")
     # test if the covariance was singular (cov is None)
@@ -309,7 +315,7 @@ def nlsq_fit(x, y, dy, func, params_init, verbose=False, **kwargs):
                                                                        dpar)
     if verbose:
         print("nlsq_fit: returning with results.")
-        print("nlsq_fit: total time: %.2f sec." % (time.time() - t0))
+        print("nlsq_fit: total time: %.2f sec." % (time.monotonic() - t0))
     return par, dpar, statdict
 
 def slice_covarmatrix(cov, indices):

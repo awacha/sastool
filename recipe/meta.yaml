@@ -14,7 +14,7 @@ requirements:
     - python {{ python }}
     - setuptools
     - setuptools_scm
-    - numpy {{ numpy }}.*
+    - numpy {{ numpy }}
     - cython >=0.15
     - xlwt
     - xlrd
@@ -26,7 +26,7 @@ requirements:
 
   run:
     - python {{ python }}
-    - numpy {{ numpy }}.*
+    - numpy {{ numpy }}
     - scipy
     - matplotlib
     - xlwt

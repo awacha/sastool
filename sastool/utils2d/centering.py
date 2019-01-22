@@ -291,21 +291,21 @@ def findbeam_radialpeak(data, orig_initial, mask, rmin, rmax, maxiter=100,
         def targetfunc(orig, data, mask, orig_orig, callback):
             I = radintpix(
                 data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask, pix)[1]
-            p = misc.findpeak(pix, I)[2]
+            hwhm = float(misc.findpeak_single(pix, I)[1])
             # print orig[0] + orig_orig[0], orig[1] + orig_orig[1], p
             if callback is not None:
                 callback()
-            return abs(p)
+            return abs(hwhm)
     elif drive_by.lower() == 'amplitude':
         def targetfunc(orig, data, mask, orig_orig, callback):
             I = radintpix(
                 data, None, orig[0] + orig_orig[0], orig[1] + orig_orig[1], mask, pix)[1]
-            fp = misc.findpeak(pix, I)
-            p = -(fp[6] + fp[4])
+            fp = misc.findpeak_single(pix, I)
+            height = -float(fp[2] + fp[3])
             # print orig[0] + orig_orig[0], orig[1] + orig_orig[1], p
             if callback is not None:
                 callback()
-            return p
+            return height
     else:
         raise ValueError('Invalid argument for drive_by %s' % drive_by)
     orig1 = scipy.optimize.fmin(targetfunc, np.array([extent, extent]),

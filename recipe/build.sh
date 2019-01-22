@@ -1,1 +1,2 @@
-$PYTHON setup.py install
+#!/usr/bin/env bash
+${PYTHON} setup.py install

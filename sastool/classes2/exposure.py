@@ -43,7 +43,7 @@ class Exposure(ArithmeticBase, metaclass=abc.ABCMeta):
             mask = np.ones_like(self.intensity, dtype=np.bool)
         self.mask = mask
 
-    @abc.abstractclassmethod
+    @abc.abstractmethod
     def new_from_file(self, filename: str, header_data: Optional[Header] = None,
                       mask_data: Optional[np.ndarray] = None):
         """Load an exposure from a file."""

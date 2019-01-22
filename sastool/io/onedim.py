@@ -3,9 +3,10 @@ Low-level I/O for 1D data
 '''
 
 import datetime
-import numpy as np
-import re
 import itertools
+import re
+
+import numpy as np
 
 from .. import misc
 
@@ -235,6 +236,7 @@ def readabt(filename, dirs='.'):
     # some post-processing
     # remove common prefix from column names
     maxcolnamelen = max(len(c) for c in abt['columns'])
+    l = 1
     for l in range(1, maxcolnamelen):
         if len(set([c[:l] for c in abt['columns']])) > 1:
             break

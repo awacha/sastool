@@ -1,16 +1,18 @@
 import datetime
-import numpy as np
-from typing import Optional, Union, Dict
-import h5py
+from typing import Optional, Union
 
 import dateutil.parser
+import h5py
+import numpy as np
 import scipy.constants
 
 from ... import classes2
 from ...misc.errorvalue import ErrorValue
 
+
+# noinspection PyMethodOverriding
 class Header(classes2.Header):
-    _data:Dict=None
+    _data = None
     @classmethod
     def new_from_file(cls, filename:str, samplename:str, dist:float):
         with h5py.File(filename) as f:

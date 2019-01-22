@@ -4,9 +4,10 @@ Created on Jul 25, 2012
 @author: andris
 '''
 
+import warnings
+
 import numpy as np
 import scipy.optimize
-import warnings
 from scipy.linalg import svd
 
 from .easylsq import nlsq_fit
@@ -69,6 +70,8 @@ def findpeak_single(x, y, dy=None, position=None, hwhm=None, baseline=None, ampl
     elif curve.upper().startswith('LORENTZ'):
         def fitfunc(x_, amplitude_, position_, hwhm_, baseline_):
             return amplitude_ * hwhm_ ** 2 / (hwhm_ ** 2 + (position_ - x_) ** 2) + baseline_
+    else:
+        raise ValueError('Invalid curve type: {}'.format(curve))
     results=[]
     # we try fitting a positive and a negative peak and return the better fit (where R2 is larger)
     for sign in signs:
@@ -250,6 +253,7 @@ def findpeak_asymmetric(x, y, dy=None, curve='Lorentz', return_x=None, init_para
     if dy is None:
         ret = (result.x[0], result.x[1], result.x[2], result.x[3], result.x[4])
     else:
+        # noinspection PyTupleAssignmentBalance
         _, s, VT = svd(result.jac, full_matrices=False)
         threshold = np.finfo(float).eps * max(result.jac.shape) * s[0]
         s = s[s > threshold]
