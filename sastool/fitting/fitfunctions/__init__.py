@@ -2,17 +2,15 @@
 """
 
 from . import basic
-from . import bilayers
 from . import sasbasic
 from . import saspolymer
 from . import sasspecial
 
-__all__ = ['basic', 'bilayers', 'sasbasic', 'sasspecial', 'saspolymer']
+__all__ = ['basic', 'sasbasic', 'sasspecial', 'saspolymer']
 
 from .sasbasic import *
 from .saspolymer import *
 from .basic import *
-from .bilayers import *
 from .sasspecial import *
 
 for k in __all__[:]:

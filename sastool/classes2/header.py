@@ -94,7 +94,7 @@ class Header(object, metaclass=abc.ABCMeta):
     def maskname(self) -> Optional[str]:
         """Name of the mask matrix file."""
 
-    @abc.abstractclassmethod
+    @abc.abstractmethod
     def new_from_file(self, filename):
         """Load a header from a file."""
 

@@ -36,7 +36,7 @@ __version__ = pkg_resources.get_distribution('sastool').version
 
 __docformat__ = "restructuredtext en"
 
-__all__ = ['io', 'misc', 'utils2d', 'fitting', 'sim', 'classes']
+__all__ = ['io', 'misc', 'utils2d', 'fitting']
 
 from . import libconfig
 
@@ -44,8 +44,6 @@ from . import misc
 from . import utils2d
 from . import io
 from . import fitting
-from . import sim
-from . import classes
 from . import classes2
 
 for k in __all__[:]:
@@ -55,5 +53,3 @@ from .fitting import *
 from .misc import *
 from .io import *
 from .utils2d import *
-from .sim import *
-from .classes import *

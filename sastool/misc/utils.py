@@ -3,11 +3,11 @@ Created on Jul 25, 2012
 
 @author: andris
 '''
-import numpy as np
-import re
 import random
+import re
+
 import dateutil.parser
-import sys
+import numpy as np
 
 __all__ = ['parse_list_from_string', 'normalize_listargument', 'parse_number',
            'flatten_hierarchical_dict', 're_from_Cformatstring_numbers', 'random_str']
@@ -47,8 +47,6 @@ def parse_number(val, use_dateutilparser=False):
                  dateutil.parser.parse, str]
     else:
         funcs = [int, float, parse_list_from_string, str]
-    if sys.version_info[0] == 2:
-        funcs.append(unicode)
     if (val.strip().startswith("'") and val.strip().endswith("'")) or (val.strip().startswith('"') and val.strip().endswith('"')):
         return val[1:-1]
     for f in funcs:

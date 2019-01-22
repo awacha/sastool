@@ -17,13 +17,12 @@ There are other modules, which will be removed in a future release:
 - `b1`: HASYLAB beamline B1
 
 '''
+from __future__ import absolute_import
 
 __docformat__ = 'restructuredtext'
 
-__all__ = ['twodim', 'b1', 'asa', 'onedim', 'statistics', 'header', 'credo_saxsctrl', 'credo_cct', 'credo_cpth5']
+__all__ = ['twodim', 'onedim', 'statistics', 'header', 'credo_saxsctrl', 'credo_cct', 'credo_cpth5']
 
-from . import asa
-from . import b1
 from . import credo_cct
 from . import credo_saxsctrl
 from . import credo_cpth5

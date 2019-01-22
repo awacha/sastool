@@ -86,9 +86,9 @@ class Curve(ArithmeticBase):
         results = [ErrorValue(p, u) for p, u in zip(pars, uncs)] + [stats, type(self)(self.q, stats['func_value'])]
         return results
 
-    def odr(self, fitfunction, parinit, *args, **kwargs):
+    def odr(self, fitfunction, parinit, **kwargs):
         result = list(
-            nonlinear_odr(self.q, self.Intensity, self.qError, self.Error, fitfunction, parinit, *args, **kwargs))
+            nonlinear_odr(self.q, self.Intensity, self.qError, self.Error, fitfunction, parinit, **kwargs))
         result.append(type(self)(self.q, result[-1]['func_value'], np.zeros_like(self.q), np.zeros_like(self.q)))
         return result
 

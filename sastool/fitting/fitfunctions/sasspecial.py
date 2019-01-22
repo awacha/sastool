@@ -6,6 +6,8 @@ Created on Jul 25, 2012
 
 __all__ = []
 
+import abc
+
 import numpy as np
 import scipy.special
 import scipy.stats
@@ -36,6 +38,7 @@ class SizeDistributionFit(object):
             sizemax = sizemax / 2.
         self._radius = np.linspace(sizemin, sizemax, Nsize)
 
+    @abc.abstractmethod
     def _pdf(self, x, *args):
         raise NotImplementedError('Method _pdf() must be overridden in SizeDistributionFit subclasses!')
 
@@ -49,7 +52,7 @@ class SizeDistributionFit(object):
                                                  self._fitfunction, [intensityscale] + pdfargs)
         self._fit_statistics=fitresults[-1]
         self._fitvalues=fitresults[:-1]
-        self._fittedcurve=self._fitfunction(q,*self._fitvalues)
+        self._fittedcurve = self._fitfunction(self._data.q, *self._fitvalues)
         self._sizedistribution=self._pdf(self._radius,*self._fitvalues)
 
     def _get_mean(self):
@@ -62,6 +65,8 @@ class SizeDistributionFit_Gauss(SizeDistributionFit):
     _parameters=[('A','Intensity scaling factor'),
                  (('R0','D0'), ('Mean radius', 'Mean diameter')),
                  (('sigma','sigma'),('HWHM radius', 'HWHM diameter'))]
+
+    # noinspection PyMethodOverriding
     def _pdf(self, x, x0, sigma):
         return 1. / (2. * np.pi * sigma ** 2) ** 0.5 * np.exp(-(x - x0) ** 2 / (2. * sigma ** 2))
 
@@ -75,11 +80,11 @@ class SizeDistributionFit_Gauss(SizeDistributionFit):
         pass
 
 class SizeDistributionFit_SchulzZimm(SizeDistributionFit):
+    # noinspection PyMethodOverriding
     def _pdf(self, x, Ra, k):
         return 1.0/(Ra*scipy.special.gamma(k))*k**k*np.exp(-k*x/Ra)*(x/Ra)**(k-1)
 
-    def _get_mean():
+    def _get_mean(self):
         pass
 
-scipy.stats.distributions.f
 

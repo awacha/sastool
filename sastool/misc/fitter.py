@@ -94,6 +94,7 @@ class Fitter:
                        'jac': result.jac, 'num_func_eval': result.nfev, 'error_flag': result.status, }
         # if not result.success:
         #    return self
+        # noinspection PyTupleAssignmentBalance
         _, s, VT = svd(result.jac, full_matrices=False)
         threshold = np.finfo(float).eps * max(result.jac.shape) * s[0]
         s = s[s > threshold]

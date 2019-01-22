@@ -4,16 +4,18 @@ Created on Jun 13, 2012
 @author: andris
 '''
 
-import xlwt
 import glob
-import numpy as np
+import itertools
 import os
 
+import numpy as np
+import xlwt
+
+from .header import readehf, readB1header
+from .onedim import readabt
 from .twodim import readPAXE
 from ..misc import findfileindirs
-from .header import readehf, readB1header
-import itertools
-from .onedim import readabt
+
 
 def listyellowsubmarine(outputname, fsns, nameformat = 'XE%04d.DAT', dirs = '.'):
     wb = xlwt.Workbook()
@@ -96,9 +98,9 @@ def listabtfiles(directory = '.', fileformat = 'abt*.fio'):
     for filename in sorted(lis):
         try:
             abt = readabt(filename, [''])
+            print(abt['name'], abt['scantype'], abt['title'], abt['start'].isoformat(), abt['end'].isoformat())
         except IOError:
             pass
-        print(abt['name'], abt['scantype'], abt['title'], abt['start'].isoformat(), abt['end'].isoformat())
 
 def listB1(fsns, xlsname, dirs, whattolist = None, headerformat = 'org_%05d.header'):
     """ getsamplenames revisited, XLS output.

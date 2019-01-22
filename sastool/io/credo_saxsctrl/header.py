@@ -15,6 +15,7 @@ class Header(classes2.Header):
     @classmethod
     def new_from_file(cls, filename):
         self = cls()
+        f = None
         try:
             if filename.endswith('.gz'):
                 f = gzip.open(filename, 'rt', encoding='utf-8')
@@ -60,7 +61,7 @@ class Header(classes2.Header):
         finally:
             try:
                 f.close()
-            except UnboundLocalError:
+            except AttributeError:
                 pass
         return self
 

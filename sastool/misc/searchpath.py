@@ -3,8 +3,8 @@ Created on Jul 25, 2012
 
 @author: andris
 '''
-import os
 import collections
+import os
 import sys
 import warnings
 
@@ -86,16 +86,16 @@ def append_search_path(*args, **kwargs):
     return sastool_search_path.append(*args, **kwargs)
 
 
-def get_search_path(*args, **kwargs):
+def get_search_path():
     warnings.warn(DeprecationWarning(
         'get_search_path() is deprecated, use sastool_search_path.get() instead.'))
-    return sastool_search_path.get(*args, **kwargs)
+    return sastool_search_path.get()
 
 
-def remove_from_search_path(*args, **kwargs):
+def remove_from_search_path(path):
     warnings.warn(DeprecationWarning(
         'remove_from_search_path() is deprecated, use sastool_search_path.remove() instead.'))
-    return sastool_search_path.remove(*args, **kwargs)
+    return sastool_search_path.remove(path)
 
 
 def set_search_path(*args, **kwargs):

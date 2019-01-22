@@ -1,13 +1,12 @@
-from typing import Optional
-
-import numpy as np
 import h5py
+import numpy as np
 
 from .header import Header
 from ... import classes2
 
 
 class Exposure(classes2.Exposure):
+    # noinspection PyMethodOverriding
     @classmethod
     def new_from_file(cls, filename: str, samplename:str, dist:float):
         with h5py.File(filename) as f:

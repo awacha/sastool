@@ -77,7 +77,7 @@ def angledependentabsorption(twotheta, transmission):
     cor = np.ones(twotheta.shape)
     if transmission == 1:
         return cor
-    mud = -np.log(transmission);
+    mud = -np.log(transmission)
 
     cor[twotheta > 0] = transmission * mud * (1 - 1 / np.cos(twotheta[twotheta > 0])) / (np.exp(-mud / np.cos(twotheta[twotheta > 0])) - np.exp(-mud))
     return cor
@@ -102,6 +102,7 @@ try:
     _calc_angledependentabsorption_error = sympy.lambdify((tth, dtth, T, dT), dcorr, "numpy")
     del sympy, tth, dtth, T, dT, mud, corr, dcorr
 except ImportError:
+    sympy = None
     pass
 
 def angledependentabsorption_errorprop(twotheta, dtwotheta, transmission, dtransmission):
