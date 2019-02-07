@@ -1,10 +1,10 @@
 """Stand-alone fitting utilities"""
 
 import numpy as np
-from sastool.misc import easylsq
 from scipy.special import gamma, psi
-from sastool.classes import ErrorValue
 
+from ..misc import easylsq
+from ..misc.errorvalue import ErrorValue
 
 __all__ = ['fit_shullroess']
 
