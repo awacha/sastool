@@ -31,6 +31,15 @@ class Header(classes2.Header):
                 pass
         return self
 
+    def __init__(self):
+        self._data = {'sample': {},
+                      'exposure': {},
+                      'geometry': {},
+                      'environment': {},
+                      'datareduction': {},
+                      'accounting': {},
+                      'motors': {}, }
+
     @property
     def title(self) -> str:
         return self._data['sample']['title']
