@@ -13,21 +13,23 @@ from ...misc.errorvalue import ErrorValue
 # noinspection PyMethodOverriding
 class Header(classes2.Header):
     _data = None
+
     @classmethod
-    def new_from_file(cls, filename:str, samplename:str, dist:float):
+    def new_from_file(cls, filename: str, samplename: str, dist: float):
         with h5py.File(filename) as f:
-            dist = sorted([d for d in f['Samples'][samplename].keys()], key=lambda d:abs(float(d)-dist))[0]
+            dist = sorted([d for d in f['Samples'][samplename].keys()], key=lambda d: abs(float(d) - dist))[0]
             return cls.new_from_group(f['Samples'][samplename][dist])
 
     @classmethod
-    def new_from_group(cls, grp:h5py.Group):
+    def new_from_group(cls, grp: h5py.Group):
         self = cls()
-        self._data = {'fsn':0}
+        self._data = {'fsn': 0}
         for a in grp.attrs:
-            self._data[a]=grp.attrs[a]
+            self._data[a] = grp.attrs[a]
         for a in list(self._data.keys()):
-            if isinstance(self._data[a], (float, np.number)) and (not a.endswith('.err')) and (a+'.err' not in self._data):
-                self._data[a+'.err'] = 0.0
+            if isinstance(self._data[a], (float, np.number)) and (not a.endswith('.err')) and (
+                    a + '.err' not in self._data):
+                self._data[a + '.err'] = 0.0
         return self
 
     @property
@@ -176,7 +178,7 @@ class Header(classes2.Header):
         return dateutil.parser.parse(self._data['startdate'])
 
     @startdate.setter
-    def startdate(self, value:datetime.datetime):
+    def startdate(self, value: datetime.datetime):
         self._data['startdate'] = str(value)
 
     @property
@@ -184,7 +186,7 @@ class Header(classes2.Header):
         return dateutil.parser.parse(self._data['enddate'])
 
     @enddate.setter
-    def enddate(self, value:datetime.datetime):
+    def enddate(self, value: datetime.datetime):
         self._data['enddate'] = str(value)
 
     @property
@@ -354,7 +356,7 @@ class Header(classes2.Header):
 
     @samplex_motor.setter
     def samplex_motor(self, value: float):
-        self._data['motors']['Sample_X']=value
+        self._data['motors']['Sample_X'] = value
 
     @property
     def sampley_motor(self) -> Optional[float]:
@@ -366,4 +368,16 @@ class Header(classes2.Header):
 
     @sampley_motor.setter
     def sampley_motor(self, value: float):
-        self._data['motors']['Sample_Y']=value
+        self._data['motors']['Sample_Y'] = value
+
+    @property
+    def sample_category(self) -> str:
+        """Sample category"""
+        try:
+            return self._data['sample_category']
+        except KeyError:
+            return 'sample'
+
+    @sample_category.setter
+    def sample_category(self, newvalue: str):
+        self._data['sample_category'] = newvalue

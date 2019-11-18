@@ -413,3 +413,15 @@ class Header(classes2.Header):
     @sampley_motor.setter
     def sampley_motor(self, value: float):
         self._data['Sample_Y']=value
+
+    @property
+    def sample_category(self) -> str:
+        """Sample category"""
+        try:
+            return self._data['SampleCategory']
+        except KeyError:
+            return 'sample'
+
+    @sample_category.setter
+    def sample_category(self, newvalue: str):
+        self._data['SampleCategory'] = newvalue

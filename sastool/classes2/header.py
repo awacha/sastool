@@ -173,3 +173,8 @@ class Header(object, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def sampley_motor(self) -> Optional[float]:
         """Sample X position, motor reading."""
+
+    @property
+    @abc.abstractmethod
+    def sample_category(self) -> str:
+        """Sample category"""
