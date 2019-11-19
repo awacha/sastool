@@ -31,14 +31,16 @@ class Header(classes2.Header):
                 pass
         return self
 
-    def __init__(self):
-        self._data = {'sample': {},
-                      'exposure': {},
-                      'geometry': {},
-                      'environment': {},
-                      'datareduction': {},
-                      'accounting': {},
-                      'motors': {}, }
+    def __init__(self, headerdict: Optional[Dict] = None):
+        super().__init__(headerdict)
+        if not self._data:
+            self._data = {'sample': {},
+                          'exposure': {},
+                          'geometry': {},
+                          'environment': {},
+                          'datareduction': {},
+                          'accounting': {},
+                          'motors': {}, }
 
     @property
     def title(self) -> str:
