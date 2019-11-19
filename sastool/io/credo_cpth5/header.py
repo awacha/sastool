@@ -350,25 +350,25 @@ class Header(classes2.Header):
     def samplex_motor(self) -> Optional[float]:
         """Sample X position, motor reading"""
         try:
-            return self._data['motors']['Sample_X']
+            return self._data['samplex_motor']
         except KeyError:
             return None
 
     @samplex_motor.setter
     def samplex_motor(self, value: float):
-        self._data['motors']['Sample_X'] = value
+        self._data['samplex_motor'] = value
 
     @property
     def sampley_motor(self) -> Optional[float]:
         """Sample Y position, motor reading"""
         try:
-            return self._data['motors']['Sample_Y']
+            return self._data['sampley_motor']
         except KeyError:
             return None
 
     @sampley_motor.setter
     def sampley_motor(self, value: float):
-        self._data['motors']['Sample_Y'] = value
+        self._data['sampley_motor'] = value
 
     @property
     def sample_category(self) -> str:
