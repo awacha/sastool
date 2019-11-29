@@ -13,7 +13,6 @@ import numpy as np
 from libc.float cimport DBL_MAX_EXP
 from libc.stdlib cimport calloc, free
 
-np.import_array()
 
 cdef Py_ssize_t A_(Py_ssize_t n, Py_ssize_t x):
     """Calculate A_n(x) as per Schilling's original paper"""

@@ -7,8 +7,6 @@ import numpy as np
 from libc.math cimport *
 from libc.stdlib cimport *
 
-np.import_array()
-
 #cdef extern from "math.h":
 #    double fabs(double)
 
