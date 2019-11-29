@@ -2,17 +2,10 @@
 #cython: embedsignature=True
 #cython: cdivision=True
 from math import inf
-
-cimport
-
-numpy as np
+cimport numpy as np
 import numpy as np
-from libc.math cimport
-
-sqrt, M_PI, exp, cos, sin, atan, ceil, isfinite, HUGE_VAL, fabs, fmod, atan2, floor
-from libc.stdlib cimport
-
-malloc, free
+from libc.math cimport sqrt, M_PI, exp, cos, sin, atan, ceil, isfinite, HUGE_VAL, fabs, fmod, atan2, floor
+from libc.stdlib cimport malloc, free
 
 cdef inline double gaussian(double x0, double sigma, double x):
     return 1 / sqrt(2 * M_PI * sigma * sigma) * exp(-(x - x0) ** 2 / (2 * sigma ** 2))
