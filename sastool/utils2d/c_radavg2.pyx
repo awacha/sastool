@@ -5,7 +5,7 @@ from libc.math cimport  sqrt, atan, sin, cos, M_PI, NAN, floor, HUGE_VAL, atan2,
 from libc.stdint cimport uint32_t, uint8_t
 cimport numpy as np
 import numpy as np
-from libc.math cimport sqrt, atan, sin, cos, M_PI, NAN, floor, HUGE_VAL, atan2, fabs
+from libc.math cimport sqrt, atan, sin, cos, M_PI, NAN, floor, HUGE_VAL, atan2, fabs, isfinite
 from libc.stdint cimport uint32_t, uint8_t
 
 def autoq(uint8_t[:,:] mask, double wavelength, double distance, double pixelsize, double center_row, double center_col,
@@ -161,6 +161,8 @@ def radavg(double[:,:] data, double[:,:] error, uint8_t[:,:] mask,
             if mask[irow, icolumn] == 0:
                 # this pixel is masked
                 continue
+            if not isfinite(data[irow, icolumn]) or not isfinite(error[irow, icolumn]):
+                continue
             row = irow-center_row
             col = icolumn-center_col
             # using sqrt(x**2+y**2) was faster than hypot(x,y)
@@ -307,6 +309,8 @@ def fastradavg(double[:,:] data, uint8_t[:,:] mask,
         for j in range(data.shape[1]):
             if mask[i,j] ==0:
                 continue
+            if not isfinite(data[i,j]):
+                continue
             r = sqrt((i-center_row)**2 + (j-center_col)**2)
             ibin = <Py_ssize_t>(floor((r-dmin)/(dmax-dmin)*N))
             if ibin>=0 and ibin < N:
@@ -322,7 +326,7 @@ def fastradavg(double[:,:] data, uint8_t[:,:] mask,
             Intensity[ibin] /= Area[ibin]
     return np.array(pixel), np.array(Intensity), np.array(Area)
 
-def maskforsectors(uint8_t[:,:] mask, double center_row, double center_col, double phicenter, double phiwidth, bint symmetric=False):
+def maskforsectors(uint8_t[:,:] mask, double center_row, double center_col, double phicenter, double phihalfwidth, bint symmetric=False):
     """
     Calculate a mask which can be used to limit radial averaging to a sector.
 
@@ -331,7 +335,7 @@ def maskforsectors(uint8_t[:,:] mask, double center_row, double center_col, doub
         center_row (double): row coordinate of the beam center
         center_col (double): column coordinate of the beam center
         phicenter (double): azimuth angle of the center of the sector expressed in radians
-        phiwidth (double): full angular width of the sector (expressed in radians)
+        phihalfwidth (double): full angular width of the sector (expressed in radians)
         symmetric (bool): if the opposite sector should also be considered
 
     Outputs:
@@ -365,9 +369,9 @@ def maskforsectors(uint8_t[:,:] mask, double center_row, double center_col, doub
             sindeltaphi = (rowref*col - row*colref) / r
             cosdeltaphi = (rowref*row + colref*col) / r
             deltaphi = atan2(sindeltaphi, cosdeltaphi)
-            if fabs(deltaphi) <= 0.5*phiwidth:
+            if fabs(deltaphi) <= phihalfwidth:
                 maskout[irow, icol] = 1
-            elif symmetric and (fabs(deltaphi) >= (np.pi - 0.5*phiwidth)):
+            elif symmetric and (fabs(deltaphi) >= (np.pi - phihalfwidth)):
                 maskout[irow, icol] = 1
             else:
                 maskout[irow, icol] = 0
@@ -512,6 +516,8 @@ def azimavg(double[:,:] data, double[:,:] error, uint8_t[:,:] mask,
             if mask[irow, icolumn] == 0:
                 # this pixel is masked
                 continue
+            if not isfinite(data[irow, icolumn]) or not isfinite(error[irow, icolumn]):
+                continue
             row = irow-center_row
             col = icolumn-center_col
             currentphi = atan2(-row, col)  # -pi <= currentphi <= pi
@@ -649,6 +655,8 @@ def fastazimavg(double[:,:] data, uint8_t[:,:] mask,
     for i in range(data.shape[0]):
         for j in range(data.shape[1]):
             if mask[i,j] ==0:
+                continue
+            if not isfinite(data[i,j]):
                 continue
             row = i-center_row
             col = j-center_col
