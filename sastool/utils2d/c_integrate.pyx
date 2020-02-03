@@ -1067,9 +1067,9 @@ def autoabscissa(double wavelength, double distance, double xres, double yres,
             if q1 < qmin:
                 qmin = q1
     if linspacing:
-        return np.linspace(qmin, qmax, sqrt(M * M + N * N) / 2)
+        return np.linspace(qmin, qmax, <int>(sqrt(M * M + N * N) / 2))
     else:
-        return np.logspace(np.log10(qmin), np.log10(qmax), sqrt(M * M + N * N) / 2)
+        return np.logspace(np.log10(qmin), np.log10(qmax), <int>(sqrt(M * M + N * N) / 2))
 
 def radint_errorprop(np.ndarray[np.double_t, ndim=2] data not None,
                      np.ndarray[np.double_t, ndim=2] dataerr,
