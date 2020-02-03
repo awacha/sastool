@@ -36,7 +36,7 @@ setup(
     description='Python macros for [A]SA(X|N)S data processing, fitting, plotting etc.',
     packages=find_packages(),
     ext_modules=ext_modules,
-    install_requires=['numpy>=1.0.0', 'scipy>=0.7.0', 'matplotlib',
+    install_requires=['numpy>=1.15.0', 'scipy>=1.0.0', 'matplotlib>=3.0.0',
                       'h5py>=2.0', 'xlrd', 'xlwt'],
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
